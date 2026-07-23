@@ -64,7 +64,7 @@ const modules = [
     title: "Containers",
     description: "Portainer Dashboard",
     icon: Box,
-    link: "http://192.168.40.212:9000",
+    link: "https://192.168.40.212:9443",
     status: "Online",
   },
   {
