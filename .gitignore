@@ -32,3 +32,20 @@ docker-data/
 # Temporary
 tmp/
 .cache/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+.next/
+
+# IDE
+.vscode/
