@@ -7,6 +7,9 @@ from fastapi.middleware.cors import (
     CORSMiddleware,
 )
 
+from agents.routes import (
+    router as agents_router,
+)
 from collectors.ollama import (
     get_ollama_status,
 )
@@ -26,7 +29,7 @@ app = FastAPI(
     description=(
         "Backend service for Dipen AI Platform"
     ),
-    version="0.4.0",
+    version="0.6.0",
 )
 
 
@@ -41,6 +44,7 @@ app.add_middleware(
 
 app.include_router(gateway_router)
 app.include_router(knowledge_router)
+app.include_router(agents_router)
 
 
 async def resolve_collector_result(
@@ -56,7 +60,7 @@ async def resolve_collector_result(
 async def root() -> dict[str, str]:
     return {
         "name": "Dipen AI Platform API",
-        "version": "0.4.0",
+        "version": "0.6.0",
         "status": "online",
     }
 
@@ -65,6 +69,7 @@ async def root() -> dict[str, str]:
 async def health() -> dict[str, str]:
     return {
         "status": "healthy",
+        "version": "0.6.0",
         "timestamp": datetime.now(
             timezone.utc
         ).isoformat(),
