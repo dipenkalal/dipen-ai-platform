@@ -1,51 +1,39 @@
-# OS
-.DS_Store
-Thumbs.db
-
-# VS Code
-.vscode/
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.log
+
+# Python virtual environments
+.venv/
+venv/
+env/
 
 # Node
 node_modules/
 
-# Environment
-.env
-.env.*
-
-# Logs
-logs/
-*.log
-
-# Models
-models/
-
-# Knowledge Packs
-knowledge/
-
-# Docker
-docker-data/
-
-# Temporary
-tmp/
-.cache/
+# Next.js
+.next/
 
 # Environment files
 .env
 .env.local
 .env.*.local
 
-# Python
-.venv/
-__pycache__/
-*.pyc
-
-# Node
-node_modules/
-.next/
-
-# IDE
+# Editors
 .vscode/
+.idea/
+*.swp
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Test and cache files
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local Docker/runtime data
+docker-data/
+data/
