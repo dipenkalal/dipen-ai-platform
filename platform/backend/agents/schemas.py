@@ -66,7 +66,13 @@ class ToolListResponse(BaseModel):
 
 
 class AgentRunRequest(BaseModel):
-    agent_id: str = Field(
+    mode: Literal[
+        "smart",
+        "manual",
+    ] = "manual"
+
+    agent_id: str | None = Field(
+        default=None,
         min_length=2,
         max_length=100,
     )
