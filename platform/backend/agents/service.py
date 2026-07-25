@@ -82,47 +82,92 @@ class AgentService:
         self,
         request: AgentRunRequest,
     ) -> AsyncIterator[str]:
-        saved = False
+        yield (
+            json.dumps(
+                {
+                    "type": "status",
+                    "status": "running",
+                    "agent_id": request.agent_id,
+                    "message": (
+                        "Starting agent execution..."
+                    ),
+                },
+                default=str,
+            )
+            + "\n"
+        )
 
-        async for event in (
-            agent_executor.stream(request)
-        ):
-            if not saved:
-                try:
-                    payload = json.loads(
-                        event
-                    )
+        try:
+            response = await agent_executor.run(
+                request
+            )
 
-                    if payload.get("type") == "done":
-                        response = (
-                            AgentRunResponse
-                            .model_validate(
-                                payload["run"]
-                            )
-                        )
-
-                        agent_run_history_service.save(
-                            request=request,
-                            response=response,
-                            error=(
-                                response.answer
-                                if response.status
-                                == "failed"
-                                else None
+            for step in response.steps:
+                yield (
+                    json.dumps(
+                        {
+                            "type": "step",
+                            "step": step.model_dump(
+                                mode="json"
                             ),
-                        )
+                        },
+                        default=str,
+                    )
+                    + "\n"
+                )
 
-                        saved = True
+            yield (
+                json.dumps(
+                    {
+                        "type": "answer",
+                        "content": response.answer,
+                        "sources": response.sources,
+                    },
+                    default=str,
+                )
+                + "\n"
+            )
 
-                except (
-                    json.JSONDecodeError,
-                    KeyError,
-                    TypeError,
-                    ValueError,
-                ):
-                    pass
+            agent_run_history_service.save(
+                request=request,
+                response=response,
+                error=(
+                    response.answer
+                    if response.status == "failed"
+                    else None
+                ),
+            )
 
-            yield event
+            yield (
+                json.dumps(
+                    {
+                        "type": "done",
+                        "run": response.model_dump(
+                            mode="json"
+                        ),
+                    },
+                    default=str,
+                )
+                + "\n"
+            )
+
+        except Exception as exc:
+            message = (
+                "Agent execution failed: "
+                f"{exc}"
+            )
+
+            yield (
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": message,
+                        "message": message,
+                    },
+                    default=str,
+                )
+                + "\n"
+            )
 
 
 agent_service = AgentService()
