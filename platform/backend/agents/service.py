@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
@@ -8,6 +9,9 @@ from agents.schemas import (
     AgentDefinition,
     AgentRunRequest,
     AgentRunResponse,
+)
+from history.service import (
+    agent_run_history_service,
 )
 from tools.registry import tool_registry
 
@@ -34,9 +38,21 @@ class AgentService:
         request: AgentRunRequest,
     ) -> AgentRunResponse:
         try:
-            return await agent_executor.run(
+            response = await agent_executor.run(
                 request
             )
+
+            agent_run_history_service.save(
+                request=request,
+                response=response,
+                error=(
+                    response.answer
+                    if response.status == "failed"
+                    else None
+                ),
+            )
+
+            return response
 
         except KeyError as exc:
             raise HTTPException(
@@ -66,9 +82,46 @@ class AgentService:
         self,
         request: AgentRunRequest,
     ) -> AsyncIterator[str]:
+        saved = False
+
         async for event in (
             agent_executor.stream(request)
         ):
+            if not saved:
+                try:
+                    payload = json.loads(
+                        event
+                    )
+
+                    if payload.get("type") == "done":
+                        response = (
+                            AgentRunResponse
+                            .model_validate(
+                                payload["run"]
+                            )
+                        )
+
+                        agent_run_history_service.save(
+                            request=request,
+                            response=response,
+                            error=(
+                                response.answer
+                                if response.status
+                                == "failed"
+                                else None
+                            ),
+                        )
+
+                        saved = True
+
+                except (
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    pass
+
             yield event
 
 

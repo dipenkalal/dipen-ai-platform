@@ -11,12 +11,48 @@ AgentStatus = Literal[
     "failed",
 ]
 
+AgentCategory = Literal[
+    "system",
+    "knowledge",
+    "research",
+    "devops",
+    "coding",
+    "documentation",
+    "data",
+    "general",
+]
+
+AgentAccent = Literal[
+    "cyan",
+    "violet",
+    "emerald",
+    "amber",
+    "blue",
+    "rose",
+    "orange",
+    "slate",
+]
+
 
 class AgentDefinition(BaseModel):
     id: str
     name: str
     description: str
-    tools: list[str]
+
+    category: AgentCategory = "general"
+    icon: str = "bot"
+    accent: AgentAccent = "cyan"
+
+    tools: list[str] = Field(
+        default_factory=list
+    )
+
+    capabilities: list[str] = Field(
+        default_factory=list
+    )
+
+    recommended_model: str | None = None
+
     safe: bool = True
     enabled: bool = True
 
@@ -82,18 +118,22 @@ class AgentRunRequest(BaseModel):
 
 class AgentStep(BaseModel):
     step_number: int
+
     type: Literal[
         "planning",
         "tool",
         "generation",
         "result",
     ]
+
     title: str
     tool_id: str | None = None
     success: bool = True
+
     input: dict[str, Any] | None = None
     output: Any = None
     error: str | None = None
+
     started_at: datetime
     completed_at: datetime
 
@@ -112,9 +152,11 @@ class AgentRunResponse(BaseModel):
     status: AgentStatus
     answer: str
     steps: list[AgentStep]
+
     sources: list[dict[str, Any]] = Field(
         default_factory=list
     )
+
     usage: AgentUsage
     started_at: datetime
     completed_at: datetime

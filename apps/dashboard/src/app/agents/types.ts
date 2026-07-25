@@ -1,8 +1,33 @@
+export type AgentCategory =
+  | "system"
+  | "knowledge"
+  | "research"
+  | "devops"
+  | "coding"
+  | "documentation"
+  | "data"
+  | "general";
+
+export type AgentAccent =
+  | "cyan"
+  | "violet"
+  | "emerald"
+  | "amber"
+  | "blue"
+  | "rose"
+  | "orange"
+  | "slate";
+
 export type AgentInfo = {
   id: string;
   name: string;
   description: string;
+  category: AgentCategory;
+  icon: string;
+  accent: AgentAccent;
   tools: string[];
+  capabilities: string[];
+  recommended_model: string | null;
   safe: boolean;
   enabled: boolean;
 };
@@ -64,6 +89,7 @@ export type UsageMetrics = {
 
 export type AgentRunStatus =
   | "idle"
+  | "queued"
   | "running"
   | "completed"
   | "failed"
@@ -113,7 +139,8 @@ export type AgentDoneEvent = {
 
 export type AgentErrorEvent = {
   type: "error";
-  error: string;
+  error?: string;
+  message?: string;
 };
 
 export type AgentStreamEvent =
@@ -133,4 +160,66 @@ export type ToolsResponse = {
 
 export type ModelsResponse = {
   models: ModelInfo[];
+};
+
+export type AgentRunHistoryStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type AgentRunSummary = {
+  run_id: string;
+  agent_id: string;
+  objective: string;
+  model: string | null;
+  provider: string;
+  status: AgentRunHistoryStatus;
+  answer_preview: string;
+  error: string | null;
+  step_count: number;
+  source_count: number;
+  total_tokens: number | null;
+  latency_ms: number;
+  started_at: string;
+  completed_at: string;
+  created_at: string;
+};
+
+export type AgentRunHistoryResponse = {
+  runs: AgentRunSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AgentRunRecord = {
+  run_id: string;
+  agent_id: string;
+  objective: string;
+  model: string | null;
+  provider: string;
+  status: AgentRunHistoryStatus;
+  answer: string;
+  error: string | null;
+  steps: AgentStep[];
+  sources: AgentSource[];
+  usage: UsageMetrics;
+  request: {
+    agent_id: string;
+    objective: string;
+    model: string | null;
+    provider: string;
+    temperature: number;
+    max_tokens: number;
+    max_steps: number;
+    retrieval_limit: number;
+    score_threshold: number | null;
+    document_id: string | null;
+  };
+  started_at: string;
+  completed_at: string;
+  created_at: string;
+  updated_at: string;
 };

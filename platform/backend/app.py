@@ -19,9 +19,15 @@ from collectors.system import (
 from gateway.routes import (
     router as gateway_router,
 )
+from history.routes import (
+    router as history_router,
+)
 from knowledge.routes import (
     router as knowledge_router,
 )
+
+
+APP_VERSION = "0.8.0"
 
 
 app = FastAPI(
@@ -29,7 +35,7 @@ app = FastAPI(
     description=(
         "Backend service for Dipen AI Platform"
     ),
-    version="0.6.0",
+    version=APP_VERSION,
 )
 
 
@@ -45,6 +51,7 @@ app.add_middleware(
 app.include_router(gateway_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)
+app.include_router(history_router)
 
 
 async def resolve_collector_result(
@@ -60,7 +67,7 @@ async def resolve_collector_result(
 async def root() -> dict[str, str]:
     return {
         "name": "Dipen AI Platform API",
-        "version": "0.6.0",
+        "version": APP_VERSION,
         "status": "online",
     }
 
@@ -69,7 +76,7 @@ async def root() -> dict[str, str]:
 async def health() -> dict[str, str]:
     return {
         "status": "healthy",
-        "version": "0.6.0",
+        "version": APP_VERSION,
         "timestamp": datetime.now(
             timezone.utc
         ).isoformat(),
@@ -91,6 +98,7 @@ async def status() -> dict[str, Any]:
     )
 
     return {
+        "version": APP_VERSION,
         "timestamp": datetime.now(
             timezone.utc
         ).isoformat(),

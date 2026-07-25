@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   AlertTriangle,
   Bot,
+  History,
   LoaderCircle,
   RefreshCw,
 } from "lucide-react";
@@ -217,7 +220,7 @@ export default function AgentsPage() {
                 <Bot className="h-5 w-5" />
 
                 <p className="text-xs font-semibold uppercase tracking-[0.24em]">
-                  Dipen AI Platform v0.6
+                  Dipen AI Platform v0.8
                 </p>
               </div>
 
@@ -233,30 +236,40 @@ export default function AgentsPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled={
-                isLoading ||
-                runner.isRunning
-              }
-              onClick={() => {
-                void loadRegistry();
-              }}
-              className={[
-                "inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-white/10",
-                "bg-black/20 px-4 py-2.5 text-sm font-medium text-slate-300 transition",
-                "hover:border-white/20 hover:bg-white/[0.05] hover:text-white",
-                "disabled:cursor-not-allowed disabled:opacity-50",
-              ].join(" ")}
-            >
-              {isLoading ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/agents/history"
+                className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
+              >
+                <History className="h-4 w-4" />
+                Run history
+              </Link>
 
-              Refresh registry
-            </button>
+              <button
+                type="button"
+                disabled={
+                  isLoading ||
+                  runner.isRunning
+                }
+                onClick={() => {
+                  void loadRegistry();
+                }}
+                className={[
+                  "inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-white/10",
+                  "bg-black/20 px-4 py-2.5 text-sm font-medium text-slate-300 transition",
+                  "hover:border-white/20 hover:bg-white/[0.05] hover:text-white",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                ].join(" ")}
+              >
+                {isLoading ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+
+                Refresh registry
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
