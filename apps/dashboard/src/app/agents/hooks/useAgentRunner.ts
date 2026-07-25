@@ -202,7 +202,11 @@ export function useAgentRunner():
 
             if (event.type === "error") {
               setStatus("failed");
-              setError(event.error);
+              setError(
+                event.error ??
+                event.message ??
+                "Agent execution failed.",
+              );
               setMessage(
                 "Agent execution failed.",
               );
