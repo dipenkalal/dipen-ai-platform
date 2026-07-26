@@ -33,6 +33,15 @@ AgentAccent = Literal[
     "slate",
 ]
 
+WorkflowStepKind = Literal[
+    "tool",
+    "generation",
+    "condition",
+    "parallel",
+    "subagent",
+    "approval",
+]
+
 
 class AgentDefinition(BaseModel):
     id: str
@@ -120,6 +129,81 @@ class AgentRunRequest(BaseModel):
     )
 
     document_id: str | None = None
+
+
+class WorkflowStep(BaseModel):
+    """
+    Declarative unit of work produced by the planner.
+
+    v0.12 initially uses tool and generation steps.
+    Additional kinds are reserved for future workflow
+    orchestration capabilities.
+    """
+
+    id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    kind: WorkflowStepKind
+    name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+    tool_id: str | None = None
+
+    input: dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    depends_on: list[str] = Field(
+        default_factory=list
+    )
+
+    continue_on_error: bool = False
+
+
+class Workflow(BaseModel):
+    """
+    Ordered execution workflow produced by the planner.
+
+    The current executor will later consume these steps
+    sequentially. The schema is intentionally extensible
+    for conditions, parallel groups, sub-agents, and
+    approval gates.
+    """
+
+    reason: str = Field(
+        min_length=1,
+        max_length=2000,
+    )
+
+    steps: list[WorkflowStep] = Field(
+        default_factory=list
+    )
+
+    metadata: dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    @property
+    def requires_tools(self) -> bool:
+        return any(
+            step.kind == "tool"
+            for step in self.steps
+        )
+
+    @property
+    def tool_ids(self) -> tuple[str, ...]:
+        return tuple(
+            step.tool_id
+            for step in self.steps
+            if (
+                step.kind == "tool"
+                and step.tool_id is not None
+            )
+        )
 
 
 class AgentStep(BaseModel):
