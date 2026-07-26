@@ -1092,6 +1092,9 @@ class AgentExecutor:
     async def _execute_workflow(
         self,
         workflow: Workflow,
+        request: AgentRunRequest,
+        agent: AgentDefinition,
+        system_prompt: str,
     ) -> dict[str, Any]:
         """
         Execute an ordered declarative workflow.
@@ -1131,6 +1134,9 @@ class AgentExecutor:
                     await self._execute_workflow_step(
                         workflow_step=workflow_step,
                         previous_outputs=outputs,
+                        request=request,
+                        agent=agent,
+                        system_prompt=system_prompt,
                     )
                 )
             except Exception as exc:
@@ -1152,6 +1158,9 @@ class AgentExecutor:
         self,
         workflow_step: WorkflowStep,
         previous_outputs: dict[str, Any],
+        request: AgentRunRequest,
+        agent: AgentDefinition,
+        system_prompt: str,
     ) -> Any:
         """
         Dispatch a workflow step by its declarative kind.
@@ -1169,6 +1178,9 @@ class AgentExecutor:
                 await self._execute_generation_workflow_step(
                     workflow_step=workflow_step,
                     previous_outputs=previous_outputs,
+                    request=request,
+                    agent=agent,
+                    system_prompt=system_prompt,
                 )
             )
 
@@ -1227,19 +1239,60 @@ class AgentExecutor:
         self,
         workflow_step: WorkflowStep,
         previous_outputs: dict[str, Any],
-    ) -> Any:
+        request: AgentRunRequest,
+        agent: AgentDefinition,
+        system_prompt: str,
+    ) -> dict[str, Any]:
         """
-        Placeholder generation-step boundary.
+        Execute one declarative generation workflow step.
 
-        The existing agent handlers remain responsible for
-        model generation until the next migration commit.
+        Dependency outputs are included as grounded context
+        for the model. Workflows without tool dependencies
+        receive the original objective directly.
         """
-        del previous_outputs
+        dependency_outputs = {
+            dependency_id: previous_outputs[dependency_id]
+            for dependency_id in workflow_step.depends_on
+            if dependency_id in previous_outputs
+        }
 
-        raise NotImplementedError(
-            "Workflow generation execution is not connected "
-            f"yet for step {workflow_step.id!r}."
+        if dependency_outputs:
+            user_content = "\n".join(
+                [
+                    "User objective:",
+                    request.objective,
+                    "",
+                    "Workflow dependency outputs:",
+                    json.dumps(
+                        dependency_outputs,
+                        indent=2,
+                        default=str,
+                    ),
+                    "",
+                    (
+                        "Use the dependency outputs as the "
+                        "source of truth. Do not invent tool "
+                        "results or measurements."
+                    ),
+                ]
+            )
+        else:
+            user_content = request.objective
+
+        chat_response = await self._chat(
+            request=request,
+            system_prompt=system_prompt,
+            user_content=user_content,
         )
+
+        return {
+            "success": True,
+            "answer": chat_response.message.content,
+            "provider": chat_response.provider,
+            "model": chat_response.model,
+            "agent_id": agent.id,
+            "chat_response": chat_response,
+        }
 
     def _extract_sources(
         self,
