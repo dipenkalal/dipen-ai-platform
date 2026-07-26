@@ -191,6 +191,7 @@ class AgentExecutor:
             request,
             agent,
             tool_plan,
+            workflow,
             run_id,
             started_at,
             timer_started,
@@ -202,15 +203,16 @@ class AgentExecutor:
         request: AgentRunRequest,
         agent: AgentDefinition,
         tool_plan: ToolPlan,
+        workflow: Workflow,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        return await self._run_status_capable_agent(
+        return await self._run_workflow_agent(
             request=request,
             agent=agent,
-            tool_plan=tool_plan,
+            workflow=workflow,
             system_prompt=SYSTEM_AGENT_PROMPT,
             generation_title="Generate system assessment",
             result_title="System assessment completed",
@@ -225,15 +227,16 @@ class AgentExecutor:
         request: AgentRunRequest,
         agent: AgentDefinition,
         tool_plan: ToolPlan,
+        workflow: Workflow,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        return await self._run_status_capable_agent(
+        return await self._run_workflow_agent(
             request=request,
             agent=agent,
-            tool_plan=tool_plan,
+            workflow=workflow,
             system_prompt=DEVOPS_AGENT_PROMPT,
             generation_title="Generate DevOps response",
             result_title="DevOps response completed",
@@ -248,6 +251,7 @@ class AgentExecutor:
         request: AgentRunRequest,
         agent: AgentDefinition,
         tool_plan: ToolPlan,
+        workflow: Workflow,
         run_id: str,
         started_at: datetime,
         timer_started: float,
@@ -274,6 +278,7 @@ class AgentExecutor:
         request: AgentRunRequest,
         agent: AgentDefinition,
         tool_plan: ToolPlan,
+        workflow: Workflow,
         run_id: str,
         started_at: datetime,
         timer_started: float,
@@ -300,6 +305,7 @@ class AgentExecutor:
         request: AgentRunRequest,
         agent: AgentDefinition,
         tool_plan: ToolPlan,
+        workflow: Workflow,
         run_id: str,
         started_at: datetime,
         timer_started: float,
@@ -317,10 +323,17 @@ class AgentExecutor:
                 f"{agent.id}"
             )
 
-        return await self._run_prompt_agent(
+        return await self._run_workflow_agent(
             request=request,
             agent=agent,
+            workflow=workflow,
             system_prompt=system_prompt,
+            generation_title=(
+                f"Generate {agent.name} response"
+            ),
+            result_title=(
+                f"{agent.name} response completed"
+            ),
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
@@ -671,6 +684,146 @@ class AgentExecutor:
             chat_response=chat_response,
             started_at=started_at,
             completed_at=generation_completed,
+            timer_started=timer_started,
+        )
+
+    async def _run_workflow_agent(
+        self,
+        request: AgentRunRequest,
+        agent: AgentDefinition,
+        workflow: Workflow,
+        system_prompt: str,
+        generation_title: str,
+        result_title: str,
+        run_id: str,
+        started_at: datetime,
+        timer_started: float,
+        steps: list[AgentStep],
+    ) -> AgentRunResponse:
+        """
+        Execute a planned workflow and adapt its outputs
+        into the public agent-run response format.
+        """
+        workflow_started = datetime.now(
+            timezone.utc
+        )
+
+        outputs = await self._execute_workflow(
+            workflow=workflow,
+            request=request,
+            agent=agent,
+            system_prompt=system_prompt,
+        )
+
+        workflow_completed = datetime.now(
+            timezone.utc
+        )
+
+        generation_result: dict[str, Any] | None = None
+
+        for workflow_step in workflow.steps:
+            result = outputs[workflow_step.id]
+
+            if workflow_step.kind == "tool":
+                steps.append(
+                    AgentStep(
+                        step_number=len(steps) + 1,
+                        type="tool",
+                        title=workflow_step.name,
+                        tool_id=result.get("tool_id"),
+                        success=result.get(
+                            "success",
+                            False,
+                        ),
+                        input=workflow_step.input,
+                        output=result.get("output"),
+                        error=result.get("error"),
+                        started_at=workflow_started,
+                        completed_at=workflow_completed,
+                    )
+                )
+                continue
+
+            if workflow_step.kind == "generation":
+                generation_result = result
+
+                steps.append(
+                    AgentStep(
+                        step_number=len(steps) + 1,
+                        type="generation",
+                        title=generation_title,
+                        success=result.get(
+                            "success",
+                            False,
+                        ),
+                        input={
+                            "provider": request.provider,
+                            "model": request.model,
+                            "agent": agent.id,
+                            "dependencies": list(
+                                workflow_step.depends_on
+                            ),
+                        },
+                        output={
+                            "provider": result.get(
+                                "provider"
+                            ),
+                            "model": result.get("model"),
+                        },
+                        error=result.get("error"),
+                        started_at=workflow_started,
+                        completed_at=workflow_completed,
+                    )
+                )
+
+        if generation_result is None:
+            raise RuntimeError(
+                "Workflow completed without a "
+                "generation result."
+            )
+
+        answer = str(
+            generation_result.get("answer", "")
+        ).strip()
+
+        if not answer:
+            raise RuntimeError(
+                "Workflow generation returned no answer."
+            )
+
+        chat_response = generation_result.get(
+            "chat_response"
+        )
+
+        if chat_response is None:
+            raise RuntimeError(
+                "Workflow generation returned no "
+                "chat response metadata."
+            )
+
+        steps.append(
+            AgentStep(
+                step_number=len(steps) + 1,
+                type="result",
+                title=result_title,
+                success=True,
+                output={
+                    "answer": answer,
+                },
+                started_at=workflow_completed,
+                completed_at=workflow_completed,
+            )
+        )
+
+        return self._completed_response(
+            request=request,
+            run_id=run_id,
+            answer=answer,
+            steps=steps,
+            sources=[],
+            chat_response=chat_response,
+            started_at=started_at,
+            completed_at=workflow_completed,
             timer_started=timer_started,
         )
 
