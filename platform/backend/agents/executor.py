@@ -1181,19 +1181,47 @@ class AgentExecutor:
         self,
         workflow_step: WorkflowStep,
         previous_outputs: dict[str, Any],
-    ) -> Any:
+    ) -> dict[str, Any]:
         """
-        Placeholder tool-step boundary.
+        Execute one declarative tool workflow step.
 
-        The existing executor remains responsible for live
-        tool execution until the next migration commit.
+        The returned structure preserves tool status,
+        output, and error information so later workflow
+        steps can consume it deterministically.
         """
         del previous_outputs
 
-        raise NotImplementedError(
-            "Workflow tool execution is not connected yet "
-            f"for step {workflow_step.id!r}."
+        if not workflow_step.tool_id:
+            raise ValueError(
+                "Tool workflow step "
+                f"{workflow_step.id!r} is missing tool_id."
+            )
+
+        tool = tool_registry.get(
+            workflow_step.tool_id
         )
+
+        result = await tool.execute(
+            workflow_step.input
+        )
+
+        execution_output = {
+            "tool_id": result.tool_id,
+            "success": result.success,
+            "output": result.output,
+            "error": result.error,
+        }
+
+        if not result.success:
+            raise RuntimeError(
+                result.error
+                or (
+                    "Tool execution failed for "
+                    f"{workflow_step.tool_id!r}."
+                )
+            )
+
+        return execution_output
 
     async def _execute_generation_workflow_step(
         self,
