@@ -393,11 +393,17 @@ class AgentToolPlanner:
         if tool_id == "knowledge.ask":
             return {
                 "question": request.objective,
-                "document_id": request.document_id,
-                "limit": request.retrieval_limit,
+                "model": request.model,
+                "provider": request.provider,
+                "temperature": request.temperature,
+                "max_tokens": request.max_tokens,
+                "retrieval_limit": (
+                    request.retrieval_limit
+                ),
                 "score_threshold": (
                     request.score_threshold
                 ),
+                "document_id": request.document_id,
             }
 
         if tool_id == "knowledge.search":
