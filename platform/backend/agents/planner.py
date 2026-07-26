@@ -190,14 +190,25 @@ class AgentToolPlanner:
 
             dependency_ids.append(step_id)
 
-        workflow_steps.append(
-            WorkflowStep(
-                id="generation-1",
-                kind="generation",
-                name="Generate final response",
-                depends_on=dependency_ids,
-            )
+        terminal_tool_ids = {
+            "knowledge.ask",
+        }
+
+        has_terminal_tool = bool(
+            tool_plan.tool_ids
+            and tool_plan.tool_ids[-1]
+            in terminal_tool_ids
         )
+
+        if not has_terminal_tool:
+            workflow_steps.append(
+                WorkflowStep(
+                    id="generation-1",
+                    kind="generation",
+                    name="Generate final response",
+                    depends_on=dependency_ids,
+                )
+            )
 
         return Workflow(
             reason=tool_plan.reason,
