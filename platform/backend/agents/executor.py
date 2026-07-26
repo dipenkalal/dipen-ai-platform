@@ -17,6 +17,7 @@ from agents.schemas import (
     AgentStep,
     AgentUsage,
     Workflow,
+    WorkflowStep,
 )
 from gateway.schemas import (
     ChatMessage,
@@ -1087,6 +1088,130 @@ class AgentExecutor:
                     items.append(dumped)
 
         return items
+
+    async def _execute_workflow(
+        self,
+        workflow: Workflow,
+    ) -> dict[str, Any]:
+        """
+        Execute an ordered declarative workflow.
+
+        v0.12.2 introduces the orchestration boundary
+        without changing the active agent execution path.
+        Step-specific handlers will be connected to the
+        existing tool and generation implementations in
+        subsequent commits.
+        """
+        completed_step_ids: set[str] = set()
+        outputs: dict[str, Any] = {}
+
+        for workflow_step in workflow.steps:
+            missing_dependencies = [
+                dependency_id
+                for dependency_id
+                in workflow_step.depends_on
+                if dependency_id
+                not in completed_step_ids
+            ]
+
+            if missing_dependencies:
+                missing = ", ".join(
+                    missing_dependencies
+                )
+
+                raise ValueError(
+                    "Workflow step "
+                    f"{workflow_step.id!r} has "
+                    "unmet dependencies: "
+                    f"{missing}"
+                )
+
+            try:
+                outputs[workflow_step.id] = (
+                    await self._execute_workflow_step(
+                        workflow_step=workflow_step,
+                        previous_outputs=outputs,
+                    )
+                )
+            except Exception as exc:
+                if not workflow_step.continue_on_error:
+                    raise
+
+                outputs[workflow_step.id] = {
+                    "success": False,
+                    "error": str(exc),
+                }
+
+            completed_step_ids.add(
+                workflow_step.id
+            )
+
+        return outputs
+
+    async def _execute_workflow_step(
+        self,
+        workflow_step: WorkflowStep,
+        previous_outputs: dict[str, Any],
+    ) -> Any:
+        """
+        Dispatch a workflow step by its declarative kind.
+        """
+        if workflow_step.kind == "tool":
+            return (
+                await self._execute_tool_workflow_step(
+                    workflow_step=workflow_step,
+                    previous_outputs=previous_outputs,
+                )
+            )
+
+        if workflow_step.kind == "generation":
+            return (
+                await self._execute_generation_workflow_step(
+                    workflow_step=workflow_step,
+                    previous_outputs=previous_outputs,
+                )
+            )
+
+        raise ValueError(
+            "Unsupported workflow step kind: "
+            f"{workflow_step.kind!r}"
+        )
+
+    async def _execute_tool_workflow_step(
+        self,
+        workflow_step: WorkflowStep,
+        previous_outputs: dict[str, Any],
+    ) -> Any:
+        """
+        Placeholder tool-step boundary.
+
+        The existing executor remains responsible for live
+        tool execution until the next migration commit.
+        """
+        del previous_outputs
+
+        raise NotImplementedError(
+            "Workflow tool execution is not connected yet "
+            f"for step {workflow_step.id!r}."
+        )
+
+    async def _execute_generation_workflow_step(
+        self,
+        workflow_step: WorkflowStep,
+        previous_outputs: dict[str, Any],
+    ) -> Any:
+        """
+        Placeholder generation-step boundary.
+
+        The existing agent handlers remain responsible for
+        model generation until the next migration commit.
+        """
+        del previous_outputs
+
+        raise NotImplementedError(
+            "Workflow generation execution is not connected "
+            f"yet for step {workflow_step.id!r}."
+        )
 
     def _extract_sources(
         self,
