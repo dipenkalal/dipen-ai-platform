@@ -5,6 +5,10 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
+from agents.planner import (
+    ToolPlan,
+    agent_tool_planner,
+)
 from agents.registry import agent_registry
 from agents.schemas import (
     AgentDefinition,
@@ -12,6 +16,7 @@ from agents.schemas import (
     AgentRunResponse,
     AgentStep,
     AgentUsage,
+    Workflow,
 )
 from gateway.schemas import (
     ChatMessage,
@@ -39,16 +44,21 @@ Your responsibilities:
 DEVOPS_AGENT_PROMPT = """
 You are the DevOps Agent inside Dipen AI Platform.
 
-You receive a user objective and live server status data.
+You receive a user objective and may receive live server
+status data when the tool planner determines it is needed.
 
 Your responsibilities:
-1. Analyse infrastructure and operational health.
-2. Identify risks, warnings, bottlenecks, or failures.
-3. Explain likely causes using the available evidence.
-4. Recommend safe and reversible troubleshooting steps.
-5. Never claim that a command was executed.
-6. Never invent logs, metrics, containers, or services.
-7. Clearly separate observations from recommendations.
+1. Complete the user's DevOps objective directly.
+2. When live system data is provided, use it to identify
+   risks, warnings, bottlenecks, or failures.
+3. When live system data is not provided, do not invent
+   measurements, logs, containers, services, or test results.
+4. For configuration or script requests, provide complete,
+   practical, secure, and maintainable output.
+5. Recommend safe and reversible troubleshooting steps.
+6. Never claim that a command was executed.
+7. Clearly separate observations from recommendations when
+   operational evidence is available.
 """.strip()
 
 
@@ -108,6 +118,7 @@ ExecutorHandler = Callable[
     [
         AgentRunRequest,
         AgentDefinition,
+        ToolPlan,
         str,
         datetime,
         float,
@@ -137,6 +148,11 @@ class AgentExecutor:
         run_id = str(uuid4())
         steps: list[AgentStep] = []
 
+        if not request.agent_id:
+            raise ValueError(
+                "A resolved agent_id is required for execution."
+            )
+
         agent = agent_registry.get(request.agent_id)
 
         if request.max_steps < 1:
@@ -144,9 +160,21 @@ class AgentExecutor:
                 "At least one agent step is required."
             )
 
+        tool_plan = agent_tool_planner.plan(
+            request=request,
+            agent=agent,
+        )
+
+        workflow = agent_tool_planner.build_workflow(
+            request=request,
+            agent=agent,
+        )
+
         self._append_planning_step(
             request=request,
             agent=agent,
+            tool_plan=tool_plan,
+            workflow=workflow,
             steps=steps,
         )
 
@@ -161,6 +189,7 @@ class AgentExecutor:
         return await handler(
             request,
             agent,
+            tool_plan,
             run_id,
             started_at,
             timer_started,
@@ -171,21 +200,19 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        return await self._run_status_agent(
+        return await self._run_status_capable_agent(
             request=request,
             agent=agent,
+            tool_plan=tool_plan,
             system_prompt=SYSTEM_AGENT_PROMPT,
-            generation_title=(
-                "Generate system assessment"
-            ),
-            result_title=(
-                "System assessment completed"
-            ),
+            generation_title="Generate system assessment",
+            result_title="System assessment completed",
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
@@ -196,21 +223,19 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        return await self._run_status_agent(
+        return await self._run_status_capable_agent(
             request=request,
             agent=agent,
+            tool_plan=tool_plan,
             system_prompt=DEVOPS_AGENT_PROMPT,
-            generation_title=(
-                "Generate DevOps assessment"
-            ),
-            result_title=(
-                "DevOps assessment completed"
-            ),
+            generation_title="Generate DevOps response",
+            result_title="DevOps response completed",
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
@@ -221,12 +246,19 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
         del agent
+
+        if "knowledge.ask" not in tool_plan.tool_ids:
+            raise ValueError(
+                "Knowledge Agent requires knowledge.ask "
+                "in its tool plan."
+            )
 
         return await self._run_knowledge_agent(
             request=request,
@@ -240,12 +272,19 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
         del agent
+
+        if "knowledge.search" not in tool_plan.tool_ids:
+            raise ValueError(
+                "Research Agent requires knowledge.search "
+                "in its tool plan."
+            )
 
         return await self._run_research_agent(
             request=request,
@@ -259,11 +298,14 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         run_id: str,
         started_at: datetime,
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
+        del tool_plan
+
         system_prompt = GENERIC_AGENT_PROMPTS.get(
             agent.id
         )
@@ -288,6 +330,8 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
+        workflow: Workflow,
         steps: list[AgentStep],
     ) -> None:
         planning_started = datetime.now(
@@ -298,7 +342,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=1,
                 type="planning",
-                title=f"Selected {agent.name}",
+                title=f"Planned {agent.name} execution",
                 success=True,
                 input={
                     "objective": request.objective,
@@ -312,6 +356,31 @@ class AgentExecutor:
                     "recommended_model": (
                         agent.recommended_model
                     ),
+                    "tool_plan": {
+                        "requires_tools": (
+                            tool_plan.requires_tools
+                        ),
+                        "selected_tools": list(
+                            tool_plan.tool_ids
+                        ),
+                        "reason": tool_plan.reason,
+                    },
+                    "workflow": {
+                        "reason": workflow.reason,
+                        "steps": [
+                            {
+                                "id": workflow_step.id,
+                                "kind": workflow_step.kind,
+                                "name": workflow_step.name,
+                                "tool_id": workflow_step.tool_id,
+                                "depends_on": (
+                                    workflow_step.depends_on
+                                ),
+                            }
+                            for workflow_step
+                            in workflow.steps
+                        ],
+                    },
                 },
                 started_at=planning_started,
                 completed_at=datetime.now(
@@ -412,9 +481,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="result",
-                title=(
-                    "Knowledge answer completed"
-                ),
+                title="Knowledge answer completed",
                 success=True,
                 output={
                     "answer": answer,
@@ -429,7 +496,9 @@ class AgentExecutor:
 
         return AgentRunResponse(
             run_id=run_id,
-            agent_id=request.agent_id,
+            agent_id=self._required_agent_id(
+                request
+            ),
             objective=request.objective,
             status="completed",
             answer=answer,
@@ -490,9 +559,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="tool",
-                title=(
-                    "Search indexed research material"
-                ),
+                title="Search indexed research material",
                 tool_id=tool.definition.id,
                 success=result.success,
                 input=arguments,
@@ -557,9 +624,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="generation",
-                title=(
-                    "Synthesise research findings"
-                ),
+                title="Synthesise research findings",
                 success=True,
                 input={
                     "provider": request.provider,
@@ -583,9 +648,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="result",
-                title=(
-                    "Research summary completed"
-                ),
+                title="Research summary completed",
                 success=True,
                 output={
                     "answer": answer,
@@ -610,10 +673,11 @@ class AgentExecutor:
             timer_started=timer_started,
         )
 
-    async def _run_status_agent(
+    async def _run_status_capable_agent(
         self,
         request: AgentRunRequest,
         agent: AgentDefinition,
+        tool_plan: ToolPlan,
         system_prompt: str,
         generation_title: str,
         result_title: str,
@@ -622,50 +686,53 @@ class AgentExecutor:
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        del agent
+        tool_output: Any = None
 
-        tool = tool_registry.get(
-            "system.status"
-        )
-
-        tool_started = datetime.now(
-            timezone.utc
-        )
-
-        result = await tool.execute({})
-
-        tool_completed = datetime.now(
-            timezone.utc
-        )
-
-        steps.append(
-            AgentStep(
-                step_number=len(steps) + 1,
-                type="tool",
-                title="Collect system status",
-                tool_id=tool.definition.id,
-                success=result.success,
-                input={},
-                output=result.output,
-                error=result.error,
-                started_at=tool_started,
-                completed_at=tool_completed,
+        if "system.status" in tool_plan.tool_ids:
+            tool = tool_registry.get(
+                "system.status"
             )
-        )
 
-        if not result.success:
-            return self._failed_response(
-                request=request,
-                run_id=run_id,
-                answer=(
-                    result.error
-                    or "System status tool failed."
-                ),
-                steps=steps,
-                started_at=started_at,
-                completed_at=tool_completed,
-                timer_started=timer_started,
+            tool_started = datetime.now(
+                timezone.utc
             )
+
+            result = await tool.execute({})
+
+            tool_completed = datetime.now(
+                timezone.utc
+            )
+
+            steps.append(
+                AgentStep(
+                    step_number=len(steps) + 1,
+                    type="tool",
+                    title="Collect system status",
+                    tool_id=tool.definition.id,
+                    success=result.success,
+                    input={},
+                    output=result.output,
+                    error=result.error,
+                    started_at=tool_started,
+                    completed_at=tool_completed,
+                )
+            )
+
+            if not result.success:
+                return self._failed_response(
+                    request=request,
+                    run_id=run_id,
+                    answer=(
+                        result.error
+                        or "System status tool failed."
+                    ),
+                    steps=steps,
+                    started_at=started_at,
+                    completed_at=tool_completed,
+                    timer_started=timer_started,
+                )
+
+            tool_output = result.output
 
         generation_started = datetime.now(
             timezone.utc
@@ -674,18 +741,10 @@ class AgentExecutor:
         chat_response = await self._chat(
             request=request,
             system_prompt=system_prompt,
-            user_content="\n".join(
-                [
-                    "User objective:",
-                    request.objective,
-                    "",
-                    "Current system data:",
-                    json.dumps(
-                        result.output,
-                        indent=2,
-                        default=str,
-                    ),
-                ]
+            user_content=self._build_status_user_content(
+                request=request,
+                tool_plan=tool_plan,
+                tool_output=tool_output,
             ),
         )
 
@@ -704,6 +763,10 @@ class AgentExecutor:
                 input={
                     "provider": request.provider,
                     "model": request.model,
+                    "agent": agent.id,
+                    "planned_tools": list(
+                        tool_plan.tool_ids
+                    ),
                 },
                 output={
                     "provider": (
@@ -742,6 +805,47 @@ class AgentExecutor:
             timer_started=timer_started,
         )
 
+    def _build_status_user_content(
+        self,
+        request: AgentRunRequest,
+        tool_plan: ToolPlan,
+        tool_output: Any,
+    ) -> str:
+        sections = [
+            "User objective:",
+            request.objective,
+            "",
+            "Tool planning decision:",
+            tool_plan.reason,
+        ]
+
+        if tool_output is not None:
+            sections.extend(
+                [
+                    "",
+                    "Current system data:",
+                    json.dumps(
+                        tool_output,
+                        indent=2,
+                        default=str,
+                    ),
+                ]
+            )
+        else:
+            sections.extend(
+                [
+                    "",
+                    (
+                        "No live system data was collected. "
+                        "Complete the objective without "
+                        "inventing measurements or claiming "
+                        "that commands were executed."
+                    ),
+                ]
+            )
+
+        return "\n".join(sections)
+
     async def _run_prompt_agent(
         self,
         request: AgentRunRequest,
@@ -772,9 +876,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="generation",
-                title=(
-                    f"Generate {agent.name} response"
-                ),
+                title=f"Generate {agent.name} response",
                 success=True,
                 input={
                     "provider": request.provider,
@@ -796,9 +898,7 @@ class AgentExecutor:
             AgentStep(
                 step_number=len(steps) + 1,
                 type="result",
-                title=(
-                    f"{agent.name} response completed"
-                ),
+                title=f"{agent.name} response completed",
                 success=True,
                 output={
                     "answer": answer,
@@ -866,7 +966,9 @@ class AgentExecutor:
 
         return AgentRunResponse(
             run_id=run_id,
-            agent_id=request.agent_id,
+            agent_id=self._required_agent_id(
+                request
+            ),
             objective=request.objective,
             status="completed",
             answer=answer,
@@ -908,7 +1010,9 @@ class AgentExecutor:
     ) -> AgentRunResponse:
         return AgentRunResponse(
             run_id=run_id,
-            agent_id=request.agent_id,
+            agent_id=self._required_agent_id(
+                request
+            ),
             objective=request.objective,
             status="failed",
             answer=answer,
@@ -922,6 +1026,17 @@ class AgentExecutor:
             started_at=started_at,
             completed_at=completed_at,
         )
+
+    def _required_agent_id(
+        self,
+        request: AgentRunRequest,
+    ) -> str:
+        if not request.agent_id:
+            raise ValueError(
+                "A resolved agent_id is required."
+            )
+
+        return request.agent_id
 
     def _latency_ms(
         self,
