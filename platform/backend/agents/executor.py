@@ -257,16 +257,20 @@ class AgentExecutor:
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        del agent
-
+        
         if "knowledge.ask" not in tool_plan.tool_ids:
             raise ValueError(
                 "Knowledge Agent requires knowledge.ask "
                 "in its tool plan."
             )
 
-        return await self._run_knowledge_agent(
+        return await self._run_workflow_agent(
             request=request,
+            agent=agent,
+            workflow=workflow,
+            system_prompt="",
+            generation_title="Generate knowledge answer",
+            result_title="Knowledge answer completed",
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
