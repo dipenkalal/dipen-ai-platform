@@ -791,6 +791,81 @@ class AgentExecutor:
 
         return items
 
+    def _validate_workflow(
+        self,
+        workflow: Workflow,
+    ) -> None:
+        """
+        Validate a workflow before execution.
+        """
+        if not workflow.steps:
+            raise ValueError(
+                "Workflow must contain at least one step."
+            )
+
+        step_ids: set[str] = set()
+
+        for step in workflow.steps:
+            if step.id in step_ids:
+                raise ValueError(
+                    "Workflow contains duplicate step id: "
+                    f"{step.id!r}"
+                )
+
+            step_ids.add(step.id)
+
+        for step in workflow.steps:
+            if (
+                step.kind == "tool"
+                and not step.tool_id
+            ):
+                raise ValueError(
+                    "Tool workflow step "
+                    f"{step.id!r} is missing tool_id."
+                )
+
+            for dependency in step.depends_on:
+                if dependency == step.id:
+                    raise ValueError(
+                        "Workflow step "
+                        f"{step.id!r} cannot depend on itself."
+                    )
+
+                if dependency not in step_ids:
+                    raise ValueError(
+                        "Workflow step "
+                        f"{step.id!r} has unknown dependency "
+                        f"{dependency!r}."
+                    )
+
+        graph = {
+            step.id: step.depends_on
+            for step in workflow.steps
+        }
+
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(step_id: str) -> None:
+            if step_id in visited:
+                return
+
+            if step_id in visiting:
+                raise ValueError(
+                    "Workflow contains a dependency cycle."
+                )
+
+            visiting.add(step_id)
+
+            for dependency in graph[step_id]:
+                visit(dependency)
+
+            visiting.remove(step_id)
+            visited.add(step_id)
+
+        for step_id in graph:
+            visit(step_id)
+
     async def _execute_workflow(
         self,
         workflow: Workflow,
@@ -807,6 +882,7 @@ class AgentExecutor:
         existing tool and generation implementations in
         subsequent commits.
         """
+        self._validate_workflow(workflow)
         completed_step_ids: set[str] = set()
         outputs: dict[str, Any] = {}
 
