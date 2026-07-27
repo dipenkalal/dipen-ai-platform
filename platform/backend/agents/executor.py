@@ -720,11 +720,14 @@ class AgentExecutor:
         )
 
         generation_result: dict[str, Any] | None = None
+        terminal_result: dict[str, Any] | None = None
 
         for workflow_step in workflow.steps:
             result = outputs[workflow_step.id]
 
             if workflow_step.kind == "tool":
+                tool_output = result.get("output")
+
                 steps.append(
                     AgentStep(
                         step_number=len(steps) + 1,
@@ -736,12 +739,21 @@ class AgentExecutor:
                             False,
                         ),
                         input=workflow_step.input,
-                        output=result.get("output"),
+                        output=tool_output,
                         error=result.get("error"),
                         started_at=workflow_started,
                         completed_at=workflow_completed,
                     )
                 )
+
+                if (
+                    workflow_step.tool_id
+                    == "knowledge.ask"
+                ):
+                    terminal_result = self._as_dict(
+                        tool_output
+                    )
+
                 continue
 
             if workflow_step.kind == "generation":
@@ -777,9 +789,70 @@ class AgentExecutor:
                 )
 
         if generation_result is None:
-            raise RuntimeError(
-                "Workflow completed without a "
-                "generation result."
+            if terminal_result is None:
+                raise RuntimeError(
+                    "Workflow completed without a "
+                    "generation or terminal result."
+                )
+
+            answer = str(
+                terminal_result.get("answer", "")
+            ).strip()
+
+            if not answer:
+                raise RuntimeError(
+                    "Terminal workflow returned no answer."
+                )
+
+            sources = self._as_list_of_dicts(
+                terminal_result.get("sources")
+            )
+
+            usage_data = self._as_dict(
+                terminal_result.get("usage")
+            )
+
+            steps.append(
+                AgentStep(
+                    step_number=len(steps) + 1,
+                    type="result",
+                    title=result_title,
+                    success=True,
+                    output={
+                        "answer": answer,
+                        "source_count": len(sources),
+                    },
+                    started_at=workflow_completed,
+                    completed_at=workflow_completed,
+                )
+            )
+
+            return AgentRunResponse(
+                run_id=run_id,
+                agent_id=self._required_agent_id(
+                    request
+                ),
+                objective=request.objective,
+                status="completed",
+                answer=answer,
+                steps=steps,
+                sources=sources,
+                usage=AgentUsage(
+                    prompt_tokens=usage_data.get(
+                        "prompt_tokens"
+                    ),
+                    completion_tokens=usage_data.get(
+                        "completion_tokens"
+                    ),
+                    total_tokens=usage_data.get(
+                        "total_tokens"
+                    ),
+                    latency_ms=self._latency_ms(
+                        timer_started
+                    ),
+                ),
+                started_at=started_at,
+                completed_at=workflow_completed,
             )
 
         answer = str(
