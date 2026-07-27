@@ -288,16 +288,19 @@ class AgentExecutor:
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        del agent
-
         if "knowledge.search" not in tool_plan.tool_ids:
             raise ValueError(
                 "Research Agent requires knowledge.search "
                 "in its tool plan."
             )
 
-        return await self._run_research_agent(
+        return await self._run_workflow_agent(
             request=request,
+            agent=agent,
+            workflow=workflow,
+            system_prompt=RESEARCH_AGENT_PROMPT,
+            generation_title="Synthesise research findings",
+            result_title="Research summary completed",
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
@@ -405,157 +408,6 @@ class AgentExecutor:
                     timezone.utc
                 ),
             )
-        )
-
-    async def _run_research_agent(
-        self,
-        request: AgentRunRequest,
-        run_id: str,
-        started_at: datetime,
-        timer_started: float,
-        steps: list[AgentStep],
-    ) -> AgentRunResponse:
-        tool = tool_registry.get(
-            "knowledge.search"
-        )
-
-        tool_started = datetime.now(
-            timezone.utc
-        )
-
-        arguments = {
-            "query": request.objective,
-            "limit": request.retrieval_limit,
-            "score_threshold": (
-                request.score_threshold
-            ),
-            "document_id": (
-                request.document_id
-            ),
-        }
-
-        result = await tool.execute(arguments)
-
-        tool_completed = datetime.now(
-            timezone.utc
-        )
-
-        steps.append(
-            AgentStep(
-                step_number=len(steps) + 1,
-                type="tool",
-                title="Search indexed research material",
-                tool_id=tool.definition.id,
-                success=result.success,
-                input=arguments,
-                output=result.output,
-                error=result.error,
-                started_at=tool_started,
-                completed_at=tool_completed,
-            )
-        )
-
-        if not result.success:
-            return self._failed_response(
-                request=request,
-                run_id=run_id,
-                answer=(
-                    result.error
-                    or "Knowledge search failed."
-                ),
-                steps=steps,
-                started_at=started_at,
-                completed_at=tool_completed,
-                timer_started=timer_started,
-            )
-
-        search_output = self._as_dict(
-            result.output
-        )
-
-        sources = self._extract_sources(
-            search_output
-        )
-
-        generation_started = datetime.now(
-            timezone.utc
-        )
-
-        chat_response = await self._chat(
-            request=request,
-            system_prompt=RESEARCH_AGENT_PROMPT,
-            user_content="\n".join(
-                [
-                    "Research objective:",
-                    request.objective,
-                    "",
-                    "Retrieved knowledge:",
-                    json.dumps(
-                        search_output,
-                        indent=2,
-                        default=str,
-                    ),
-                ]
-            ),
-        )
-
-        generation_completed = datetime.now(
-            timezone.utc
-        )
-
-        answer = chat_response.message.content
-
-        steps.append(
-            AgentStep(
-                step_number=len(steps) + 1,
-                type="generation",
-                title="Synthesise research findings",
-                success=True,
-                input={
-                    "provider": request.provider,
-                    "model": request.model,
-                    "retrieved_sources": len(
-                        sources
-                    ),
-                },
-                output={
-                    "provider": (
-                        chat_response.provider
-                    ),
-                    "model": chat_response.model,
-                },
-                started_at=generation_started,
-                completed_at=generation_completed,
-            )
-        )
-
-        steps.append(
-            AgentStep(
-                step_number=len(steps) + 1,
-                type="result",
-                title="Research summary completed",
-                success=True,
-                output={
-                    "answer": answer,
-                    "source_count": len(
-                        sources
-                    ),
-                },
-                started_at=generation_completed,
-                completed_at=generation_completed,
-            )
-        )
-
-        return self._completed_response(
-            request=request,
-            run_id=run_id,
-            answer=answer,
-            steps=steps,
-            sources=sources,
-            chat_response=chat_response,
-            started_at=started_at,
-            completed_at=generation_completed,
-            timer_started=timer_started,
         )
 
     async def _run_workflow_agent(
