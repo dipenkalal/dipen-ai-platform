@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  allowedDevOrigins: ["192.168.40.248"],
+
+  allowedDevOrigins: [
+    "192.168.40.212",
+  ],
 };
 
 export default nextConfig;

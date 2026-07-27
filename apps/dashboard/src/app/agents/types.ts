@@ -18,6 +18,10 @@ export type AgentAccent =
   | "orange"
   | "slate";
 
+export type AgentMode =
+  | "smart"
+  | "manual";
+
 export type AgentInfo = {
   id: string;
   name: string;
@@ -109,9 +113,27 @@ export type AgentRun = {
 };
 
 export type AgentRunRequest = {
-  agent_id: string;
+  mode: AgentMode;
   objective: string;
-  model: string;
+  agent_id?: string;
+  model?: string;
+};
+
+export type AgentRoutingDecision = {
+  mode: "smart";
+  agent_id: string;
+  model: string | null;
+  confidence: number;
+  reason: string;
+};
+
+export type AgentRoutingEvent = {
+  type: "routing";
+  mode: "smart";
+  agent_id: string;
+  model: string | null;
+  confidence: number;
+  reason: string;
 };
 
 export type AgentStatusEvent = {
@@ -144,6 +166,7 @@ export type AgentErrorEvent = {
 };
 
 export type AgentStreamEvent =
+  | AgentRoutingEvent
   | AgentStatusEvent
   | AgentStepEvent
   | AgentAnswerEvent
@@ -207,6 +230,7 @@ export type AgentRunRecord = {
   sources: AgentSource[];
   usage: UsageMetrics;
   request: {
+    mode?: AgentMode;
     agent_id: string;
     objective: string;
     model: string | null;

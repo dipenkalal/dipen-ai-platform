@@ -33,6 +33,7 @@ import { useAgentRunner } from "./hooks/useAgentRunner";
 
 import type {
   AgentInfo,
+  AgentMode,
   ModelInfo,
   ToolInfo,
 } from "./types";
@@ -67,6 +68,9 @@ export default function AgentsPage() {
   const [models, setModels] = useState<
     ModelInfo[]
   >([]);
+
+  const [mode, setMode] =
+    useState<AgentMode>("smart");
 
   const [
     selectedAgentId,
@@ -173,14 +177,23 @@ export default function AgentsPage() {
   }, []);
 
 
+  const activeAgentId =
+    mode === "smart"
+      ? (
+          runner.routing?.agent_id ??
+          runner.run?.agent_id ??
+          ""
+        )
+      : selectedAgentId;
+
+
   const selectedAgent = useMemo(
     () =>
       agents.find(
         (agent) =>
-          agent.id ===
-          selectedAgentId,
+          agent.id === activeAgentId,
       ) ?? null,
-    [agents, selectedAgentId],
+    [agents, activeAgentId],
   );
 
 
@@ -188,19 +201,44 @@ export default function AgentsPage() {
     const trimmedObjective =
       objective.trim();
 
+    if (!trimmedObjective) {
+      return;
+    }
+
+    if (mode === "smart") {
+      await runner.runAgent({
+        mode: "smart",
+        objective: trimmedObjective,
+      });
+
+      return;
+    }
+
     if (
       !selectedAgentId ||
-      !selectedModelId ||
-      !trimmedObjective
+      !selectedModelId
     ) {
       return;
     }
 
     await runner.runAgent({
+      mode: "manual",
       agent_id: selectedAgentId,
       objective: trimmedObjective,
       model: selectedModelId,
     });
+  }
+
+
+  function handleModeChange(
+    nextMode: AgentMode,
+  ): void {
+    if (runner.isRunning) {
+      return;
+    }
+
+    setMode(nextMode);
+    runner.resetRun();
   }
 
 
@@ -220,7 +258,7 @@ export default function AgentsPage() {
                 <Bot className="h-5 w-5" />
 
                 <p className="text-xs font-semibold uppercase tracking-[0.24em]">
-                  Dipen AI Platform v0.8
+                  Dipen AI Platform v0.10
                 </p>
               </div>
 
@@ -229,10 +267,10 @@ export default function AgentsPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Run specialised agents that plan
-                objectives, execute registered
-                tools, stream their progress and
-                return auditable results.
+                Describe an objective and let
+                Smart Mode select the best agent
+                and model, or switch to Manual
+                Mode for full control.
               </p>
             </div>
 
@@ -339,25 +377,31 @@ export default function AgentsPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <AgentSelector
-              agents={agents}
-              tools={tools}
-              selectedAgentId={
-                selectedAgentId
-              }
-              disabled={runner.isRunning}
-              onSelect={(agentId) => {
-                setSelectedAgentId(
-                  agentId,
-                );
+            {mode === "manual" && (
+              <AgentSelector
+                agents={agents}
+                tools={tools}
+                selectedAgentId={
+                  selectedAgentId
+                }
+                disabled={
+                  runner.isRunning
+                }
+                onSelect={(agentId) => {
+                  setSelectedAgentId(
+                    agentId,
+                  );
 
-                runner.resetRun();
-              }}
-            />
+                  runner.resetRun();
+                }}
+              />
+            )}
 
             <RunPanel
               agents={agents}
               models={models}
+              mode={mode}
+              routing={runner.routing}
               selectedAgentId={
                 selectedAgentId
               }
@@ -367,6 +411,9 @@ export default function AgentsPage() {
               objective={objective}
               status={runner.status}
               isLoading={isLoading}
+              onModeChange={
+                handleModeChange
+              }
               onObjectiveChange={
                 setObjective
               }
@@ -413,7 +460,9 @@ export default function AgentsPage() {
                 {selectedAgent && (
                   <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
-                      Active Agent
+                      {mode === "smart"
+                        ? "Routed Agent"
+                        : "Active Agent"}
                     </p>
 
                     <h2 className="mt-2 text-xl font-semibold text-white">
@@ -427,15 +476,22 @@ export default function AgentsPage() {
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {selectedAgent.tools.map(
-                        (toolId) => (
-                          <span
-                            key={toolId}
-                            className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-xs text-slate-300"
-                          >
-                            {toolId}
-                          </span>
-                        ),
+                      {selectedAgent.tools.length >
+                      0 ? (
+                        selectedAgent.tools.map(
+                          (toolId) => (
+                            <span
+                              key={toolId}
+                              className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-xs text-slate-300"
+                            >
+                              {toolId}
+                            </span>
+                          ),
+                        )
+                      ) : (
+                        <span className="text-xs text-slate-500">
+                          No tools assigned
+                        </span>
                       )}
                     </div>
                   </section>

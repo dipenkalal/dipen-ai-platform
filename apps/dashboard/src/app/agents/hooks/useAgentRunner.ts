@@ -9,6 +9,7 @@ import {
 import { streamAgentRun } from "../api";
 
 import type {
+  AgentRoutingDecision,
   AgentRun,
   AgentRunRequest,
   AgentRunStatus,
@@ -26,6 +27,7 @@ type UseAgentRunnerResult = {
   sources: AgentSource[];
   usage: UsageMetrics | null;
   run: AgentRun | null;
+  routing: AgentRoutingDecision | null;
   error: string | null;
   isRunning: boolean;
   runAgent: (
@@ -61,6 +63,11 @@ export function useAgentRunner():
   const [run, setRun] =
     useState<AgentRun | null>(null);
 
+  const [routing, setRouting] =
+    useState<AgentRoutingDecision | null>(
+      null,
+    );
+
   const [error, setError] = useState<
     string | null
   >(null);
@@ -80,6 +87,7 @@ export function useAgentRunner():
     setSources([]);
     setUsage(null);
     setRun(null);
+    setRouting(null);
     setError(null);
   }, []);
 
@@ -93,7 +101,9 @@ export function useAgentRunner():
     abortControllerRef.current = null;
 
     setStatus("cancelled");
-    setMessage("Agent execution cancelled.");
+    setMessage(
+      "Agent execution cancelled.",
+    );
   }, []);
 
 
@@ -111,13 +121,16 @@ export function useAgentRunner():
 
       setStatus("running");
       setMessage(
-        "Starting agent execution...",
+        request.mode === "smart"
+          ? "Selecting the best agent..."
+          : "Starting agent execution...",
       );
       setSteps([]);
       setAnswer("");
       setSources([]);
       setUsage(null);
       setRun(null);
+      setRouting(null);
       setError(null);
 
       try {
@@ -125,13 +138,36 @@ export function useAgentRunner():
           signal: controller.signal,
 
           onEvent: (event) => {
-            if (event.type === "status") {
+            if (
+              event.type === "routing"
+            ) {
+              setRouting({
+                mode: event.mode,
+                agent_id: event.agent_id,
+                model: event.model,
+                confidence:
+                  event.confidence,
+                reason: event.reason,
+              });
+
+              setMessage(
+                `Selected ${event.agent_id}.`,
+              );
+
+              return;
+            }
+
+            if (
+              event.type === "status"
+            ) {
               setStatus("running");
               setMessage(event.message);
               return;
             }
 
-            if (event.type === "step") {
+            if (
+              event.type === "step"
+            ) {
               setSteps(
                 (currentSteps) => {
                   const existingIndex =
@@ -141,7 +177,9 @@ export function useAgentRunner():
                         event.step.step_number,
                     );
 
-                  if (existingIndex === -1) {
+                  if (
+                    existingIndex === -1
+                  ) {
                     return [
                       ...currentSteps,
                       event.step,
@@ -162,11 +200,16 @@ export function useAgentRunner():
                 },
               );
 
-              setMessage(event.step.title);
+              setMessage(
+                event.step.title,
+              );
+
               return;
             }
 
-            if (event.type === "answer") {
+            if (
+              event.type === "answer"
+            ) {
               setAnswer(event.content);
               setSources(
                 event.sources ?? [],
@@ -174,7 +217,9 @@ export function useAgentRunner():
               return;
             }
 
-            if (event.type === "done") {
+            if (
+              event.type === "done"
+            ) {
               setRun(event.run);
               setStatus(
                 event.run.status,
@@ -191,22 +236,28 @@ export function useAgentRunner():
               setUsage(
                 event.run.usage ?? null,
               );
+
               setMessage(
                 event.run.status ===
                   "completed"
                   ? "Agent execution completed."
                   : `Agent execution ${event.run.status}.`,
               );
+
               return;
             }
 
-            if (event.type === "error") {
+            if (
+              event.type === "error"
+            ) {
               setStatus("failed");
+
               setError(
                 event.error ??
-                event.message ??
-                "Agent execution failed.",
+                  event.message ??
+                  "Agent execution failed.",
               );
+
               setMessage(
                 "Agent execution failed.",
               );
@@ -228,13 +279,17 @@ export function useAgentRunner():
         );
       } catch (runError) {
         if (
-          runError instanceof DOMException &&
-          runError.name === "AbortError"
+          runError instanceof
+            DOMException &&
+          runError.name ===
+            "AbortError"
         ) {
           setStatus("cancelled");
+
           setMessage(
             "Agent execution cancelled.",
           );
+
           return;
         }
 
@@ -245,6 +300,7 @@ export function useAgentRunner():
 
         setStatus("failed");
         setError(errorMessage);
+
         setMessage(
           "Agent execution failed.",
         );
@@ -270,8 +326,10 @@ export function useAgentRunner():
     sources,
     usage,
     run,
+    routing,
     error,
-    isRunning: status === "running",
+    isRunning:
+      status === "running",
     runAgent,
     cancelRun,
     resetRun,
