@@ -37,6 +37,20 @@ jobs:
         run: |
           black --check .
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pytest
+          pytest \
+            --cov=agents \
+            --cov=tools \
+            --cov=gateway \
+            --cov=knowledge \
+            --cov=collectors \
+            --cov=history \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: platform/backend/coverage.xml

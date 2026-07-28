@@ -37,3 +37,7 @@ htmlcov/
 # Local Docker/runtime data
 docker-data/
 data/
+
+
+
+platform/backend/coverage.xml
