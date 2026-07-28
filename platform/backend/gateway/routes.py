@@ -8,7 +8,6 @@ from gateway.schemas import (
 )
 from gateway.service import gateway_service
 
-
 router = APIRouter(
     prefix="/api/v1",
     tags=["AI Gateway"],

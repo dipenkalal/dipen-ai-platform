@@ -4,20 +4,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-
 DEFAULT_DATABASE_PATH = (
-    Path.home()
-    / "dap"
-    / "data"
-    / "agent-history"
-    / "agent-runs.db"
+    Path.home() / "dap" / "data" / "agent-history" / "agent-runs.db"
 )
 
 
 def get_database_path() -> Path:
-    configured_path = os.getenv(
-        "DAP_AGENT_HISTORY_DB"
-    )
+    configured_path = os.getenv("DAP_AGENT_HISTORY_DB")
 
     if configured_path:
         return Path(configured_path).expanduser()
@@ -30,10 +23,7 @@ class HistoryDatabase:
         self,
         database_path: Path | None = None,
     ) -> None:
-        self.database_path = (
-            database_path
-            or get_database_path()
-        )
+        self.database_path = database_path or get_database_path()
 
     def initialize(self) -> None:
         self.database_path.parent.mkdir(
@@ -42,8 +32,7 @@ class HistoryDatabase:
         )
 
         with self.connection() as connection:
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE TABLE IF NOT EXISTS agent_runs (
                     run_id TEXT PRIMARY KEY,
                     agent_id TEXT NOT NULL,
@@ -62,40 +51,31 @@ class HistoryDatabase:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
-                """
-            )
+                """)
 
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE INDEX IF NOT EXISTS
                 idx_agent_runs_started_at
                 ON agent_runs(started_at DESC)
-                """
-            )
+                """)
 
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE INDEX IF NOT EXISTS
                 idx_agent_runs_agent_id
                 ON agent_runs(agent_id)
-                """
-            )
+                """)
 
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE INDEX IF NOT EXISTS
                 idx_agent_runs_status
                 ON agent_runs(status)
-                """
-            )
+                """)
 
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE INDEX IF NOT EXISTS
                 idx_agent_runs_model
                 ON agent_runs(model)
-                """
-            )
+                """)
 
             connection.commit()
 
@@ -111,12 +91,8 @@ class HistoryDatabase:
         connection.row_factory = sqlite3.Row
 
         try:
-            connection.execute(
-                "PRAGMA foreign_keys = ON"
-            )
-            connection.execute(
-                "PRAGMA journal_mode = WAL"
-            )
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA journal_mode = WAL")
 
             yield connection
 

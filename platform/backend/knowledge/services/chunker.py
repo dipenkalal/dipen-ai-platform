@@ -23,19 +23,13 @@ def chunk_text(
     overlap: int,
 ) -> list[TextChunk]:
     if chunk_size <= 0:
-        raise ValueError(
-            "chunk_size must be greater than zero"
-        )
+        raise ValueError("chunk_size must be greater than zero")
 
     if overlap < 0:
-        raise ValueError(
-            "overlap cannot be negative"
-        )
+        raise ValueError("overlap cannot be negative")
 
     if overlap >= chunk_size:
-        raise ValueError(
-            "overlap must be smaller than chunk_size"
-        )
+        raise ValueError("overlap must be smaller than chunk_size")
 
     normalized = normalize_whitespace(text)
 
@@ -76,14 +70,10 @@ def chunk_text(
 
             best_break = max(candidate_breaks)
 
-            if best_break > start + (
-                chunk_size // 2
-            ):
+            if best_break > start + (chunk_size // 2):
                 end = best_break + 1
 
-        chunk_content = normalized[
-            start:end
-        ].strip()
+        chunk_content = normalized[start:end].strip()
 
         if chunk_content:
             chunks.append(

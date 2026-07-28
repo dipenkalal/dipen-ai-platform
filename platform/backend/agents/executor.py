@@ -1,9 +1,16 @@
 import json
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
+
+from gateway.schemas import (
+    ChatMessage,
+    ChatRequest,
+)
+from gateway.service import gateway_service
+from tools.registry import tool_registry
 
 from agents.planner import (
     ToolPlan,
@@ -19,13 +26,6 @@ from agents.schemas import (
     Workflow,
     WorkflowStep,
 )
-from gateway.schemas import (
-    ChatMessage,
-    ChatRequest,
-)
-from gateway.service import gateway_service
-from tools.registry import tool_registry
-
 
 SYSTEM_AGENT_PROMPT = """
 You are the System Agent inside Dipen AI Platform.
@@ -144,22 +144,18 @@ class AgentExecutor:
         self,
         request: AgentRunRequest,
     ) -> AgentRunResponse:
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         timer_started = perf_counter()
         run_id = str(uuid4())
         steps: list[AgentStep] = []
 
         if not request.agent_id:
-            raise ValueError(
-                "A resolved agent_id is required for execution."
-            )
+            raise ValueError("A resolved agent_id is required for execution.")
 
         agent = agent_registry.get(request.agent_id)
 
         if request.max_steps < 1:
-            raise ValueError(
-                "At least one agent step is required."
-            )
+            raise ValueError("At least one agent step is required.")
 
         tool_plan = agent_tool_planner.plan(
             request=request,
@@ -182,10 +178,7 @@ class AgentExecutor:
         handler = self._handlers.get(agent.id)
 
         if handler is None:
-            raise ValueError(
-                "No executor is configured for "
-                f"{agent.id}"
-            )
+            raise ValueError("No executor is configured for " f"{agent.id}")
 
         return await handler(
             request,
@@ -257,11 +250,10 @@ class AgentExecutor:
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
-        
+
         if "knowledge.ask" not in tool_plan.tool_ids:
             raise ValueError(
-                "Knowledge Agent requires knowledge.ask "
-                "in its tool plan."
+                "Knowledge Agent requires knowledge.ask " "in its tool plan."
             )
 
         return await self._run_workflow_agent(
@@ -290,8 +282,7 @@ class AgentExecutor:
     ) -> AgentRunResponse:
         if "knowledge.search" not in tool_plan.tool_ids:
             raise ValueError(
-                "Research Agent requires knowledge.search "
-                "in its tool plan."
+                "Research Agent requires knowledge.search " "in its tool plan."
             )
 
         return await self._run_workflow_agent(
@@ -320,27 +311,18 @@ class AgentExecutor:
     ) -> AgentRunResponse:
         del tool_plan
 
-        system_prompt = GENERIC_AGENT_PROMPTS.get(
-            agent.id
-        )
+        system_prompt = GENERIC_AGENT_PROMPTS.get(agent.id)
 
         if system_prompt is None:
-            raise ValueError(
-                "No prompt is configured for "
-                f"{agent.id}"
-            )
+            raise ValueError("No prompt is configured for " f"{agent.id}")
 
         return await self._run_workflow_agent(
             request=request,
             agent=agent,
             workflow=workflow,
             system_prompt=system_prompt,
-            generation_title=(
-                f"Generate {agent.name} response"
-            ),
-            result_title=(
-                f"{agent.name} response completed"
-            ),
+            generation_title=(f"Generate {agent.name} response"),
+            result_title=(f"{agent.name} response completed"),
             run_id=run_id,
             started_at=started_at,
             timer_started=timer_started,
@@ -355,9 +337,7 @@ class AgentExecutor:
         workflow: Workflow,
         steps: list[AgentStep],
     ) -> None:
-        planning_started = datetime.now(
-            timezone.utc
-        )
+        planning_started = datetime.now(UTC)
 
         steps.append(
             AgentStep(
@@ -374,16 +354,10 @@ class AgentExecutor:
                 output={
                     "selected_agent": agent.id,
                     "category": agent.category,
-                    "recommended_model": (
-                        agent.recommended_model
-                    ),
+                    "recommended_model": (agent.recommended_model),
                     "tool_plan": {
-                        "requires_tools": (
-                            tool_plan.requires_tools
-                        ),
-                        "selected_tools": list(
-                            tool_plan.tool_ids
-                        ),
+                        "requires_tools": (tool_plan.requires_tools),
+                        "selected_tools": list(tool_plan.tool_ids),
                         "reason": tool_plan.reason,
                     },
                     "workflow": {
@@ -394,19 +368,14 @@ class AgentExecutor:
                                 "kind": workflow_step.kind,
                                 "name": workflow_step.name,
                                 "tool_id": workflow_step.tool_id,
-                                "depends_on": (
-                                    workflow_step.depends_on
-                                ),
+                                "depends_on": (workflow_step.depends_on),
                             }
-                            for workflow_step
-                            in workflow.steps
+                            for workflow_step in workflow.steps
                         ],
                     },
                 },
                 started_at=planning_started,
-                completed_at=datetime.now(
-                    timezone.utc
-                ),
+                completed_at=datetime.now(UTC),
             )
         )
 
@@ -427,9 +396,7 @@ class AgentExecutor:
         Execute a planned workflow and adapt its outputs
         into the public agent-run response format.
         """
-        workflow_started = datetime.now(
-            timezone.utc
-        )
+        workflow_started = datetime.now(UTC)
 
         outputs = await self._execute_workflow(
             workflow=workflow,
@@ -438,9 +405,7 @@ class AgentExecutor:
             system_prompt=system_prompt,
         )
 
-        workflow_completed = datetime.now(
-            timezone.utc
-        )
+        workflow_completed = datetime.now(UTC)
 
         generation_result: dict[str, Any] | None = None
         terminal_result: dict[str, Any] | None = None
@@ -469,13 +434,8 @@ class AgentExecutor:
                     )
                 )
 
-                if (
-                    workflow_step.tool_id
-                    == "knowledge.ask"
-                ):
-                    terminal_result = self._as_dict(
-                        tool_output
-                    )
+                if workflow_step.tool_id == "knowledge.ask":
+                    terminal_result = self._as_dict(tool_output)
 
                 continue
 
@@ -495,14 +455,10 @@ class AgentExecutor:
                             "provider": request.provider,
                             "model": request.model,
                             "agent": agent.id,
-                            "dependencies": list(
-                                workflow_step.depends_on
-                            ),
+                            "dependencies": list(workflow_step.depends_on),
                         },
                         output={
-                            "provider": result.get(
-                                "provider"
-                            ),
+                            "provider": result.get("provider"),
                             "model": result.get("model"),
                         },
                         error=result.get("error"),
@@ -518,22 +474,14 @@ class AgentExecutor:
                     "generation or terminal result."
                 )
 
-            answer = str(
-                terminal_result.get("answer", "")
-            ).strip()
+            answer = str(terminal_result.get("answer", "")).strip()
 
             if not answer:
-                raise RuntimeError(
-                    "Terminal workflow returned no answer."
-                )
+                raise RuntimeError("Terminal workflow returned no answer.")
 
-            sources = self._as_list_of_dicts(
-                terminal_result.get("sources")
-            )
+            sources = self._as_list_of_dicts(terminal_result.get("sources"))
 
-            usage_data = self._as_dict(
-                terminal_result.get("usage")
-            )
+            usage_data = self._as_dict(terminal_result.get("usage"))
 
             steps.append(
                 AgentStep(
@@ -552,49 +500,32 @@ class AgentExecutor:
 
             return AgentRunResponse(
                 run_id=run_id,
-                agent_id=self._required_agent_id(
-                    request
-                ),
+                agent_id=self._required_agent_id(request),
                 objective=request.objective,
                 status="completed",
                 answer=answer,
                 steps=steps,
                 sources=sources,
                 usage=AgentUsage(
-                    prompt_tokens=usage_data.get(
-                        "prompt_tokens"
-                    ),
-                    completion_tokens=usage_data.get(
-                        "completion_tokens"
-                    ),
-                    total_tokens=usage_data.get(
-                        "total_tokens"
-                    ),
-                    latency_ms=self._latency_ms(
-                        timer_started
-                    ),
+                    prompt_tokens=usage_data.get("prompt_tokens"),
+                    completion_tokens=usage_data.get("completion_tokens"),
+                    total_tokens=usage_data.get("total_tokens"),
+                    latency_ms=self._latency_ms(timer_started),
                 ),
                 started_at=started_at,
                 completed_at=workflow_completed,
             )
 
-        answer = str(
-            generation_result.get("answer", "")
-        ).strip()
+        answer = str(generation_result.get("answer", "")).strip()
 
         if not answer:
-            raise RuntimeError(
-                "Workflow generation returned no answer."
-            )
+            raise RuntimeError("Workflow generation returned no answer.")
 
-        chat_response = generation_result.get(
-            "chat_response"
-        )
+        chat_response = generation_result.get("chat_response")
 
         if chat_response is None:
             raise RuntimeError(
-                "Workflow generation returned no "
-                "chat response metadata."
+                "Workflow generation returned no " "chat response metadata."
             )
 
         steps.append(
@@ -669,9 +600,7 @@ class AgentExecutor:
 
         return AgentRunResponse(
             run_id=run_id,
-            agent_id=self._required_agent_id(
-                request
-            ),
+            agent_id=self._required_agent_id(request),
             objective=request.objective,
             status="completed",
             answer=answer,
@@ -693,9 +622,7 @@ class AgentExecutor:
                     "total_tokens",
                     None,
                 ),
-                latency_ms=self._latency_ms(
-                    timer_started
-                ),
+                latency_ms=self._latency_ms(timer_started),
             ),
             started_at=started_at,
             completed_at=completed_at,
@@ -713,19 +640,13 @@ class AgentExecutor:
     ) -> AgentRunResponse:
         return AgentRunResponse(
             run_id=run_id,
-            agent_id=self._required_agent_id(
-                request
-            ),
+            agent_id=self._required_agent_id(request),
             objective=request.objective,
             status="failed",
             answer=answer,
             steps=steps,
             sources=[],
-            usage=AgentUsage(
-                latency_ms=self._latency_ms(
-                    timer_started
-                )
-            ),
+            usage=AgentUsage(latency_ms=self._latency_ms(timer_started)),
             started_at=started_at,
             completed_at=completed_at,
         )
@@ -735,9 +656,7 @@ class AgentExecutor:
         request: AgentRunRequest,
     ) -> str:
         if not request.agent_id:
-            raise ValueError(
-                "A resolved agent_id is required."
-            )
+            raise ValueError("A resolved agent_id is required.")
 
         return request.agent_id
 
@@ -746,11 +665,7 @@ class AgentExecutor:
         timer_started: float,
     ) -> float:
         return round(
-            (
-                perf_counter()
-                - timer_started
-            )
-            * 1000,
+            (perf_counter() - timer_started) * 1000,
             2,
         )
 
@@ -799,29 +714,22 @@ class AgentExecutor:
         Validate a workflow before execution.
         """
         if not workflow.steps:
-            raise ValueError(
-                "Workflow must contain at least one step."
-            )
+            raise ValueError("Workflow must contain at least one step.")
 
         step_ids: set[str] = set()
 
         for step in workflow.steps:
             if step.id in step_ids:
                 raise ValueError(
-                    "Workflow contains duplicate step id: "
-                    f"{step.id!r}"
+                    "Workflow contains duplicate step id: " f"{step.id!r}"
                 )
 
             step_ids.add(step.id)
 
         for step in workflow.steps:
-            if (
-                step.kind == "tool"
-                and not step.tool_id
-            ):
+            if step.kind == "tool" and not step.tool_id:
                 raise ValueError(
-                    "Tool workflow step "
-                    f"{step.id!r} is missing tool_id."
+                    "Tool workflow step " f"{step.id!r} is missing tool_id."
                 )
 
             for dependency in step.depends_on:
@@ -838,10 +746,7 @@ class AgentExecutor:
                         f"{dependency!r}."
                     )
 
-        graph = {
-            step.id: step.depends_on
-            for step in workflow.steps
-        }
+        graph = {step.id: step.depends_on for step in workflow.steps}
 
         visiting: set[str] = set()
         visited: set[str] = set()
@@ -851,9 +756,7 @@ class AgentExecutor:
                 return
 
             if step_id in visiting:
-                raise ValueError(
-                    "Workflow contains a dependency cycle."
-                )
+                raise ValueError("Workflow contains a dependency cycle.")
 
             visiting.add(step_id)
 
@@ -889,16 +792,12 @@ class AgentExecutor:
         for workflow_step in workflow.steps:
             missing_dependencies = [
                 dependency_id
-                for dependency_id
-                in workflow_step.depends_on
-                if dependency_id
-                not in completed_step_ids
+                for dependency_id in workflow_step.depends_on
+                if dependency_id not in completed_step_ids
             ]
 
             if missing_dependencies:
-                missing = ", ".join(
-                    missing_dependencies
-                )
+                missing = ", ".join(missing_dependencies)
 
                 raise ValueError(
                     "Workflow step "
@@ -908,14 +807,12 @@ class AgentExecutor:
                 )
 
             try:
-                outputs[workflow_step.id] = (
-                    await self._execute_workflow_step(
-                        workflow_step=workflow_step,
-                        previous_outputs=outputs,
-                        request=request,
-                        agent=agent,
-                        system_prompt=system_prompt,
-                    )
+                outputs[workflow_step.id] = await self._execute_workflow_step(
+                    workflow_step=workflow_step,
+                    previous_outputs=outputs,
+                    request=request,
+                    agent=agent,
+                    system_prompt=system_prompt,
                 )
             except Exception as exc:
                 if not workflow_step.continue_on_error:
@@ -926,9 +823,7 @@ class AgentExecutor:
                     "error": str(exc),
                 }
 
-            completed_step_ids.add(
-                workflow_step.id
-            )
+            completed_step_ids.add(workflow_step.id)
 
         return outputs
 
@@ -944,27 +839,22 @@ class AgentExecutor:
         Dispatch a workflow step by its declarative kind.
         """
         if workflow_step.kind == "tool":
-            return (
-                await self._execute_tool_workflow_step(
-                    workflow_step=workflow_step,
-                    previous_outputs=previous_outputs,
-                )
+            return await self._execute_tool_workflow_step(
+                workflow_step=workflow_step,
+                previous_outputs=previous_outputs,
             )
 
         if workflow_step.kind == "generation":
-            return (
-                await self._execute_generation_workflow_step(
-                    workflow_step=workflow_step,
-                    previous_outputs=previous_outputs,
-                    request=request,
-                    agent=agent,
-                    system_prompt=system_prompt,
-                )
+            return await self._execute_generation_workflow_step(
+                workflow_step=workflow_step,
+                previous_outputs=previous_outputs,
+                request=request,
+                agent=agent,
+                system_prompt=system_prompt,
             )
 
         raise ValueError(
-            "Unsupported workflow step kind: "
-            f"{workflow_step.kind!r}"
+            "Unsupported workflow step kind: " f"{workflow_step.kind!r}"
         )
 
     async def _execute_tool_workflow_step(
@@ -987,13 +877,9 @@ class AgentExecutor:
                 f"{workflow_step.id!r} is missing tool_id."
             )
 
-        tool = tool_registry.get(
-            workflow_step.tool_id
-        )
+        tool = tool_registry.get(workflow_step.tool_id)
 
-        result = await tool.execute(
-            workflow_step.input
-        )
+        result = await tool.execute(workflow_step.input)
 
         execution_output = {
             "tool_id": result.tool_id,
@@ -1005,10 +891,7 @@ class AgentExecutor:
         if not result.success:
             raise RuntimeError(
                 result.error
-                or (
-                    "Tool execution failed for "
-                    f"{workflow_step.tool_id!r}."
-                )
+                or ("Tool execution failed for " f"{workflow_step.tool_id!r}.")
             )
 
         return execution_output
@@ -1083,16 +966,12 @@ class AgentExecutor:
             "documents",
             "chunks",
         ):
-            sources = self._as_list_of_dicts(
-                search_output.get(key)
-            )
+            sources = self._as_list_of_dicts(search_output.get(key))
 
             if sources:
                 return sources
 
-        nested_data = self._as_dict(
-            search_output.get("data")
-        )
+        nested_data = self._as_dict(search_output.get("data"))
 
         for key in (
             "sources",
@@ -1101,9 +980,7 @@ class AgentExecutor:
             "documents",
             "chunks",
         ):
-            sources = self._as_list_of_dicts(
-                nested_data.get(key)
-            )
+            sources = self._as_list_of_dicts(nested_data.get(key))
 
             if sources:
                 return sources

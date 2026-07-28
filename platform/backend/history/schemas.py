@@ -1,15 +1,13 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
-
 from agents.schemas import (
     AgentRunRequest,
     AgentRunResponse,
     AgentStep,
     AgentUsage,
 )
-
+from pydantic import BaseModel, Field
 
 HistoryRunStatus = Literal[
     "queued",
@@ -30,19 +28,11 @@ class AgentRunRecord(BaseModel):
     answer: str = ""
     error: str | None = None
 
-    steps: list[AgentStep] = Field(
-        default_factory=list
-    )
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
-    usage: AgentUsage = Field(
-        default_factory=AgentUsage
-    )
+    steps: list[AgentStep] = Field(default_factory=list)
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    usage: AgentUsage = Field(default_factory=AgentUsage)
 
-    request: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    request: dict[str, Any] = Field(default_factory=dict)
 
     started_at: datetime
     completed_at: datetime

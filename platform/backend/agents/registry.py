@@ -13,10 +13,7 @@ class AgentRegistry:
         agent: AgentDefinition,
     ) -> None:
         if agent.id in self._agents:
-            raise ValueError(
-                "Agent already registered: "
-                f"{agent.id}"
-            )
+            raise ValueError("Agent already registered: " f"{agent.id}")
 
         self._agents[agent.id] = agent
 
@@ -27,23 +24,17 @@ class AgentRegistry:
         agent = self._agents.get(agent_id)
 
         if agent is None:
-            raise KeyError(
-                f"Unknown agent: {agent_id}"
-            )
+            raise KeyError(f"Unknown agent: {agent_id}")
 
         if not agent.enabled:
-            raise ValueError(
-                f"Agent is disabled: {agent_id}"
-            )
+            raise ValueError(f"Agent is disabled: {agent_id}")
 
         return agent
 
     def list(
         self,
     ) -> list[AgentDefinition]:
-        return list(
-            self._agents.values()
-        )
+        return list(self._agents.values())
 
 
 agent_registry = AgentRegistry()

@@ -13,7 +13,6 @@ from history.analytics_service import (
     agent_analytics_service,
 )
 
-
 router = APIRouter(
     prefix="/api/v1/analytics",
     tags=["Agent Analytics"],
@@ -24,12 +23,8 @@ router = APIRouter(
     "/overview",
     response_model=AnalyticsOverview,
 )
-async def get_analytics_overview(
-) -> AnalyticsOverview:
-    return (
-        agent_analytics_service
-        .get_overview()
-    )
+async def get_analytics_overview() -> AnalyticsOverview:
+    return agent_analytics_service.get_overview()
 
 
 @router.get(
@@ -43,11 +38,8 @@ async def get_agent_analytics(
         le=500,
     ),
 ) -> AgentAnalyticsResponse:
-    return (
-        agent_analytics_service
-        .get_agents(
-            limit=limit,
-        )
+    return agent_analytics_service.get_agents(
+        limit=limit,
     )
 
 
@@ -62,11 +54,8 @@ async def get_recent_analytics_runs(
         le=100,
     ),
 ) -> RecentAnalyticsResponse:
-    return (
-        agent_analytics_service
-        .get_recent(
-            limit=limit,
-        )
+    return agent_analytics_service.get_recent(
+        limit=limit,
     )
 
 
@@ -86,10 +75,7 @@ async def get_analytics_dashboard(
         le=100,
     ),
 ) -> AnalyticsDashboardResponse:
-    return (
-        agent_analytics_service
-        .get_dashboard(
-            agent_limit=agent_limit,
-            recent_limit=recent_limit,
-        )
+    return agent_analytics_service.get_dashboard(
+        agent_limit=agent_limit,
+        recent_limit=recent_limit,
     )

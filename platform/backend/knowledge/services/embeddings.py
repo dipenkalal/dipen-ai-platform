@@ -25,9 +25,7 @@ class EmbeddingService:
             async with httpx.AsyncClient(
                 timeout=15.0,
             ) as client:
-                response = await client.get(
-                    f"{self.base_url}/api/tags"
-                )
+                response = await client.get(f"{self.base_url}/api/tags")
 
                 return response.is_success
         except httpx.HTTPError:
@@ -60,14 +58,10 @@ class EmbeddingService:
         embeddings = result.get("embeddings")
 
         if not isinstance(embeddings, list):
-            raise RuntimeError(
-                "Ollama returned no embeddings"
-            )
+            raise RuntimeError("Ollama returned no embeddings")
 
         if len(embeddings) != len(texts):
-            raise RuntimeError(
-                "Embedding count did not match input count"
-            )
+            raise RuntimeError("Embedding count did not match input count")
 
         return embeddings
 
@@ -75,14 +69,10 @@ class EmbeddingService:
         self,
         query: str,
     ) -> list[float]:
-        embeddings = await self.embed_texts(
-            [query]
-        )
+        embeddings = await self.embed_texts([query])
 
         if not embeddings:
-            raise RuntimeError(
-                "Unable to generate query embedding"
-            )
+            raise RuntimeError("Unable to generate query embedding")
 
         return embeddings[0]
 

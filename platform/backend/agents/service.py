@@ -2,6 +2,10 @@ import json
 from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
+from history.service import (
+    agent_run_history_service,
+)
+from tools.registry import tool_registry
 
 from agents.executor import agent_executor
 from agents.registry import agent_registry
@@ -14,10 +18,6 @@ from agents.schemas import (
     AgentRunRequest,
     AgentRunResponse,
 )
-from history.service import (
-    agent_run_history_service,
-)
-from tools.registry import tool_registry
 
 
 class AgentService:
@@ -31,10 +31,7 @@ class AgentService:
     ) -> list[dict]:
         return [
             definition.model_dump()
-            for definition in (
-                tool_registry
-                .list_definitions()
-            )
+            for definition in (tool_registry.list_definitions())
         ]
 
     def resolve_request(
@@ -45,40 +42,26 @@ class AgentService:
         AgentRoute | None,
     ]:
         if request.mode == "smart":
-            route = agent_router.route(
-                request
-            )
+            route = agent_router.route(request)
 
-            resolved_request = (
-                request.model_copy(
-                    update={
-                        "agent_id": route.agent_id,
-                        "model": route.model,
-                    }
-                )
+            resolved_request = request.model_copy(
+                update={
+                    "agent_id": route.agent_id,
+                    "model": route.model,
+                }
             )
 
             return resolved_request, route
 
         if not request.agent_id:
-            raise ValueError(
-                "agent_id is required in "
-                "manual mode"
-            )
+            raise ValueError("agent_id is required in " "manual mode")
 
-        agent = agent_registry.get(
-            request.agent_id
-        )
+        agent = agent_registry.get(request.agent_id)
 
-        resolved_request = (
-            request.model_copy(
-                update={
-                    "model": (
-                        request.model
-                        or agent.recommended_model
-                    ),
-                }
-            )
+        resolved_request = request.model_copy(
+            update={
+                "model": (request.model or agent.recommended_model),
+            }
         )
 
         return resolved_request, None
@@ -88,23 +71,15 @@ class AgentService:
         request: AgentRunRequest,
     ) -> AgentRunResponse:
         try:
-            resolved_request, _ = (
-                self.resolve_request(
-                    request
-                )
-            )
+            resolved_request, _ = self.resolve_request(request)
 
-            response = await agent_executor.run(
-                resolved_request
-            )
+            response = await agent_executor.run(resolved_request)
 
             agent_run_history_service.save(
                 request=resolved_request,
                 response=response,
                 error=(
-                    response.answer
-                    if response.status == "failed"
-                    else None
+                    response.answer if response.status == "failed" else None
                 ),
             )
 
@@ -128,10 +103,7 @@ class AgentService:
         except Exception as exc:
             raise HTTPException(
                 status_code=500,
-                detail=(
-                    "Agent execution failed: "
-                    f"{exc}"
-                ),
+                detail=("Agent execution failed: " f"{exc}"),
             ) from exc
 
     async def stream(
@@ -139,11 +111,7 @@ class AgentService:
         request: AgentRunRequest,
     ) -> AsyncIterator[str]:
         try:
-            resolved_request, route = (
-                self.resolve_request(
-                    request
-                )
-            )
+            resolved_request, route = self.resolve_request(request)
 
             if route is not None:
                 yield (
@@ -151,13 +119,9 @@ class AgentService:
                         {
                             "type": "routing",
                             "mode": "smart",
-                            "agent_id": (
-                                route.agent_id
-                            ),
+                            "agent_id": (route.agent_id),
                             "model": route.model,
-                            "confidence": (
-                                route.confidence
-                            ),
+                            "confidence": (route.confidence),
                             "reason": route.reason,
                         },
                         default=str,
@@ -170,34 +134,22 @@ class AgentService:
                     {
                         "type": "status",
                         "status": "running",
-                        "agent_id": (
-                            resolved_request
-                            .agent_id
-                        ),
-                        "message": (
-                            "Starting agent "
-                            "execution..."
-                        ),
+                        "agent_id": (resolved_request.agent_id),
+                        "message": ("Starting agent " "execution..."),
                     },
                     default=str,
                 )
                 + "\n"
             )
 
-            response = await agent_executor.run(
-                resolved_request
-            )
+            response = await agent_executor.run(resolved_request)
 
             for step in response.steps:
                 yield (
                     json.dumps(
                         {
                             "type": "step",
-                            "step": (
-                                step.model_dump(
-                                    mode="json"
-                                )
-                            ),
+                            "step": (step.model_dump(mode="json")),
                         },
                         default=str,
                     )
@@ -220,9 +172,7 @@ class AgentService:
                 request=resolved_request,
                 response=response,
                 error=(
-                    response.answer
-                    if response.status == "failed"
-                    else None
+                    response.answer if response.status == "failed" else None
                 ),
             )
 
@@ -230,11 +180,7 @@ class AgentService:
                 json.dumps(
                     {
                         "type": "done",
-                        "run": (
-                            response.model_dump(
-                                mode="json"
-                            )
-                        ),
+                        "run": (response.model_dump(mode="json")),
                     },
                     default=str,
                 )
@@ -242,10 +188,7 @@ class AgentService:
             )
 
         except Exception as exc:
-            message = (
-                "Agent execution failed: "
-                f"{exc}"
-            )
+            message = "Agent execution failed: " f"{exc}"
 
             yield (
                 json.dumps(

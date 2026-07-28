@@ -71,10 +71,7 @@ class OllamaProvider(AIProvider):
         prompt_tokens: int | None,
         completion_tokens: int | None,
     ) -> int | None:
-        if (
-            prompt_tokens is None
-            or completion_tokens is None
-        ):
+        if prompt_tokens is None or completion_tokens is None:
             return None
 
         return prompt_tokens + completion_tokens
@@ -108,9 +105,7 @@ class OllamaProvider(AIProvider):
                 "final answer."
             )
 
-        return RuntimeError(
-            f"Model '{model}' returned an empty response."
-        )
+        return RuntimeError(f"Model '{model}' returned an empty response.")
 
     async def health(self) -> bool:
         try:
@@ -140,9 +135,7 @@ class OllamaProvider(AIProvider):
             if not isinstance(model, dict):
                 continue
 
-            model_id = str(
-                model.get("name", "unknown")
-            )
+            model_id = str(model.get("name", "unknown"))
 
             models.append(
                 ModelInfo(
@@ -173,10 +166,7 @@ class OllamaProvider(AIProvider):
 
         return {
             "model": model,
-            "messages": [
-                message.model_dump()
-                for message in request.messages
-            ],
+            "messages": [message.model_dump() for message in request.messages],
             "stream": stream,
             "think": self.thinking_enabled,
             "options": options,
@@ -211,24 +201,14 @@ class OllamaProvider(AIProvider):
         result: dict[str, Any] = response.json()
 
         raw_message = result.get("message")
-        message = (
-            raw_message
-            if isinstance(raw_message, dict)
-            else {}
-        )
+        message = raw_message if isinstance(raw_message, dict) else {}
 
-        content = self._clean_text(
-            message.get("content")
-        )
-        thinking = self._clean_text(
-            message.get("thinking")
-        )
+        content = self._clean_text(message.get("content"))
+        thinking = self._clean_text(message.get("thinking"))
 
         done_reason_value = result.get("done_reason")
         done_reason = (
-            str(done_reason_value)
-            if done_reason_value is not None
-            else None
+            str(done_reason_value) if done_reason_value is not None else None
         )
 
         if not content:
@@ -238,12 +218,8 @@ class OllamaProvider(AIProvider):
                 has_thinking=bool(thinking),
             )
 
-        prompt_tokens = result.get(
-            "prompt_eval_count"
-        )
-        completion_tokens = result.get(
-            "eval_count"
-        )
+        prompt_tokens = result.get("prompt_eval_count")
+        completion_tokens = result.get("eval_count")
 
         total_tokens = self._calculate_total_tokens(
             prompt_tokens,
@@ -295,15 +271,11 @@ class OllamaProvider(AIProvider):
                             continue
 
                         try:
-                            chunk: dict[str, Any] = (
-                                json.loads(line)
-                            )
+                            chunk: dict[str, Any] = json.loads(line)
                         except json.JSONDecodeError:
                             continue
 
-                        raw_message = chunk.get(
-                            "message"
-                        )
+                        raw_message = chunk.get("message")
                         message = (
                             raw_message
                             if isinstance(
@@ -313,23 +285,13 @@ class OllamaProvider(AIProvider):
                             else {}
                         )
 
-                        content = message.get(
-                            "content"
-                        )
-                        thinking = message.get(
-                            "thinking"
-                        )
+                        content = message.get("content")
+                        thinking = message.get("thinking")
 
-                        if (
-                            isinstance(thinking, str)
-                            and thinking
-                        ):
+                        if isinstance(thinking, str) and thinking:
                             thinking_received = True
 
-                        if (
-                            isinstance(content, str)
-                            and content
-                        ):
+                        if isinstance(content, str) and content:
                             content_received = True
 
                             content_event = {
@@ -337,63 +299,41 @@ class OllamaProvider(AIProvider):
                                 "content": content,
                             }
 
-                            yield (
-                                json.dumps(
-                                    content_event
-                                )
-                                + "\n"
-                            )
+                            yield (json.dumps(content_event) + "\n")
 
                         if chunk.get("done") is not True:
                             continue
 
-                        prompt_tokens = chunk.get(
-                            "prompt_eval_count"
-                        )
-                        completion_tokens = chunk.get(
-                            "eval_count"
-                        )
+                        prompt_tokens = chunk.get("prompt_eval_count")
+                        completion_tokens = chunk.get("eval_count")
 
-                        total_tokens = (
-                            self._calculate_total_tokens(
-                                prompt_tokens,
-                                completion_tokens,
-                            )
+                        total_tokens = self._calculate_total_tokens(
+                            prompt_tokens,
+                            completion_tokens,
                         )
 
                         latency_ms = round(
-                            (
-                                time.perf_counter()
-                                - started
-                            )
-                            * 1000,
+                            (time.perf_counter() - started) * 1000,
                             2,
                         )
 
-                        done_reason_value = chunk.get(
-                            "done_reason"
-                        )
+                        done_reason_value = chunk.get("done_reason")
                         done_reason = (
                             str(done_reason_value)
-                            if done_reason_value
-                            is not None
+                            if done_reason_value is not None
                             else None
                         )
 
                         if not content_received:
-                            error = (
-                                self._empty_response_error(
-                                    model=str(
-                                        chunk.get(
-                                            "model",
-                                            model,
-                                        )
-                                    ),
-                                    done_reason=done_reason,
-                                    has_thinking=(
-                                        thinking_received
-                                    ),
-                                )
+                            error = self._empty_response_error(
+                                model=str(
+                                    chunk.get(
+                                        "model",
+                                        model,
+                                    )
+                                ),
+                                done_reason=done_reason,
+                                has_thinking=(thinking_received),
                             )
 
                             error_event = {
@@ -401,10 +341,7 @@ class OllamaProvider(AIProvider):
                                 "error": str(error),
                             }
 
-                            yield (
-                                json.dumps(error_event)
-                                + "\n"
-                            )
+                            yield (json.dumps(error_event) + "\n")
                             return
 
                         final_event = {
@@ -418,42 +355,30 @@ class OllamaProvider(AIProvider):
                             ),
                             "done_reason": done_reason,
                             "usage": {
-                                "prompt_tokens":
-                                    prompt_tokens,
-                                "completion_tokens":
-                                    completion_tokens,
-                                "total_tokens":
-                                    total_tokens,
-                                "latency_ms":
-                                    latency_ms,
+                                "prompt_tokens": prompt_tokens,
+                                "completion_tokens": completion_tokens,
+                                "total_tokens": total_tokens,
+                                "latency_ms": latency_ms,
                             },
                         }
 
-                        yield (
-                            json.dumps(final_event)
-                            + "\n"
-                        )
+                        yield (json.dumps(final_event) + "\n")
                         return
 
         except httpx.HTTPStatusError as exc:
             response_body = ""
 
             try:
-                response_body = (
-                    exc.response.text.strip()
-                )
+                response_body = exc.response.text.strip()
             except Exception:
                 response_body = ""
 
             error_message = (
-                "Ollama returned HTTP "
-                f"{exc.response.status_code}"
+                "Ollama returned HTTP " f"{exc.response.status_code}"
             )
 
             if response_body:
-                error_message += (
-                    f": {response_body[:500]}"
-                )
+                error_message += f": {response_body[:500]}"
 
             error_event = {
                 "type": "error",
@@ -465,10 +390,7 @@ class OllamaProvider(AIProvider):
         except httpx.HTTPError as exc:
             error_event = {
                 "type": "error",
-                "error": (
-                    "Ollama connection failed: "
-                    f"{exc}"
-                ),
+                "error": ("Ollama connection failed: " f"{exc}"),
             }
 
             yield json.dumps(error_event) + "\n"
@@ -476,10 +398,7 @@ class OllamaProvider(AIProvider):
         except Exception as exc:
             error_event = {
                 "type": "error",
-                "error": (
-                    "Ollama generation failed: "
-                    f"{exc}"
-                ),
+                "error": ("Ollama generation failed: " f"{exc}"),
             }
 
             yield json.dumps(error_event) + "\n"

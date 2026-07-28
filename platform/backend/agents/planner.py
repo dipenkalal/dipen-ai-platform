@@ -109,9 +109,7 @@ class AgentToolPlanner:
         compatibility during the v0.12 migration.
         """
 
-        objective = self._normalise(
-            request.objective
-        )
+        objective = self._normalise(request.objective)
 
         if agent.id == "system-agent":
             return self._plan_system_agent(
@@ -195,9 +193,7 @@ class AgentToolPlanner:
         }
 
         has_terminal_tool = bool(
-            tool_plan.tool_ids
-            and tool_plan.tool_ids[-1]
-            in terminal_tool_ids
+            tool_plan.tool_ids and tool_plan.tool_ids[-1] in terminal_tool_ids
         )
 
         if not has_terminal_tool:
@@ -217,9 +213,7 @@ class AgentToolPlanner:
                 "version": "0.12",
                 "planner": "deterministic",
                 "agent_id": agent.id,
-                "tool_ids": list(
-                    tool_plan.tool_ids
-                ),
+                "tool_ids": list(tool_plan.tool_ids),
             },
         )
 
@@ -277,9 +271,7 @@ class AgentToolPlanner:
             tool_ids=tools,
             reason=(
                 "Live system status is required because the "
-                "objective matched: "
-                + ", ".join(matches)
-                + "."
+                "objective matched: " + ", ".join(matches) + "."
             ),
         )
 
@@ -314,9 +306,7 @@ class AgentToolPlanner:
         if matches:
             reason = (
                 "Indexed knowledge is required because the "
-                "objective matched: "
-                + ", ".join(matches)
-                + "."
+                "objective matched: " + ", ".join(matches) + "."
             )
 
         return ToolPlan(
@@ -347,9 +337,7 @@ class AgentToolPlanner:
             if matches:
                 reason = (
                     "Research retrieval is required because "
-                    "the objective matched: "
-                    + ", ".join(matches)
-                    + "."
+                    "the objective matched: " + ", ".join(matches) + "."
                 )
             else:
                 reason = (
@@ -372,11 +360,7 @@ class AgentToolPlanner:
     ) -> tuple[str, ...]:
         assigned = set(agent.tools)
 
-        return tuple(
-            tool_id
-            for tool_id in requested
-            if tool_id in assigned
-        )
+        return tuple(tool_id for tool_id in requested if tool_id in assigned)
 
     def _tool_step_name(
         self,
@@ -408,12 +392,8 @@ class AgentToolPlanner:
                 "provider": request.provider,
                 "temperature": request.temperature,
                 "max_tokens": request.max_tokens,
-                "retrieval_limit": (
-                    request.retrieval_limit
-                ),
-                "score_threshold": (
-                    request.score_threshold
-                ),
+                "retrieval_limit": (request.retrieval_limit),
+                "score_threshold": (request.score_threshold),
                 "document_id": request.document_id,
             }
 
@@ -422,9 +402,7 @@ class AgentToolPlanner:
                 "query": request.objective,
                 "document_id": request.document_id,
                 "limit": request.retrieval_limit,
-                "score_threshold": (
-                    request.score_threshold
-                ),
+                "score_threshold": (request.score_threshold),
             }
 
         return {}
@@ -446,9 +424,7 @@ class AgentToolPlanner:
         self,
         value: str,
     ) -> str:
-        return " ".join(
-            value.lower().split()
-        )
+        return " ".join(value.lower().split())
 
 
 agent_tool_planner = AgentToolPlanner()

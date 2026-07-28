@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -48,8 +48,8 @@ def get_disk_usage(path: str) -> dict[str, Any]:
 def get_system_status() -> dict[str, Any]:
     """Collect current host system metrics."""
     memory = psutil.virtual_memory()
-    boot_time = datetime.fromtimestamp(psutil.boot_time(), tz=timezone.utc)
-    now = datetime.now(tz=timezone.utc)
+    boot_time = datetime.fromtimestamp(psutil.boot_time(), tz=UTC)
+    now = datetime.now(tz=UTC)
 
     disks = {
         "system": get_disk_usage(str(Path.home().anchor or "/")),

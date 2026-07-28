@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -43,19 +43,11 @@ class KnowledgeService:
     async def health(
         self,
     ) -> KnowledgeHealthResponse:
-        qdrant_online = (
-            await vector_store.health()
-        )
+        qdrant_online = await vector_store.health()
 
-        ollama_online = (
-            await embedding_service.health()
-        )
+        ollama_online = await embedding_service.health()
 
-        status = (
-            "healthy"
-            if qdrant_online and ollama_online
-            else "degraded"
-        )
+        status = "healthy" if qdrant_online and ollama_online else "degraded"
 
         return KnowledgeHealthResponse(
             status=status,
@@ -69,24 +61,17 @@ class KnowledgeService:
         self,
         upload: UploadFile,
     ) -> DocumentUploadResponse:
-        original_filename = (
-            upload.filename or "document"
-        )
+        original_filename = upload.filename or "document"
 
-        extension = Path(
-            original_filename
-        ).suffix.lower()
+        extension = Path(original_filename).suffix.lower()
 
         if extension not in ALLOWED_EXTENSIONS:
-            allowed = ", ".join(
-                sorted(ALLOWED_EXTENSIONS)
-            )
+            allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
 
             raise HTTPException(
                 status_code=415,
                 detail=(
-                    "Unsupported file type. "
-                    f"Allowed extensions: {allowed}"
+                    "Unsupported file type. " f"Allowed extensions: {allowed}"
                 ),
             )
 
@@ -108,25 +93,16 @@ class KnowledgeService:
             )
 
         document_id = str(uuid4())
-        created_at = datetime.now(
-            timezone.utc
-        )
+        created_at = datetime.now(UTC)
 
-        safe_filename = (
-            f"{document_id}{extension}"
-        )
+        safe_filename = f"{document_id}{extension}"
 
-        stored_path = (
-            KNOWLEDGE_UPLOAD_DIRECTORY
-            / safe_filename
-        )
+        stored_path = KNOWLEDGE_UPLOAD_DIRECTORY / safe_filename
 
         stored_path.write_bytes(content)
 
         try:
-            text = extract_document_text(
-                stored_path
-            )
+            text = extract_document_text(stored_path)
 
             chunks = chunk_text(
                 text=text,
@@ -139,14 +115,9 @@ class KnowledgeService:
                     "The document produced no text chunks"
                 )
 
-            chunk_contents = [
-                chunk.text
-                for chunk in chunks
-            ]
+            chunk_contents = [chunk.text for chunk in chunks]
 
-            embeddings: list[
-                list[float]
-            ] = []
+            embeddings: list[list[float]] = []
 
             batch_size = 16
 
@@ -155,25 +126,17 @@ class KnowledgeService:
                 len(chunk_contents),
                 batch_size,
             ):
-                batch = chunk_contents[
-                    start:start + batch_size
-                ]
+                batch = chunk_contents[start : start + batch_size]
 
-                batch_embeddings = (
-                    await embedding_service
-                    .embed_texts(batch)
-                )
+                batch_embeddings = await embedding_service.embed_texts(batch)
 
-                embeddings.extend(
-                    batch_embeddings
-                )
+                embeddings.extend(batch_embeddings)
 
             await vector_store.add_document_chunks(
                 document_id=document_id,
                 filename=original_filename,
                 content_type=(
-                    upload.content_type
-                    or "application/octet-stream"
+                    upload.content_type or "application/octet-stream"
                 ),
                 size_bytes=len(content),
                 created_at=created_at,
@@ -182,9 +145,7 @@ class KnowledgeService:
             )
 
         except UnsupportedDocumentError as exc:
-            stored_path.unlink(
-                missing_ok=True
-            )
+            stored_path.unlink(missing_ok=True)
 
             raise HTTPException(
                 status_code=415,
@@ -192,9 +153,7 @@ class KnowledgeService:
             ) from exc
 
         except EmptyDocumentError as exc:
-            stored_path.unlink(
-                missing_ok=True
-            )
+            stored_path.unlink(missing_ok=True)
 
             raise HTTPException(
                 status_code=422,
@@ -202,25 +161,17 @@ class KnowledgeService:
             ) from exc
 
         except Exception as exc:
-            stored_path.unlink(
-                missing_ok=True
-            )
+            stored_path.unlink(missing_ok=True)
 
             raise HTTPException(
                 status_code=502,
-                detail=(
-                    "Document ingestion failed: "
-                    f"{exc}"
-                ),
+                detail=("Document ingestion failed: " f"{exc}"),
             ) from exc
 
         document = DocumentInfo(
             document_id=document_id,
             filename=original_filename,
-            content_type=(
-                upload.content_type
-                or "application/octet-stream"
-            ),
+            content_type=(upload.content_type or "application/octet-stream"),
             size_bytes=len(content),
             chunk_count=len(chunks),
             created_at=created_at,
@@ -234,10 +185,7 @@ class KnowledgeService:
     async def list_documents(
         self,
     ) -> DocumentListResponse:
-        points = (
-            await vector_store
-            .list_document_points()
-        )
+        points = await vector_store.list_document_points()
 
         documents: dict[
             str,
@@ -248,9 +196,7 @@ class KnowledgeService:
 
         for point in points:
             payload = point.payload or {}
-            document_id = payload.get(
-                "document_id"
-            )
+            document_id = payload.get("document_id")
 
             if not isinstance(
                 document_id,
@@ -267,62 +213,51 @@ class KnowledgeService:
             )
 
             if document_id not in documents:
-                created_at_raw = payload.get(
-                    "created_at"
-                )
+                created_at_raw = payload.get("created_at")
 
                 created_at = (
-                    datetime.fromisoformat(
-                        created_at_raw
-                    )
+                    datetime.fromisoformat(created_at_raw)
                     if isinstance(
                         created_at_raw,
                         str,
                     )
-                    else datetime.now(
-                        timezone.utc
-                    )
+                    else datetime.now(UTC)
                 )
 
-                documents[document_id] = (
-                    DocumentInfo(
-                        document_id=document_id,
-                        filename=str(
-                            payload.get(
-                                "filename",
-                                "unknown",
-                            )
-                        ),
-                        content_type=str(
-                            payload.get(
-                                "content_type",
-                                "application/octet-stream",
-                            )
-                        ),
-                        size_bytes=int(
-                            payload.get(
-                                "size_bytes",
-                                0,
-                            )
-                        ),
-                        chunk_count=0,
-                        created_at=created_at,
-                    )
+                documents[document_id] = DocumentInfo(
+                    document_id=document_id,
+                    filename=str(
+                        payload.get(
+                            "filename",
+                            "unknown",
+                        )
+                    ),
+                    content_type=str(
+                        payload.get(
+                            "content_type",
+                            "application/octet-stream",
+                        )
+                    ),
+                    size_bytes=int(
+                        payload.get(
+                            "size_bytes",
+                            0,
+                        )
+                    ),
+                    chunk_count=0,
+                    created_at=created_at,
                 )
 
         result: list[DocumentInfo] = []
 
-        for document_id, document in (
-            documents.items()
-        ):
+        for document_id, document in documents.items():
             result.append(
                 document.model_copy(
                     update={
-                        "chunk_count":
-                            chunk_counts.get(
-                                document_id,
-                                0,
-                            )
+                        "chunk_count": chunk_counts.get(
+                            document_id,
+                            0,
+                        )
                     }
                 )
             )
@@ -342,28 +277,18 @@ class KnowledgeService:
         request: SearchRequest,
     ) -> SearchResponse:
         try:
-            query_vector = (
-                await embedding_service
-                .embed_query(request.query)
-            )
+            query_vector = await embedding_service.embed_query(request.query)
 
             points = await vector_store.search(
                 query_vector=query_vector,
                 limit=request.limit,
-                score_threshold=(
-                    request.score_threshold
-                ),
-                document_id=(
-                    request.document_id
-                ),
+                score_threshold=(request.score_threshold),
+                document_id=(request.document_id),
             )
         except Exception as exc:
             raise HTTPException(
                 status_code=502,
-                detail=(
-                    "Knowledge search failed: "
-                    f"{exc}"
-                ),
+                detail=("Knowledge search failed: " f"{exc}"),
             ) from exc
 
         results: list[SearchResult] = []
@@ -420,10 +345,7 @@ class KnowledgeService:
         self,
         document_id: str,
     ) -> DocumentDeleteResponse:
-        deleted_chunks = (
-            await vector_store
-            .delete_document(document_id)
-        )
+        deleted_chunks = await vector_store.delete_document(document_id)
 
         if deleted_chunks == 0:
             raise HTTPException(
@@ -431,14 +353,8 @@ class KnowledgeService:
                 detail="Document not found",
             )
 
-        for path in (
-            KNOWLEDGE_UPLOAD_DIRECTORY.glob(
-                f"{document_id}.*"
-            )
-        ):
-            path.unlink(
-                missing_ok=True
-            )
+        for path in KNOWLEDGE_UPLOAD_DIRECTORY.glob(f"{document_id}.*"):
+            path.unlink(missing_ok=True)
 
         return DocumentDeleteResponse(
             status="deleted",

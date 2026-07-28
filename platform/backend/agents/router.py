@@ -113,17 +113,13 @@ class AgentRouter:
         objective = request.objective.lower().strip()
 
         scores: dict[str, int] = {
-            agent_id: 0
-            for agent_id in self._keyword_weights
+            agent_id: 0 for agent_id in self._keyword_weights
         }
 
         matched_terms: dict[
             str,
             list[str],
-        ] = {
-            agent_id: []
-            for agent_id in self._keyword_weights
-        }
+        ] = {agent_id: [] for agent_id in self._keyword_weights}
 
         for (
             agent_id,
@@ -132,29 +128,21 @@ class AgentRouter:
             for keyword, weight in keywords.items():
                 if keyword in objective:
                     scores[agent_id] += weight
-                    matched_terms[agent_id].append(
-                        keyword
-                    )
+                    matched_terms[agent_id].append(keyword)
 
         selected_agent_id = max(
             self._priority,
             key=lambda agent_id: (
                 scores[agent_id],
-                -self._priority.index(
-                    agent_id
-                ),
+                -self._priority.index(agent_id),
             ),
         )
 
-        selected_score = scores[
-            selected_agent_id
-        ]
+        selected_score = scores[selected_agent_id]
 
         if selected_score == 0:
             selected_agent_id = (
-                "knowledge-agent"
-                if request.document_id
-                else "coding-agent"
+                "knowledge-agent" if request.document_id else "coding-agent"
             )
 
             reason = (
@@ -177,36 +165,21 @@ class AgentRouter:
                 0.99,
                 max(
                     0.55,
-                    selected_score /
-                    max(total_score, 1),
+                    selected_score / max(total_score, 1),
                 ),
             )
 
-            terms = ", ".join(
-                matched_terms[
-                    selected_agent_id
-                ][:4]
-            )
+            terms = ", ".join(matched_terms[selected_agent_id][:4])
 
-            agent = agent_registry.get(
-                selected_agent_id
-            )
+            agent = agent_registry.get(selected_agent_id)
 
-            reason = (
-                f"{agent.name} matched the request "
-                f"based on: {terms}."
-            )
+            reason = f"{agent.name} matched the request " f"based on: {terms}."
 
-        agent = agent_registry.get(
-            selected_agent_id
-        )
+        agent = agent_registry.get(selected_agent_id)
 
         return AgentRoute(
             agent_id=selected_agent_id,
-            model=(
-                request.model
-                or agent.recommended_model
-            ),
+            model=(request.model or agent.recommended_model),
             confidence=round(
                 confidence,
                 2,

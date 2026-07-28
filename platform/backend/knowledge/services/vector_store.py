@@ -38,18 +38,12 @@ class VectorStore:
         self,
         vector_size: int,
     ) -> None:
-        exists = await self.client.collection_exists(
-            self.collection_name
-        )
+        exists = await self.client.collection_exists(self.collection_name)
 
         if exists:
-            collection = await self.client.get_collection(
-                self.collection_name
-            )
+            collection = await self.client.get_collection(self.collection_name)
 
-            current_size = (
-                collection.config.params.vectors.size
-            )
+            current_size = collection.config.params.vectors.size
 
             if current_size != vector_size:
                 raise RuntimeError(
@@ -80,18 +74,12 @@ class VectorStore:
         embeddings: list[list[float]],
     ) -> None:
         if len(chunks) != len(embeddings):
-            raise ValueError(
-                "Chunk and embedding counts must match"
-            )
+            raise ValueError("Chunk and embedding counts must match")
 
         if not embeddings:
-            raise ValueError(
-                "At least one embedding is required"
-            )
+            raise ValueError("At least one embedding is required")
 
-        await self.ensure_collection(
-            vector_size=len(embeddings[0])
-        )
+        await self.ensure_collection(vector_size=len(embeddings[0]))
 
         points: list[PointStruct] = []
 
@@ -167,9 +155,7 @@ class VectorStore:
     async def list_document_points(
         self,
     ) -> list[Any]:
-        exists = await self.client.collection_exists(
-            self.collection_name
-        )
+        exists = await self.client.collection_exists(self.collection_name)
 
         if not exists:
             return []
@@ -178,14 +164,12 @@ class VectorStore:
         offset = None
 
         while True:
-            points, next_offset = (
-                await self.client.scroll(
-                    collection_name=self.collection_name,
-                    limit=256,
-                    offset=offset,
-                    with_payload=True,
-                    with_vectors=False,
-                )
+            points, next_offset = await self.client.scroll(
+                collection_name=self.collection_name,
+                limit=256,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
             )
 
             records.extend(points)
@@ -201,9 +185,7 @@ class VectorStore:
         self,
         document_id: str,
     ) -> int:
-        exists = await self.client.collection_exists(
-            self.collection_name
-        )
+        exists = await self.client.collection_exists(self.collection_name)
 
         if not exists:
             return 0

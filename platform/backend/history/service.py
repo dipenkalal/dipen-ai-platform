@@ -1,9 +1,9 @@
-from fastapi import HTTPException
-
 from agents.schemas import (
     AgentRunRequest,
     AgentRunResponse,
 )
+from fastapi import HTTPException
+
 from history.repository import (
     agent_run_repository,
 )
@@ -32,17 +32,12 @@ class AgentRunHistoryService:
         self,
         run_id: str,
     ) -> AgentRunRecord:
-        record = agent_run_repository.get(
-            run_id
-        )
+        record = agent_run_repository.get(run_id)
 
         if record is None:
             raise HTTPException(
                 status_code=404,
-                detail=(
-                    f"Agent run '{run_id}' "
-                    "was not found."
-                ),
+                detail=(f"Agent run '{run_id}' " "was not found."),
             )
 
         return record
@@ -77,17 +72,12 @@ class AgentRunHistoryService:
         self,
         run_id: str,
     ) -> AgentRunDeleteResponse:
-        deleted = agent_run_repository.delete(
-            run_id
-        )
+        deleted = agent_run_repository.delete(run_id)
 
         if not deleted:
             raise HTTPException(
                 status_code=404,
-                detail=(
-                    f"Agent run '{run_id}' "
-                    "was not found."
-                ),
+                detail=(f"Agent run '{run_id}' " "was not found."),
             )
 
         return AgentRunDeleteResponse(
@@ -98,15 +88,9 @@ class AgentRunHistoryService:
     def clear(
         self,
     ) -> AgentRunClearResponse:
-        deleted_count = (
-            agent_run_repository.clear()
-        )
+        deleted_count = agent_run_repository.clear()
 
-        return AgentRunClearResponse(
-            deleted_count=deleted_count
-        )
+        return AgentRunClearResponse(deleted_count=deleted_count)
 
 
-agent_run_history_service = (
-    AgentRunHistoryService()
-)
+agent_run_history_service = AgentRunHistoryService()

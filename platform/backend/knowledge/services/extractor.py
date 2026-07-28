@@ -23,9 +23,7 @@ def extract_pdf_text(file_path: Path) -> str:
         cleaned = extracted.strip()
 
         if cleaned:
-            page_texts.append(
-                f"[Page {page_number}]\n{cleaned}"
-            )
+            page_texts.append(f"[Page {page_number}]\n{cleaned}")
 
     return "\n\n".join(page_texts)
 
@@ -59,10 +57,7 @@ def extract_document_text(
             f"Unsupported file extension: {extension}"
         )
 
-    normalized = "\n".join(
-        line.rstrip()
-        for line in text.splitlines()
-    ).strip()
+    normalized = "\n".join(line.rstrip() for line in text.splitlines()).strip()
 
     if not normalized:
         raise EmptyDocumentError(

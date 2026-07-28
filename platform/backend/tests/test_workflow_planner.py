@@ -110,9 +110,7 @@ def test_system_agent_builds_tool_then_generation() -> None:
     ]
 
     assert workflow.requires_tools is True
-    assert workflow.tool_ids == (
-        "system.status",
-    )
+    assert workflow.tool_ids == ("system.status",)
 
 
 def test_research_workflow_maps_search_input() -> None:
@@ -201,8 +199,7 @@ def test_knowledge_ask_is_terminal_workflow() -> None:
     }
 
     assert all(
-        workflow_step.kind != "generation"
-        for workflow_step in workflow.steps
+        workflow_step.kind != "generation" for workflow_step in workflow.steps
     )
 
 

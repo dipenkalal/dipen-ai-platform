@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-
 KNOWLEDGE_UPLOAD_DIRECTORY = Path(
     os.getenv(
         "KNOWLEDGE_UPLOAD_DIRECTORY",

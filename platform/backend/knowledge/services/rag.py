@@ -2,12 +2,12 @@ import json
 from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
-
 from gateway.schemas import (
     ChatMessage,
     ChatRequest,
 )
 from gateway.service import gateway_service
+
 from knowledge.schemas import (
     AskRequest,
     AskResponse,
@@ -18,7 +18,6 @@ from knowledge.schemas import (
 from knowledge.services.knowledge import (
     knowledge_service,
 )
-
 
 SYSTEM_PROMPT = """
 You are the document assistant inside Dipen AI Platform.
@@ -166,9 +165,7 @@ class RagService:
         )
 
         try:
-            chat_response = await gateway_service.chat(
-                chat_request
-            )
+            chat_response = await gateway_service.chat(chat_request)
         except HTTPException:
             raise
         except Exception as exc:
@@ -183,18 +180,10 @@ class RagService:
             model=chat_response.model,
             sources=sources,
             usage=RagUsageMetrics(
-                prompt_tokens=(
-                    chat_response.usage.prompt_tokens
-                ),
-                completion_tokens=(
-                    chat_response.usage.completion_tokens
-                ),
-                total_tokens=(
-                    chat_response.usage.total_tokens
-                ),
-                latency_ms=(
-                    chat_response.usage.latency_ms
-                ),
+                prompt_tokens=(chat_response.usage.prompt_tokens),
+                completion_tokens=(chat_response.usage.completion_tokens),
+                total_tokens=(chat_response.usage.total_tokens),
+                latency_ms=(chat_response.usage.latency_ms),
             ),
         )
 
@@ -207,10 +196,7 @@ class RagService:
 
             sources_event = {
                 "type": "sources",
-                "sources": [
-                    source.model_dump()
-                    for source in sources
-                ],
+                "sources": [source.model_dump() for source in sources],
             }
 
             yield json.dumps(sources_event) + "\n"
@@ -252,11 +238,7 @@ class RagService:
 
             chat_request.stream = True
 
-            async for raw_event in (
-                gateway_service.stream_chat(
-                    chat_request
-                )
-            ):
+            async for raw_event in gateway_service.stream_chat(chat_request):
                 stripped_event = raw_event.strip()
 
                 if not stripped_event:
@@ -269,8 +251,7 @@ class RagService:
 
                 if event.get("type") == "done":
                     event["sources"] = [
-                        source.model_dump()
-                        for source in sources
+                        source.model_dump() for source in sources
                     ]
 
                 yield json.dumps(event) + "\n"

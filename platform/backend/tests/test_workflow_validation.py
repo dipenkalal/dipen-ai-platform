@@ -1,5 +1,4 @@
 import pytest
-
 from agents.executor import AgentExecutor
 from agents.schemas import Workflow, WorkflowStep
 
@@ -150,6 +149,8 @@ def test_tool_step_without_tool_id_is_rejected() -> None:
         match="missing tool_id",
     ):
         make_executor()._validate_workflow(workflow)
+
+
 @pytest.mark.asyncio
 async def test_execute_workflow_validates_before_execution() -> None:
     executor = make_executor()

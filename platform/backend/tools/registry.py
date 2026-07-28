@@ -20,9 +20,7 @@ class ToolRegistry:
         tool_id = tool.definition.id
 
         if tool_id in self._tools:
-            raise ValueError(
-                f"Tool already registered: {tool_id}"
-            )
+            raise ValueError(f"Tool already registered: {tool_id}")
 
         self._tools[tool_id] = tool
 
@@ -33,19 +31,14 @@ class ToolRegistry:
         tool = self._tools.get(tool_id)
 
         if tool is None:
-            raise KeyError(
-                f"Unknown tool: {tool_id}"
-            )
+            raise KeyError(f"Unknown tool: {tool_id}")
 
         return tool
 
     def list_definitions(
         self,
     ) -> list[ToolDefinition]:
-        return [
-            tool.definition
-            for tool in self._tools.values()
-        ]
+        return [tool.definition for tool in self._tools.values()]
 
 
 tool_registry = ToolRegistry()

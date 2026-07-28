@@ -1,11 +1,6 @@
 import inspect
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
-from fastapi import FastAPI
-from fastapi.middleware.cors import (
-    CORSMiddleware,
-)
 
 from agents.routes import (
     router as agents_router,
@@ -15,6 +10,10 @@ from collectors.ollama import (
 )
 from collectors.system import (
     get_system_status,
+)
+from fastapi import FastAPI
+from fastapi.middleware.cors import (
+    CORSMiddleware,
 )
 from gateway.routes import (
     router as gateway_router,
@@ -29,15 +28,12 @@ from knowledge.routes import (
     router as knowledge_router,
 )
 
-
 APP_VERSION = "0.8.1"
 
 
 app = FastAPI(
     title="DAP API",
-    description=(
-        "Backend service for Dipen AI Platform"
-    ),
+    description=("Backend service for Dipen AI Platform"),
     version=APP_VERSION,
 )
 
@@ -81,31 +77,19 @@ async def health() -> dict[str, str]:
     return {
         "status": "healthy",
         "version": APP_VERSION,
-        "timestamp": datetime.now(
-            timezone.utc
-        ).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
 @app.get("/api/status")
 async def status() -> dict[str, Any]:
-    system_status = (
-        await resolve_collector_result(
-            get_system_status()
-        )
-    )
+    system_status = await resolve_collector_result(get_system_status())
 
-    ollama_status = (
-        await resolve_collector_result(
-            get_ollama_status()
-        )
-    )
+    ollama_status = await resolve_collector_result(get_ollama_status())
 
     return {
         "version": APP_VERSION,
-        "timestamp": datetime.now(
-            timezone.utc
-        ).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "system": system_status,
         "ollama": ollama_status,
     }

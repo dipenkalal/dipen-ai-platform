@@ -3,7 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 AnalyticsRunStatus = Literal[
     "queued",
     "running",
@@ -38,9 +37,7 @@ class AgentAnalyticsItem(BaseModel):
 
 
 class AgentAnalyticsResponse(BaseModel):
-    agents: list[AgentAnalyticsItem] = Field(
-        default_factory=list
-    )
+    agents: list[AgentAnalyticsItem] = Field(default_factory=list)
     total: int = 0
 
 
@@ -58,18 +55,12 @@ class RecentAnalyticsRun(BaseModel):
 
 
 class RecentAnalyticsResponse(BaseModel):
-    runs: list[RecentAnalyticsRun] = Field(
-        default_factory=list
-    )
+    runs: list[RecentAnalyticsRun] = Field(default_factory=list)
     total: int = 0
     limit: int = 10
 
 
 class AnalyticsDashboardResponse(BaseModel):
     overview: AnalyticsOverview
-    agents: list[AgentAnalyticsItem] = Field(
-        default_factory=list
-    )
-    recent_runs: list[RecentAnalyticsRun] = Field(
-        default_factory=list
-    )
+    agents: list[AgentAnalyticsItem] = Field(default_factory=list)
+    recent_runs: list[RecentAnalyticsRun] = Field(default_factory=list)

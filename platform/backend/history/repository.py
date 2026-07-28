@@ -1,6 +1,11 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
+from agents.schemas import (
+    AgentRunRequest,
+    AgentRunResponse,
+)
 
 from history.database import (
     HistoryDatabase,
@@ -9,10 +14,6 @@ from history.database import (
 from history.schemas import (
     AgentRunRecord,
     AgentRunSummary,
-)
-from agents.schemas import (
-    AgentRunRequest,
-    AgentRunResponse,
 )
 
 
@@ -30,24 +31,15 @@ class AgentRunRepository:
         response: AgentRunResponse,
         error: str | None = None,
     ) -> AgentRunRecord:
-        now = datetime.now(
-            timezone.utc
-        ).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         request_json = json.dumps(
-            request.model_dump(
-                mode="json"
-            ),
+            request.model_dump(mode="json"),
             ensure_ascii=False,
         )
 
         steps_json = json.dumps(
-            [
-                step.model_dump(
-                    mode="json"
-                )
-                for step in response.steps
-            ],
+            [step.model_dump(mode="json") for step in response.steps],
             ensure_ascii=False,
         )
 
@@ -58,9 +50,7 @@ class AgentRunRepository:
         )
 
         usage_json = json.dumps(
-            response.usage.model_dump(
-                mode="json"
-            ),
+            response.usage.model_dump(mode="json"),
             ensure_ascii=False,
         )
 
@@ -130,9 +120,7 @@ class AgentRunRepository:
         record = self.get(response.run_id)
 
         if record is None:
-            raise RuntimeError(
-                "Saved agent run could not be read."
-            )
+            raise RuntimeError("Saved agent run could not be read.")
 
         return record
 
@@ -169,33 +157,25 @@ class AgentRunRepository:
         parameters: list[Any] = []
 
         if agent_id:
-            conditions.append(
-                "agent_id = ?"
-            )
+            conditions.append("agent_id = ?")
             parameters.append(agent_id)
 
         if status:
-            conditions.append(
-                "status = ?"
-            )
+            conditions.append("status = ?")
             parameters.append(status)
 
         if model:
-            conditions.append(
-                "model = ?"
-            )
+            conditions.append("model = ?")
             parameters.append(model)
 
         if search:
-            conditions.append(
-                """
+            conditions.append("""
                 (
                     objective LIKE ?
                     OR answer LIKE ?
                     OR agent_id LIKE ?
                 )
-                """
-            )
+                """)
 
             search_value = f"%{search}%"
 
@@ -210,10 +190,7 @@ class AgentRunRepository:
         where_clause = ""
 
         if conditions:
-            where_clause = (
-                "WHERE "
-                + " AND ".join(conditions)
-            )
+            where_clause = "WHERE " + " AND ".join(conditions)
 
         with self.database.connection() as connection:
             total_row = connection.execute(
@@ -240,17 +217,10 @@ class AgentRunRepository:
                 ],
             ).fetchall()
 
-        total = int(
-            total_row["total"]
-            if total_row
-            else 0
-        )
+        total = int(total_row["total"] if total_row else 0)
 
         return (
-            [
-                self._row_to_summary(row)
-                for row in rows
-            ],
+            [self._row_to_summary(row) for row in rows],
             total,
         )
 
@@ -273,9 +243,7 @@ class AgentRunRepository:
 
     def clear(self) -> int:
         with self.database.connection() as connection:
-            cursor = connection.execute(
-                "DELETE FROM agent_runs"
-            )
+            cursor = connection.execute("DELETE FROM agent_runs")
 
             connection.commit()
 
@@ -288,9 +256,7 @@ class AgentRunRepository:
         self,
         row: Any,
     ) -> AgentRunRecord:
-        usage = json.loads(
-            row["usage_json"]
-        )
+        usage = json.loads(row["usage_json"])
 
         return AgentRunRecord(
             run_id=row["run_id"],
@@ -301,15 +267,9 @@ class AgentRunRepository:
             status=row["status"],
             answer=row["answer"],
             error=row["error"],
-            request=json.loads(
-                row["request_json"]
-            ),
-            steps=json.loads(
-                row["steps_json"]
-            ),
-            sources=json.loads(
-                row["sources_json"]
-            ),
+            request=json.loads(row["request_json"]),
+            steps=json.loads(row["steps_json"]),
+            sources=json.loads(row["sources_json"]),
             usage=usage,
             started_at=row["started_at"],
             completed_at=row["completed_at"],
@@ -321,24 +281,15 @@ class AgentRunRepository:
         self,
         row: Any,
     ) -> AgentRunSummary:
-        usage = json.loads(
-            row["usage_json"]
-        )
+        usage = json.loads(row["usage_json"])
 
-        steps = json.loads(
-            row["steps_json"]
-        )
+        steps = json.loads(row["steps_json"])
 
-        sources = json.loads(
-            row["sources_json"]
-        )
+        sources = json.loads(row["sources_json"])
 
         answer = row["answer"] or ""
 
-        answer_preview = (
-            answer[:240]
-            + ("…" if len(answer) > 240 else "")
-        )
+        answer_preview = answer[:240] + ("…" if len(answer) > 240 else "")
 
         return AgentRunSummary(
             run_id=row["run_id"],
@@ -351,9 +302,7 @@ class AgentRunRepository:
             error=row["error"],
             step_count=len(steps),
             source_count=len(sources),
-            total_tokens=usage.get(
-                "total_tokens"
-            ),
+            total_tokens=usage.get("total_tokens"),
             latency_ms=usage.get(
                 "latency_ms",
                 0.0,
@@ -364,6 +313,4 @@ class AgentRunRepository:
         )
 
 
-agent_run_repository = AgentRunRepository(
-    history_database
-)
+agent_run_repository = AgentRunRepository(history_database)

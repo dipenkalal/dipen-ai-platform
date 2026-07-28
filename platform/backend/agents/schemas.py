@@ -3,7 +3,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 AgentStatus = Literal[
     "queued",
     "running",
@@ -52,13 +51,9 @@ class AgentDefinition(BaseModel):
     icon: str = "bot"
     accent: AgentAccent = "cyan"
 
-    tools: list[str] = Field(
-        default_factory=list
-    )
+    tools: list[str] = Field(default_factory=list)
 
-    capabilities: list[str] = Field(
-        default_factory=list
-    )
+    capabilities: list[str] = Field(default_factory=list)
 
     recommended_model: str | None = None
 
@@ -153,13 +148,9 @@ class WorkflowStep(BaseModel):
 
     tool_id: str | None = None
 
-    input: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    input: dict[str, Any] = Field(default_factory=dict)
 
-    depends_on: list[str] = Field(
-        default_factory=list
-    )
+    depends_on: list[str] = Field(default_factory=list)
 
     continue_on_error: bool = False
 
@@ -179,30 +170,20 @@ class Workflow(BaseModel):
         max_length=2000,
     )
 
-    steps: list[WorkflowStep] = Field(
-        default_factory=list
-    )
+    steps: list[WorkflowStep] = Field(default_factory=list)
 
-    metadata: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def requires_tools(self) -> bool:
-        return any(
-            step.kind == "tool"
-            for step in self.steps
-        )
+        return any(step.kind == "tool" for step in self.steps)
 
     @property
     def tool_ids(self) -> tuple[str, ...]:
         return tuple(
             step.tool_id
             for step in self.steps
-            if (
-                step.kind == "tool"
-                and step.tool_id is not None
-            )
+            if (step.kind == "tool" and step.tool_id is not None)
         )
 
 
@@ -243,9 +224,7 @@ class AgentRunResponse(BaseModel):
     answer: str
     steps: list[AgentStep]
 
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
+    sources: list[dict[str, Any]] = Field(default_factory=list)
 
     usage: AgentUsage
     started_at: datetime

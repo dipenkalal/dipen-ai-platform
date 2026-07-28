@@ -3,6 +3,7 @@ from typing import Any
 
 from collectors.ollama import get_ollama_status
 from collectors.system import get_system_status
+
 from tools.base import (
     BaseTool,
     ToolDefinition,
@@ -37,13 +38,9 @@ class SystemStatusTool(BaseTool):
         del arguments
 
         try:
-            system_status = await resolve_result(
-                get_system_status()
-            )
+            system_status = await resolve_result(get_system_status())
 
-            ollama_status = await resolve_result(
-                get_ollama_status()
-            )
+            ollama_status = await resolve_result(get_ollama_status())
 
             return ToolExecutionResult(
                 tool_id=self.definition.id,

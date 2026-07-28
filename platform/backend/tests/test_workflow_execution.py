@@ -2,9 +2,8 @@ import json
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
 import agents.executor as executor_module
+import pytest
 from agents.executor import AgentExecutor
 from agents.schemas import Workflow, WorkflowStep
 
@@ -297,27 +296,21 @@ async def test_generation_receives_dependency_outputs(
         "error": None,
     }
 
-    result = (
-        await executor._execute_generation_workflow_step(
-            workflow_step=workflow_step,
-            previous_outputs={
-                "tool-1": dependency_output,
-            },
-            request=make_request(
-                "Analyse the measurement"
-            ),
-            agent=make_agent(),
-            system_prompt="Test system prompt",
-        )
+    result = await executor._execute_generation_workflow_step(
+        workflow_step=workflow_step,
+        previous_outputs={
+            "tool-1": dependency_output,
+        },
+        request=make_request("Analyse the measurement"),
+        agent=make_agent(),
+        system_prompt="Test system prompt",
     )
 
     assert result["success"] is True
     assert result["answer"] == "Generated answer"
     assert result["agent_id"] == "test-agent"
 
-    assert captured["system_prompt"] == (
-        "Test system prompt"
-    )
+    assert captured["system_prompt"] == ("Test system prompt")
 
     user_content = captured["user_content"]
 
@@ -328,14 +321,9 @@ async def test_generation_receives_dependency_outputs(
     context_text = user_content.split(
         "Workflow dependency outputs:",
         maxsplit=1,
-    )[1].split(
-        "Use the dependency outputs",
-        maxsplit=1,
-    )[0]
+    )[1].split("Use the dependency outputs", maxsplit=1,)[0]
 
-    parsed_context = json.loads(
-        context_text.strip()
-    )
+    parsed_context = json.loads(context_text.strip())
 
     assert parsed_context == {
         "tool-1": dependency_output,

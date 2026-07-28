@@ -22,7 +22,6 @@ from knowledge.services.rag import (
     rag_service,
 )
 
-
 router = APIRouter(
     prefix="/api/v1/knowledge",
     tags=["Knowledge Engine"],
@@ -33,8 +32,7 @@ router = APIRouter(
     "/health",
     response_model=KnowledgeHealthResponse,
 )
-async def knowledge_health(
-) -> KnowledgeHealthResponse:
+async def knowledge_health() -> KnowledgeHealthResponse:
     return await knowledge_service.health()
 
 
@@ -46,17 +44,14 @@ async def knowledge_health(
 async def upload_document(
     file: UploadFile = File(...),
 ) -> DocumentUploadResponse:
-    return await knowledge_service.upload_document(
-        file
-    )
+    return await knowledge_service.upload_document(file)
 
 
 @router.get(
     "/documents",
     response_model=DocumentListResponse,
 )
-async def list_documents(
-) -> DocumentListResponse:
+async def list_documents() -> DocumentListResponse:
     return await knowledge_service.list_documents()
 
 
@@ -67,9 +62,7 @@ async def list_documents(
 async def delete_document(
     document_id: str,
 ) -> DocumentDeleteResponse:
-    return await knowledge_service.delete_document(
-        document_id
-    )
+    return await knowledge_service.delete_document(document_id)
 
 
 @router.post(
@@ -79,9 +72,7 @@ async def delete_document(
 async def search_knowledge(
     request: SearchRequest,
 ) -> SearchResponse:
-    return await knowledge_service.search(
-        request
-    )
+    return await knowledge_service.search(request)
 
 
 @router.post(

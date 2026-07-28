@@ -8,6 +8,7 @@ from knowledge.services.knowledge import (
     knowledge_service,
 )
 from knowledge.services.rag import rag_service
+
 from tools.base import (
     BaseTool,
     ToolDefinition,
@@ -20,8 +21,7 @@ class KnowledgeSearchTool(BaseTool):
         id="knowledge.search",
         name="Knowledge Search",
         description=(
-            "Search indexed documents using semantic "
-            "vector retrieval."
+            "Search indexed documents using semantic " "vector retrieval."
         ),
         category="knowledge",
         safe=True,
@@ -32,9 +32,7 @@ class KnowledgeSearchTool(BaseTool):
         self,
         arguments: dict[str, Any],
     ) -> ToolExecutionResult:
-        query = str(
-            arguments.get("query", "")
-        ).strip()
+        query = str(arguments.get("query", "")).strip()
 
         if len(query) < 2:
             return ToolExecutionResult(
@@ -47,25 +45,19 @@ class KnowledgeSearchTool(BaseTool):
             response = await knowledge_service.search(
                 SearchRequest(
                     query=query,
-                    limit=int(
-                        arguments.get("limit", 5)
-                    ),
+                    limit=int(arguments.get("limit", 5)),
                     score_threshold=arguments.get(
                         "score_threshold",
                         0.40,
                     ),
-                    document_id=arguments.get(
-                        "document_id"
-                    ),
+                    document_id=arguments.get("document_id"),
                 )
             )
 
             return ToolExecutionResult(
                 tool_id=self.definition.id,
                 success=True,
-                output=response.model_dump(
-                    mode="json"
-                ),
+                output=response.model_dump(mode="json"),
             )
 
         except Exception as exc:
@@ -93,9 +85,7 @@ class KnowledgeAskTool(BaseTool):
         self,
         arguments: dict[str, Any],
     ) -> ToolExecutionResult:
-        question = str(
-            arguments.get("question", "")
-        ).strip()
+        question = str(arguments.get("question", "")).strip()
 
         if len(question) < 2:
             return ToolExecutionResult(
@@ -135,18 +125,14 @@ class KnowledgeAskTool(BaseTool):
                         "score_threshold",
                         0.40,
                     ),
-                    document_id=arguments.get(
-                        "document_id"
-                    ),
+                    document_id=arguments.get("document_id"),
                 )
             )
 
             return ToolExecutionResult(
                 tool_id=self.definition.id,
                 success=True,
-                output=response.model_dump(
-                    mode="json"
-                ),
+                output=response.model_dump(mode="json"),
             )
 
         except Exception as exc:

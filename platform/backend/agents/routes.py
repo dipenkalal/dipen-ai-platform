@@ -9,7 +9,6 @@ from agents.schemas import (
 )
 from agents.service import agent_service
 
-
 router = APIRouter(
     prefix="/api/v1",
     tags=["AI Agents"],
@@ -20,22 +19,16 @@ router = APIRouter(
     "/agents",
     response_model=AgentListResponse,
 )
-async def list_agents(
-) -> AgentListResponse:
-    return AgentListResponse(
-        agents=agent_service.list_agents()
-    )
+async def list_agents() -> AgentListResponse:
+    return AgentListResponse(agents=agent_service.list_agents())
 
 
 @router.get(
     "/tools",
     response_model=ToolListResponse,
 )
-async def list_tools(
-) -> ToolListResponse:
-    return ToolListResponse(
-        tools=agent_service.list_tools()
-    )
+async def list_tools() -> ToolListResponse:
+    return ToolListResponse(tools=agent_service.list_tools())
 
 
 @router.post(
@@ -45,9 +38,7 @@ async def list_tools(
 async def run_agent(
     request: AgentRunRequest,
 ) -> AgentRunResponse:
-    return await agent_service.run(
-        request
-    )
+    return await agent_service.run(request)
 
 
 @router.post(
@@ -59,13 +50,9 @@ async def stream_agent(
 ) -> StreamingResponse:
     return StreamingResponse(
         agent_service.stream(request),
-        media_type=(
-            "application/x-ndjson"
-        ),
+        media_type=("application/x-ndjson"),
         headers={
-            "Cache-Control": (
-                "no-cache, no-transform"
-            ),
+            "Cache-Control": ("no-cache, no-transform"),
             "X-Accel-Buffering": "no",
         },
     )

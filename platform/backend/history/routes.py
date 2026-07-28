@@ -13,7 +13,6 @@ from history.service import (
     agent_run_history_service,
 )
 
-
 router = APIRouter(
     prefix="/api/v1/agent-runs",
     tags=["Agent Run History"],
@@ -56,9 +55,7 @@ async def list_agent_runs(
 async def get_agent_run(
     run_id: str,
 ) -> AgentRunRecord:
-    return agent_run_history_service.get(
-        run_id
-    )
+    return agent_run_history_service.get(run_id)
 
 
 @router.delete(
@@ -68,15 +65,12 @@ async def get_agent_run(
 async def delete_agent_run(
     run_id: str,
 ) -> AgentRunDeleteResponse:
-    return agent_run_history_service.delete(
-        run_id
-    )
+    return agent_run_history_service.delete(run_id)
 
 
 @router.delete(
     "",
     response_model=AgentRunClearResponse,
 )
-async def clear_agent_runs(
-) -> AgentRunClearResponse:
+async def clear_agent_runs() -> AgentRunClearResponse:
     return agent_run_history_service.clear()
