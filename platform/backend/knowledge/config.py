@@ -1,10 +1,12 @@
 import os
 from pathlib import Path
 
+BACKEND_DIRECTORY = Path(__file__).resolve().parents[1]
+
 KNOWLEDGE_UPLOAD_DIRECTORY = Path(
     os.getenv(
         "KNOWLEDGE_UPLOAD_DIRECTORY",
-        "/home/dipen/dap/data/knowledge/uploads",
+        str(BACKEND_DIRECTORY / "data" / "knowledge" / "uploads"),
     )
 )
 
@@ -12,7 +14,6 @@ KNOWLEDGE_UPLOAD_DIRECTORY.mkdir(
     parents=True,
     exist_ok=True,
 )
-
 
 QDRANT_URL = os.getenv(
     "QDRANT_URL",
