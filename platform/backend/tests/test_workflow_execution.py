@@ -334,10 +334,7 @@ async def test_generation_receives_dependency_outputs(
     context_text = user_content.split(
         "Workflow dependency outputs:",
         maxsplit=1,
-    )[1].split(
-        "Use the dependency outputs",
-        maxsplit=1,
-    )[0]
+    )[1].split("Use the dependency outputs", maxsplit=1,)[0]
 
     parsed_context = json.loads(context_text.strip())
 

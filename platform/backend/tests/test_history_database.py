@@ -60,26 +60,19 @@ def test_initialize_creates_database_and_schema(tmp_path):
     assert database_path.exists()
 
     with database.connection() as connection:
-        table = connection.execute(
-            """
+        table = connection.execute("""
             SELECT name
             FROM sqlite_master
             WHERE type = 'table'
               AND name = 'agent_runs'
-            """
-        ).fetchone()
+            """).fetchone()
 
-        indexes = {
-            row["name"]
-            for row in connection.execute(
-                """
+        indexes = {row["name"] for row in connection.execute("""
                 SELECT name
                 FROM sqlite_master
                 WHERE type = 'index'
                   AND tbl_name = 'agent_runs'
-                """
-            ).fetchall()
-        }
+                """).fetchall()}
 
     assert table["name"] == "agent_runs"
     assert {
@@ -95,8 +88,7 @@ def test_connection_returns_rows_as_sqlite_rows(tmp_path):
     database.initialize()
 
     with database.connection() as connection:
-        connection.execute(
-            """
+        connection.execute("""
             INSERT INTO agent_runs (
                 run_id,
                 agent_id,
@@ -133,8 +125,7 @@ def test_connection_returns_rows_as_sqlite_rows(tmp_path):
                 '2026-01-01T00:00:00+00:00',
                 '2026-01-01T00:00:01+00:00'
             )
-            """
-        )
+            """)
         connection.commit()
 
         row = connection.execute(
