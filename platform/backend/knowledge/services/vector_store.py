@@ -1,3 +1,6 @@
+# Save this file as:
+# platform/backend/knowledge/services/vector_store.py
+
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -20,11 +23,7 @@ from knowledge.config import (
 
 class VectorStore:
     def __init__(self) -> None:
-        self.client = AsyncQdrantClient(
-            url=QDRANT_URL,
-            timeout=60,
-        )
-
+        self.client = AsyncQdrantClient(url=QDRANT_URL, timeout=60)
         self.collection_name = QDRANT_COLLECTION
 
     async def health(self) -> bool:
@@ -34,25 +33,25 @@ class VectorStore:
         except Exception:
             return False
 
-    async def ensure_collection(
-        self,
-        vector_size: int,
-    ) -> None:
+    async def ensure_collection(self, vector_size: int) -> None:
         exists = await self.client.collection_exists(self.collection_name)
 
         if exists:
             collection = await self.client.get_collection(self.collection_name)
+            vectors = collection.config.params.vectors
+            current_size = getattr(vectors, "size", None)
 
-            current_size = collection.config.params.vectors.size
+            if current_size is None:
+                raise RuntimeError(
+                    "Expected a single-vector Qdrant collection configuration"
+                )
 
             if current_size != vector_size:
                 raise RuntimeError(
                     "Existing Qdrant collection uses "
                     f"vector size {current_size}, but "
-                    f"the embedding model returned "
-                    f"{vector_size}."
+                    f"the embedding model returned {vector_size}."
                 )
-
             return
 
         await self.client.create_collection(
@@ -79,38 +78,29 @@ class VectorStore:
         if not embeddings:
             raise ValueError("At least one embedding is required")
 
-        await self.ensure_collection(vector_size=len(embeddings[0]))
+        await self.ensure_collection(len(embeddings[0]))
 
         points: list[PointStruct] = []
 
-        for chunk_index, (
-            chunk_text,
-            embedding,
-        ) in enumerate(
-            zip(
-                chunks,
-                embeddings,
-                strict=True,
-            )
+        for chunk_index, (chunk_text, embedding) in enumerate(
+            zip(chunks, embeddings, strict=True)
         ):
             chunk_id = str(uuid4())
-
-            payload: dict[str, Any] = {
-                "document_id": document_id,
-                "filename": filename,
-                "content_type": content_type,
-                "size_bytes": size_bytes,
-                "created_at": created_at.isoformat(),
-                "chunk_id": chunk_id,
-                "chunk_index": chunk_index,
-                "text": chunk_text,
-            }
 
             points.append(
                 PointStruct(
                     id=chunk_id,
                     vector=embedding,
-                    payload=payload,
+                    payload={
+                        "document_id": document_id,
+                        "filename": filename,
+                        "content_type": content_type,
+                        "size_bytes": size_bytes,
+                        "created_at": created_at.isoformat(),
+                        "chunk_id": chunk_id,
+                        "chunk_index": chunk_index,
+                        "text": chunk_text,
+                    },
                 )
             )
 
@@ -134,9 +124,7 @@ class VectorStore:
                 must=[
                     FieldCondition(
                         key="document_id",
-                        match=MatchValue(
-                            value=document_id,
-                        ),
+                        match=MatchValue(value=document_id),
                     )
                 ]
             )
@@ -152,9 +140,7 @@ class VectorStore:
 
         return list(result.points)
 
-    async def list_document_points(
-        self,
-    ) -> list[Any]:
+    async def list_document_points(self) -> list[Any]:
         exists = await self.client.collection_exists(self.collection_name)
 
         if not exists:
@@ -181,10 +167,7 @@ class VectorStore:
 
         return records
 
-    async def delete_document(
-        self,
-        document_id: str,
-    ) -> int:
+    async def delete_document(self, document_id: str) -> int:
         exists = await self.client.collection_exists(self.collection_name)
 
         if not exists:
@@ -196,9 +179,7 @@ class VectorStore:
                 must=[
                     FieldCondition(
                         key="document_id",
-                        match=MatchValue(
-                            value=document_id,
-                        ),
+                        match=MatchValue(value=document_id),
                     )
                 ]
             ),
@@ -218,9 +199,7 @@ class VectorStore:
                 must=[
                     FieldCondition(
                         key="document_id",
-                        match=MatchValue(
-                            value=document_id,
-                        ),
+                        match=MatchValue(value=document_id),
                     )
                 ]
             ),

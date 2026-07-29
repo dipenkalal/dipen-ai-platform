@@ -21,7 +21,7 @@ class KnowledgeSearchTool(BaseTool):
         id="knowledge.search",
         name="Knowledge Search",
         description=(
-            "Search indexed documents using semantic " "vector retrieval."
+            "Search indexed documents using semantic vector retrieval."
         ),
         category="knowledge",
         safe=True,

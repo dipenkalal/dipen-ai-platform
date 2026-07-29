@@ -146,8 +146,7 @@ class AgentRouter:
             )
 
             reason = (
-                "A document was supplied, so the "
-                "Knowledge Agent was selected."
+                "A document was supplied, so the Knowledge Agent was selected."
                 if request.document_id
                 else (
                     "No specialised routing keywords "
@@ -173,7 +172,7 @@ class AgentRouter:
 
             agent = agent_registry.get(selected_agent_id)
 
-            reason = f"{agent.name} matched the request " f"based on: {terms}."
+            reason = f"{agent.name} matched the request based on: {terms}."
 
         agent = agent_registry.get(selected_agent_id)
 

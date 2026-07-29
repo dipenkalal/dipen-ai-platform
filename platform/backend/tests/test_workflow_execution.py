@@ -5,24 +5,37 @@ from typing import Any
 import agents.executor as executor_module
 import pytest
 from agents.executor import AgentExecutor
-from agents.schemas import Workflow, WorkflowStep
+from agents.schemas import (
+    AgentDefinition,
+    AgentRunRequest,
+    Workflow,
+    WorkflowStep,
+)
 
 
 def make_request(
     objective: str = "Test objective",
-) -> SimpleNamespace:
-    return SimpleNamespace(
+) -> AgentRunRequest:
+    return AgentRunRequest(
+        mode="manual",
+        agent_id="test-agent",
         objective=objective,
         provider="ollama",
         model="test-model",
         temperature=0.0,
         max_tokens=256,
+        retrieval_limit=4,
+        score_threshold=0.5,
+        document_id=None,
     )
 
 
-def make_agent() -> SimpleNamespace:
-    return SimpleNamespace(
+def make_agent() -> AgentDefinition:
+    return AgentDefinition(
         id="test-agent",
+        name="Test Agent",
+        description="Test agent",
+        tools=[],
     )
 
 
@@ -321,7 +334,10 @@ async def test_generation_receives_dependency_outputs(
     context_text = user_content.split(
         "Workflow dependency outputs:",
         maxsplit=1,
-    )[1].split("Use the dependency outputs", maxsplit=1,)[0]
+    )[1].split(
+        "Use the dependency outputs",
+        maxsplit=1,
+    )[0]
 
     parsed_context = json.loads(context_text.strip())
 

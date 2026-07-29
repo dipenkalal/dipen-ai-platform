@@ -120,6 +120,7 @@ ExecutorHandler = Callable[
         AgentRunRequest,
         AgentDefinition,
         ToolPlan,
+        Workflow,
         str,
         datetime,
         float,
@@ -178,7 +179,7 @@ class AgentExecutor:
         handler = self._handlers.get(agent.id)
 
         if handler is None:
-            raise ValueError("No executor is configured for " f"{agent.id}")
+            raise ValueError(f"No executor is configured for {agent.id}")
 
         return await handler(
             request,
@@ -253,7 +254,7 @@ class AgentExecutor:
 
         if "knowledge.ask" not in tool_plan.tool_ids:
             raise ValueError(
-                "Knowledge Agent requires knowledge.ask " "in its tool plan."
+                "Knowledge Agent requires knowledge.ask in its tool plan."
             )
 
         return await self._run_workflow_agent(
@@ -282,7 +283,7 @@ class AgentExecutor:
     ) -> AgentRunResponse:
         if "knowledge.search" not in tool_plan.tool_ids:
             raise ValueError(
-                "Research Agent requires knowledge.search " "in its tool plan."
+                "Research Agent requires knowledge.search in its tool plan."
             )
 
         return await self._run_workflow_agent(
@@ -314,7 +315,7 @@ class AgentExecutor:
         system_prompt = GENERIC_AGENT_PROMPTS.get(agent.id)
 
         if system_prompt is None:
-            raise ValueError("No prompt is configured for " f"{agent.id}")
+            raise ValueError(f"No prompt is configured for {agent.id}")
 
         return await self._run_workflow_agent(
             request=request,
@@ -525,7 +526,7 @@ class AgentExecutor:
 
         if chat_response is None:
             raise RuntimeError(
-                "Workflow generation returned no " "chat response metadata."
+                "Workflow generation returned no chat response metadata."
             )
 
         steps.append(
@@ -721,7 +722,7 @@ class AgentExecutor:
         for step in workflow.steps:
             if step.id in step_ids:
                 raise ValueError(
-                    "Workflow contains duplicate step id: " f"{step.id!r}"
+                    f"Workflow contains duplicate step id: {step.id!r}"
                 )
 
             step_ids.add(step.id)
@@ -729,14 +730,13 @@ class AgentExecutor:
         for step in workflow.steps:
             if step.kind == "tool" and not step.tool_id:
                 raise ValueError(
-                    "Tool workflow step " f"{step.id!r} is missing tool_id."
+                    f"Tool workflow step {step.id!r} is missing tool_id."
                 )
 
             for dependency in step.depends_on:
                 if dependency == step.id:
                     raise ValueError(
-                        "Workflow step "
-                        f"{step.id!r} cannot depend on itself."
+                        f"Workflow step {step.id!r} cannot depend on itself."
                     )
 
                 if dependency not in step_ids:
@@ -854,7 +854,7 @@ class AgentExecutor:
             )
 
         raise ValueError(
-            "Unsupported workflow step kind: " f"{workflow_step.kind!r}"
+            f"Unsupported workflow step kind: {workflow_step.kind!r}"
         )
 
     async def _execute_tool_workflow_step(
@@ -873,8 +873,7 @@ class AgentExecutor:
 
         if not workflow_step.tool_id:
             raise ValueError(
-                "Tool workflow step "
-                f"{workflow_step.id!r} is missing tool_id."
+                f"Tool workflow step {workflow_step.id!r} is missing tool_id."
             )
 
         tool = tool_registry.get(workflow_step.tool_id)
@@ -891,7 +890,7 @@ class AgentExecutor:
         if not result.success:
             raise RuntimeError(
                 result.error
-                or ("Tool execution failed for " f"{workflow_step.tool_id!r}.")
+                or (f"Tool execution failed for {workflow_step.tool_id!r}.")
             )
 
         return execution_output

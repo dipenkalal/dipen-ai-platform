@@ -373,9 +373,7 @@ class OllamaProvider(AIProvider):
             except Exception:
                 response_body = ""
 
-            error_message = (
-                "Ollama returned HTTP " f"{exc.response.status_code}"
-            )
+            error_message = f"Ollama returned HTTP {exc.response.status_code}"
 
             if response_body:
                 error_message += f": {response_body[:500]}"
@@ -390,7 +388,7 @@ class OllamaProvider(AIProvider):
         except httpx.HTTPError as exc:
             error_event = {
                 "type": "error",
-                "error": ("Ollama connection failed: " f"{exc}"),
+                "error": (f"Ollama connection failed: {exc}"),
             }
 
             yield json.dumps(error_event) + "\n"
@@ -398,7 +396,7 @@ class OllamaProvider(AIProvider):
         except Exception as exc:
             error_event = {
                 "type": "error",
-                "error": ("Ollama generation failed: " f"{exc}"),
+                "error": (f"Ollama generation failed: {exc}"),
             }
 
             yield json.dumps(error_event) + "\n"

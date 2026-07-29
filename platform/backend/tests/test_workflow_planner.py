@@ -1,3 +1,5 @@
+from typing import Any, Literal, cast
+
 from agents.planner import AgentToolPlanner
 from agents.schemas import (
     AgentDefinition,
@@ -7,9 +9,9 @@ from agents.schemas import (
 
 def make_request(
     objective: str = "Complete the task",
-    **overrides,
+    **overrides: Any,
 ) -> AgentRunRequest:
-    data = {
+    data: dict[str, Any] = {
         "mode": "manual",
         "agent_id": "test-agent",
         "objective": objective,
@@ -24,7 +26,48 @@ def make_request(
 
     data.update(overrides)
 
-    return AgentRunRequest(**data)
+    return AgentRunRequest(
+        mode=cast(
+            Literal["smart", "manual"],
+            data["mode"],
+        ),
+        agent_id=cast(
+            str | None,
+            data["agent_id"],
+        ),
+        objective=cast(
+            str,
+            data["objective"],
+        ),
+        provider=cast(
+            Literal["auto", "ollama"],
+            data["provider"],
+        ),
+        model=cast(
+            str | None,
+            data["model"],
+        ),
+        temperature=cast(
+            float,
+            data["temperature"],
+        ),
+        max_tokens=cast(
+            int,
+            data["max_tokens"],
+        ),
+        retrieval_limit=cast(
+            int,
+            data["retrieval_limit"],
+        ),
+        score_threshold=cast(
+            float | None,
+            data["score_threshold"],
+        ),
+        document_id=cast(
+            str | None,
+            data["document_id"],
+        ),
+    )
 
 
 def make_agent(

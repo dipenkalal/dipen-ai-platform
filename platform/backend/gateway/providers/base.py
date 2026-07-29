@@ -20,7 +20,7 @@ class AIProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def stream_chat(
+    def stream_chat(
         self,
         request: ChatRequest,
     ) -> AsyncIterator[str]:

@@ -13,7 +13,7 @@ class AgentRegistry:
         agent: AgentDefinition,
     ) -> None:
         if agent.id in self._agents:
-            raise ValueError("Agent already registered: " f"{agent.id}")
+            raise ValueError(f"Agent already registered: {agent.id}")
 
         self._agents[agent.id] = agent
 

@@ -37,7 +37,7 @@ class AgentRunHistoryService:
         if record is None:
             raise HTTPException(
                 status_code=404,
-                detail=(f"Agent run '{run_id}' " "was not found."),
+                detail=(f"Agent run '{run_id}' was not found."),
             )
 
         return record
@@ -77,7 +77,7 @@ class AgentRunHistoryService:
         if not deleted:
             raise HTTPException(
                 status_code=404,
-                detail=(f"Agent run '{run_id}' " "was not found."),
+                detail=(f"Agent run '{run_id}' was not found."),
             )
 
         return AgentRunDeleteResponse(

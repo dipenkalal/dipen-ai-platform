@@ -71,7 +71,7 @@ class KnowledgeService:
             raise HTTPException(
                 status_code=415,
                 detail=(
-                    "Unsupported file type. " f"Allowed extensions: {allowed}"
+                    f"Unsupported file type. Allowed extensions: {allowed}"
                 ),
             )
 
@@ -165,7 +165,7 @@ class KnowledgeService:
 
             raise HTTPException(
                 status_code=502,
-                detail=("Document ingestion failed: " f"{exc}"),
+                detail=(f"Document ingestion failed: {exc}"),
             ) from exc
 
         document = DocumentInfo(
@@ -288,7 +288,7 @@ class KnowledgeService:
         except Exception as exc:
             raise HTTPException(
                 status_code=502,
-                detail=("Knowledge search failed: " f"{exc}"),
+                detail=(f"Knowledge search failed: {exc}"),
             ) from exc
 
         results: list[SearchResult] = []

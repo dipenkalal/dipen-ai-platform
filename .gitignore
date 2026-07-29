@@ -41,3 +41,5 @@ data/
 
 
 platform/backend/coverage.xml
+coverage-output.txt
+coverage.json

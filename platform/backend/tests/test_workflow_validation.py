@@ -1,10 +1,39 @@
 import pytest
 from agents.executor import AgentExecutor
-from agents.schemas import Workflow, WorkflowStep
+from agents.schemas import (
+    AgentDefinition,
+    AgentRunRequest,
+    Workflow,
+    WorkflowStep,
+)
 
 
 def make_executor() -> AgentExecutor:
     return AgentExecutor()
+
+
+def make_request() -> AgentRunRequest:
+    return AgentRunRequest(
+        mode="manual",
+        agent_id="test-agent",
+        objective="Test objective",
+        provider="ollama",
+        model="test-model",
+        temperature=0.3,
+        max_tokens=256,
+        retrieval_limit=4,
+        score_threshold=0.5,
+        document_id=None,
+    )
+
+
+def make_agent() -> AgentDefinition:
+    return AgentDefinition(
+        id="test-agent",
+        name="Test Agent",
+        description="Test",
+        tools=[],
+    )
 
 
 def test_valid_workflow_passes_validation() -> None:
@@ -166,7 +195,7 @@ async def test_execute_workflow_validates_before_execution() -> None:
     ):
         await executor._execute_workflow(
             workflow=workflow,
-            request=None,
-            agent=None,
+            request=make_request(),
+            agent=make_agent(),
             system_prompt="",
         )

@@ -54,7 +54,7 @@ class AgentService:
             return resolved_request, route
 
         if not request.agent_id:
-            raise ValueError("agent_id is required in " "manual mode")
+            raise ValueError("agent_id is required in manual mode")
 
         agent = agent_registry.get(request.agent_id)
 
@@ -103,7 +103,7 @@ class AgentService:
         except Exception as exc:
             raise HTTPException(
                 status_code=500,
-                detail=("Agent execution failed: " f"{exc}"),
+                detail=(f"Agent execution failed: {exc}"),
             ) from exc
 
     async def stream(
@@ -135,7 +135,7 @@ class AgentService:
                         "type": "status",
                         "status": "running",
                         "agent_id": (resolved_request.agent_id),
-                        "message": ("Starting agent " "execution..."),
+                        "message": ("Starting agent execution..."),
                     },
                     default=str,
                 )
@@ -188,7 +188,7 @@ class AgentService:
             )
 
         except Exception as exc:
-            message = "Agent execution failed: " f"{exc}"
+            message = f"Agent execution failed: {exc}"
 
             yield (
                 json.dumps(

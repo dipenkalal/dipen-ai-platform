@@ -20,7 +20,7 @@ class GatewayService:
         except Exception as exc:
             raise HTTPException(
                 status_code=503,
-                detail=("Unable to retrieve Ollama models: " f"{exc}"),
+                detail=(f"Unable to retrieve Ollama models: {exc}"),
             ) from exc
 
     async def chat(
@@ -30,7 +30,7 @@ class GatewayService:
         if request.provider not in {"auto", "ollama"}:
             raise HTTPException(
                 status_code=400,
-                detail=("Unsupported provider: " f"{request.provider}"),
+                detail=(f"Unsupported provider: {request.provider}"),
             )
 
         if not await self.ollama.health():
@@ -56,7 +56,7 @@ class GatewayService:
         if request.provider not in {"auto", "ollama"}:
             raise HTTPException(
                 status_code=400,
-                detail=("Unsupported provider: " f"{request.provider}"),
+                detail=(f"Unsupported provider: {request.provider}"),
             )
 
         if not await self.ollama.health():

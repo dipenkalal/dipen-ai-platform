@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from typing import Literal, cast
 
 from fastapi import HTTPException
 from gateway.schemas import (
@@ -118,8 +119,19 @@ class RagService:
             ]
         )
 
+        if request.provider not in ("auto", "ollama"):
+            raise HTTPException(
+                status_code=422,
+                detail=("Unsupported provider. Expected 'auto' or 'ollama'."),
+            )
+
+        provider = cast(
+            Literal["auto", "ollama"],
+            request.provider,
+        )
+
         return ChatRequest(
-            provider=request.provider,
+            provider=provider,
             model=request.model,
             messages=[
                 ChatMessage(
@@ -207,27 +219,33 @@ class RagService:
                     "in the indexed documents."
                 )
 
-                yield json.dumps(
-                    {
-                        "type": "content",
-                        "content": message,
-                    }
-                ) + "\n"
+                yield (
+                    json.dumps(
+                        {
+                            "type": "content",
+                            "content": message,
+                        }
+                    )
+                    + "\n"
+                )
 
-                yield json.dumps(
-                    {
-                        "type": "done",
-                        "provider": request.provider,
-                        "model": request.model or "unknown",
-                        "sources": [],
-                        "usage": {
-                            "prompt_tokens": 0,
-                            "completion_tokens": 0,
-                            "total_tokens": 0,
-                            "latency_ms": 0.0,
-                        },
-                    }
-                ) + "\n"
+                yield (
+                    json.dumps(
+                        {
+                            "type": "done",
+                            "provider": request.provider,
+                            "model": request.model or "unknown",
+                            "sources": [],
+                            "usage": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 0,
+                                "total_tokens": 0,
+                                "latency_ms": 0.0,
+                            },
+                        }
+                    )
+                    + "\n"
+                )
 
                 return
 
@@ -257,22 +275,28 @@ class RagService:
                 yield json.dumps(event) + "\n"
 
         except HTTPException as exc:
-            yield json.dumps(
-                {
-                    "type": "error",
-                    "error": str(exc.detail),
-                    "status_code": exc.status_code,
-                }
-            ) + "\n"
+            yield (
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": str(exc.detail),
+                        "status_code": exc.status_code,
+                    }
+                )
+                + "\n"
+            )
 
         except Exception as exc:
-            yield json.dumps(
-                {
-                    "type": "error",
-                    "error": f"RAG request failed: {exc}",
-                    "status_code": 500,
-                }
-            ) + "\n"
+            yield (
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": f"RAG request failed: {exc}",
+                        "status_code": 500,
+                    }
+                )
+                + "\n"
+            )
 
 
 rag_service = RagService()
