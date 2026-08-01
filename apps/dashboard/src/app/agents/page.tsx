@@ -118,7 +118,13 @@ export default function AgentsPage() {
   }
 
   useEffect(() => {
-    void loadRegistry();
+    const timeoutId = window.setTimeout(() => {
+      void loadRegistry();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   const selectedAgent = useMemo(
