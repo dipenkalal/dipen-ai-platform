@@ -1,5 +1,5 @@
 "use client";
-
+import RoutingAnalyticsPanel from "./components/RoutingAnalyticsPanel";
 import Link from "next/link";
 
 import {
@@ -311,6 +311,10 @@ export default function AnalyticsPage() {
 
             <OverviewCards
               overview={analytics.overview}
+            />
+
+            <RoutingAnalyticsPanel
+              routing={analytics.routing}
             />
 
             <AgentTable

@@ -50,11 +50,7 @@ export type ModelInfo = {
   size_bytes: number | null;
 };
 
-export type AgentStepType =
-  | "planning"
-  | "tool"
-  | "generation"
-  | "result";
+export type AgentStepType = "planning" | "tool" | "generation" | "result";
 
 export type AgentStep = {
   step_number: number;
@@ -88,12 +84,7 @@ export type UsageMetrics = {
 };
 
 export type AgentRunStatus =
-  | "idle"
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "idle" | "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export type AgentRun = {
   run_id: string;
@@ -108,10 +99,14 @@ export type AgentRun = {
   completed_at: string | null;
 };
 
+export type AgentExecutionMode = "smart" | "manual";
+
 export type AgentRunRequest = {
-  agent_id: string;
+  mode: AgentExecutionMode;
+  agent_id: string | null;
   objective: string;
   model: string;
+  provider: "auto" | "ollama";
 };
 
 export type AgentStatusEvent = {
@@ -144,6 +139,7 @@ export type AgentErrorEvent = {
 };
 
 export type AgentStreamEvent =
+  | AgentRoutingEvent
   | AgentStatusEvent
   | AgentStepEvent
   | AgentAnswerEvent
@@ -163,11 +159,7 @@ export type ModelsResponse = {
 };
 
 export type AgentRunHistoryStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export type AgentRunSummary = {
   run_id: string;
@@ -194,6 +186,16 @@ export type AgentRunHistoryResponse = {
   offset: number;
 };
 
+export type RoutingMetadata = {
+  mode: "smart" | "manual";
+  selected_agent_id: string;
+  confidence: number | null;
+  reason: string | null;
+  matched_terms: string[];
+  candidate_scores: Record<string, number>;
+  routing_latency_ms: number | null;
+};
+
 export type AgentRunRecord = {
   run_id: string;
   agent_id: string;
@@ -207,6 +209,7 @@ export type AgentRunRecord = {
   sources: AgentSource[];
   usage: UsageMetrics;
   request: {
+    routing?: RoutingMetadata;
     agent_id: string;
     objective: string;
     model: string | null;
@@ -222,4 +225,151 @@ export type AgentRunRecord = {
   completed_at: string;
   created_at: string;
   updated_at: string;
+};
+
+export type AgentRoutingEvent = {
+  type: "routing";
+  mode: "smart" | "manual";
+  agent_id: string;
+  model: string | null;
+  confidence: number;
+  reason: string;
+  matched_terms: string[];
+  candidate_scores: Record<string, number>;
+  routing_latency_ms: number;
+};
+
+/* ==========================================================
+ * Orchestration History
+ * ========================================================== */
+
+export type OrchestrationExecutionMode = "sequential" | "parallel";
+
+export type OrchestrationHistoryStatus = "running" | "completed" | "failed";
+
+export type OrchestrationValidationStatus =
+  "passed" | "corrected" | "warning" | "failed";
+
+export type OrchestrationTaskRole = "lead" | "specialist" | "formatter";
+
+export type OrchestrationTaskRun = {
+  id: number;
+
+  orchestration_run_id: string;
+
+  task_id: string;
+  sequence: number;
+
+  agent_id: string;
+  agent_name: string;
+
+  role: OrchestrationTaskRole;
+
+  status: "completed" | "failed";
+
+  depends_on: string[];
+
+  answer: string;
+
+  steps: Record<string, unknown>[];
+
+  sources: Record<string, unknown>[];
+
+  usage: UsageMetrics;
+
+  error: string | null;
+
+  started_at: string;
+  completed_at: string;
+  created_at: string;
+};
+
+export type OrchestrationRunSummary = {
+  run_id: string;
+
+  plan_id: string;
+
+  objective: string;
+
+  status: OrchestrationHistoryStatus;
+
+  execution_mode: OrchestrationExecutionMode;
+
+  lead_agent_id: string;
+
+  selected_agent_ids: string[];
+
+  task_count: number;
+
+  completed_task_count: number;
+
+  failed_task_count: number;
+
+  final_answer_preview: string;
+
+  validation_status: OrchestrationValidationStatus | null;
+
+  validation_passed: boolean | null;
+
+  total_tokens: number | null;
+
+  latency_ms: number;
+
+  error: string | null;
+
+  started_at: string;
+  completed_at: string;
+  created_at: string;
+};
+
+export type OrchestrationRunHistoryResponse = {
+  runs: OrchestrationRunSummary[];
+
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type OrchestrationRunRecord = {
+  run_id: string;
+
+  plan_id: string;
+
+  objective: string;
+
+  status: OrchestrationHistoryStatus;
+
+  execution_mode: OrchestrationExecutionMode;
+
+  lead_agent_id: string;
+
+  selected_agent_ids: string[];
+
+  plan: Record<string, unknown>;
+
+  synthesis: Record<string, unknown> | null;
+
+  validation: Record<string, unknown> | null;
+
+  final_answer: string;
+
+  usage: UsageMetrics;
+
+  error: string | null;
+
+  task_runs: OrchestrationTaskRun[];
+
+  started_at: string;
+  completed_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DeleteOrchestrationResponse = {
+  deleted: boolean;
+  run_id: string;
+};
+
+export type ClearOrchestrationResponse = {
+  deleted_count: number;
 };

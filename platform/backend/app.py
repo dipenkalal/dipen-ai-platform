@@ -22,22 +22,25 @@ from gateway.routes import (
 from history.analytics_routes import (
     router as analytics_router,
 )
+from history.orchestration_routes import (
+    router as orchestration_history_router,
+)
 from history.routes import (
     router as history_router,
 )
 from knowledge.routes import (
     router as knowledge_router,
 )
-
+from monitoring.routes import (
+    router as monitoring_router,
+)
 
 APP_VERSION = "0.8.1"
 
 
 app = FastAPI(
     title="DAP API",
-    description=(
-        "Backend service for Dipen AI Platform"
-    ),
+    description=("Backend service for Dipen AI Platform"),
     version=APP_VERSION,
 )
 
@@ -55,7 +58,9 @@ app.include_router(gateway_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)
 app.include_router(history_router)
+app.include_router(orchestration_history_router)
 app.include_router(analytics_router)
+app.include_router(monitoring_router)
 
 
 async def resolve_collector_result(
@@ -81,31 +86,19 @@ async def health() -> dict[str, str]:
     return {
         "status": "healthy",
         "version": APP_VERSION,
-        "timestamp": datetime.now(
-            timezone.utc
-        ).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @app.get("/api/status")
 async def status() -> dict[str, Any]:
-    system_status = (
-        await resolve_collector_result(
-            get_system_status()
-        )
-    )
+    system_status = await resolve_collector_result(get_system_status())
 
-    ollama_status = (
-        await resolve_collector_result(
-            get_ollama_status()
-        )
-    )
+    ollama_status = await resolve_collector_result(get_ollama_status())
 
     return {
         "version": APP_VERSION,
-        "timestamp": datetime.now(
-            timezone.utc
-        ).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "system": system_status,
         "ollama": ollama_status,
     }

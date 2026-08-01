@@ -3,7 +3,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 AgentStatus = Literal[
     "queued",
     "running",
@@ -43,13 +42,9 @@ class AgentDefinition(BaseModel):
     icon: str = "bot"
     accent: AgentAccent = "cyan"
 
-    tools: list[str] = Field(
-        default_factory=list
-    )
+    tools: list[str] = Field(default_factory=list)
 
-    capabilities: list[str] = Field(
-        default_factory=list
-    )
+    capabilities: list[str] = Field(default_factory=list)
 
     recommended_model: str | None = None
 
@@ -65,8 +60,31 @@ class ToolListResponse(BaseModel):
     tools: list[dict[str, Any]]
 
 
+class AgentRoutingMetadata(BaseModel):
+    mode: Literal[
+        "smart",
+        "manual",
+    ]
+
+    selected_agent_id: str
+    confidence: float | None = None
+    reason: str | None = None
+
+    matched_terms: list[str] = Field(default_factory=list)
+
+    candidate_scores: dict[str, int] = Field(default_factory=dict)
+
+    routing_latency_ms: float | None = None
+
+
 class AgentRunRequest(BaseModel):
-    agent_id: str = Field(
+    mode: Literal[
+        "smart",
+        "manual",
+    ] = "manual"
+
+    agent_id: str | None = Field(
+        default=None,
         min_length=2,
         max_length=100,
     )
@@ -114,6 +132,7 @@ class AgentRunRequest(BaseModel):
     )
 
     document_id: str | None = None
+    routing: AgentRoutingMetadata | None = None
 
 
 class AgentStep(BaseModel):
@@ -153,9 +172,7 @@ class AgentRunResponse(BaseModel):
     answer: str
     steps: list[AgentStep]
 
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
+    sources: list[dict[str, Any]] = Field(default_factory=list)
 
     usage: AgentUsage
     started_at: datetime

@@ -11,6 +11,25 @@ export type AnalyticsOverview = {
   most_used_agent: string | null;
 };
 
+export type RoutingMatchedTerm = {
+  term: string;
+  count: number;
+};
+
+export type RoutingAnalytics = {
+  smart_runs: number;
+  manual_runs: number;
+  smart_routing_percentage: number;
+  average_confidence: number;
+  average_routing_latency_ms: number;
+  most_selected_agent: string | null;
+  agent_selection_distribution: Record<
+    string,
+    number
+  >;
+  top_matched_terms: RoutingMatchedTerm[];
+};
+
 export type AgentAnalytics = {
   agent_id: string;
   runs: number;
@@ -44,6 +63,7 @@ export type RecentAnalyticsRun = {
 
 export type AnalyticsDashboardResponse = {
   overview: AnalyticsOverview;
+  routing: RoutingAnalytics;
   agents: AgentAnalytics[];
   recent_runs: RecentAnalyticsRun[];
 };

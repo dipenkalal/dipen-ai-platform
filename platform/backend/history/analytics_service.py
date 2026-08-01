@@ -6,6 +6,7 @@ from history.analytics_schemas import (
     AnalyticsDashboardResponse,
     AnalyticsOverview,
     RecentAnalyticsResponse,
+    RoutingAnalytics,
 )
 
 
@@ -13,21 +14,20 @@ class AgentAnalyticsService:
     def get_overview(
         self,
     ) -> AnalyticsOverview:
-        return (
-            agent_analytics_repository
-            .get_overview()
-        )
+        return agent_analytics_repository.get_overview()
+
+    def get_routing(
+        self,
+    ) -> RoutingAnalytics:
+        return agent_analytics_repository.get_routing()
 
     def get_agents(
         self,
         *,
         limit: int,
     ) -> AgentAnalyticsResponse:
-        agents = (
-            agent_analytics_repository
-            .get_agents(
-                limit=limit,
-            )
+        agents = agent_analytics_repository.get_agents(
+            limit=limit,
         )
 
         return AgentAnalyticsResponse(
@@ -40,11 +40,8 @@ class AgentAnalyticsService:
         *,
         limit: int,
     ) -> RecentAnalyticsResponse:
-        runs = (
-            agent_analytics_repository
-            .get_recent(
-                limit=limit,
-            )
+        runs = agent_analytics_repository.get_recent(
+            limit=limit,
         )
 
         return RecentAnalyticsResponse(
@@ -59,32 +56,24 @@ class AgentAnalyticsService:
         agent_limit: int,
         recent_limit: int,
     ) -> AnalyticsDashboardResponse:
-        overview = (
-            agent_analytics_repository
-            .get_overview()
+        overview = agent_analytics_repository.get_overview()
+
+        agents = agent_analytics_repository.get_agents(
+            limit=agent_limit,
         )
 
-        agents = (
-            agent_analytics_repository
-            .get_agents(
-                limit=agent_limit,
-            )
+        recent_runs = agent_analytics_repository.get_recent(
+            limit=recent_limit,
         )
 
-        recent_runs = (
-            agent_analytics_repository
-            .get_recent(
-                limit=recent_limit,
-            )
-        )
+        routing = agent_analytics_repository.get_routing()
 
         return AnalyticsDashboardResponse(
             overview=overview,
+            routing=routing,
             agents=agents,
             recent_runs=recent_runs,
         )
 
 
-agent_analytics_service = (
-    AgentAnalyticsService()
-)
+agent_analytics_service = AgentAnalyticsService()
