@@ -135,7 +135,25 @@ NETWORK_MEASUREMENT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+MEMORY_CAPACITY_BASELINE_PATTERN = re.compile(
+    r"\bnormal\s+for\s+(?:a\s+)?server\s+with\s+"
+    r"(?P<value>\d+(?:\.\d+)?)\s*"
+    r"(?P<unit>GB|GiB)\s+"
+    r"(?:RAM|memory)\b",
+    re.IGNORECASE,
+)
+
+DISK_CAPACITY_BASELINE_PATTERN = re.compile(
+    r"\bnormal\s+for\s+(?:a\s+)?server\s+with\s+"
+    r"(?P<value>\d+(?:\.\d+)?)\s*"
+    r"(?P<unit>GB|GiB)\s+"
+    r"(?:storage|disk)\b",
+    re.IGNORECASE,
+)
+
 MEASUREMENT_TOLERANCE = 0.5
+CAPACITY_BASELINE_TOLERANCE_RATIO = 0.05
+CAPACITY_BASELINE_MIN_TOLERANCE_GB = 0.5
 
 NON_OBSERVATION_PREFIXES: tuple[str, ...] = (
     "recommendation",
@@ -277,6 +295,13 @@ class EvidenceValidator:
         )
 
         issues.extend(
+            self._find_contradictory_capacity_baselines(
+                answer=answer,
+                snapshot=snapshot,
+            )
+        )
+
+        issues.extend(
             self._find_uninspected_measurements(
                 answer=answer,
                 snapshot=snapshot,
@@ -398,6 +423,12 @@ class EvidenceValidator:
                     "- Disk capacity usage is not disk-I/O. "
                     "Never relabel a disk-used percentage or "
                     "free-space value as disk-I/O."
+                ),
+                (
+                    "- Do not invent comparison-machine "
+                    "capacities such as a different RAM or "
+                    "storage size. Use only capacities from "
+                    "normalized direct evidence."
                 ),
                 "",
                 "NORMALIZED EVIDENCE:",
@@ -804,6 +835,120 @@ class EvidenceValidator:
                     )
 
                     break
+
+        return issues
+
+    @staticmethod
+    def _find_contradictory_capacity_baselines(
+        *,
+        answer: str,
+        snapshot: EvidenceSnapshot,
+    ) -> list[EvidenceValidationIssue]:
+        issues: list[EvidenceValidationIssue] = []
+        seen_claims: set[tuple[str, str]] = set()
+
+        capacity_specs = (
+            (
+                "memory",
+                "total_gb",
+                MEMORY_CAPACITY_BASELINE_PATTERN,
+                "contradictory_memory_capacity_baseline",
+                "memory",
+            ),
+            (
+                "system_disk",
+                "total_gb",
+                DISK_CAPACITY_BASELINE_PATTERN,
+                "contradictory_disk_capacity_baseline",
+                "system disk",
+            ),
+        )
+
+        for (
+            fact_name,
+            value_name,
+            pattern,
+            issue_code,
+            display_name,
+        ) in capacity_specs:
+            facts = snapshot.normalized_facts.get(
+                fact_name,
+            )
+
+            if not isinstance(
+                facts,
+                dict,
+            ):
+                continue
+
+            expected_value = facts.get(
+                value_name,
+            )
+
+            if isinstance(expected_value, bool) or not isinstance(
+                expected_value,
+                (
+                    int,
+                    float,
+                ),
+            ):
+                continue
+
+            expected = float(
+                expected_value,
+            )
+
+            tolerance = max(
+                CAPACITY_BASELINE_MIN_TOLERANCE_GB,
+                abs(expected) * CAPACITY_BASELINE_TOLERANCE_RATIO,
+            )
+
+            for match in pattern.finditer(
+                answer,
+            ):
+                observed = float(
+                    match.group(
+                        "value",
+                    )
+                )
+
+                if (
+                    abs(
+                        observed - expected,
+                    )
+                    <= tolerance
+                ):
+                    continue
+
+                claim = match.group(0)
+                claim_key = (
+                    issue_code,
+                    " ".join(claim.lower().split()),
+                )
+
+                if claim_key in seen_claims:
+                    continue
+
+                seen_claims.add(
+                    claim_key,
+                )
+
+                issues.append(
+                    EvidenceValidationIssue(
+                        code=issue_code,
+                        severity="error",
+                        message=(
+                            f"The answer compares {display_name} "
+                            f"against an unsupported "
+                            f"{observed:g} "
+                            f"{match.group('unit')} baseline, "
+                            "while normalized direct evidence "
+                            f"reports {expected:g} GB."
+                        ),
+                        claim=claim,
+                        topic=fact_name,
+                    )
+                )
 
         return issues
 

@@ -202,3 +202,71 @@ def test_allows_explicitly_unavailable_io_topics() -> None:
     )
 
     assert result.passed is True, [issue.model_dump() for issue in result.issues]
+
+
+def test_rejects_invented_capacity_baselines() -> None:
+    validator = EvidenceValidator()
+
+    answer = """
+- Memory: 11.12 GB total, 49.9% used
+  (normal for a server with 16 GB RAM).
+- System Disk: 97.87 GB total, 45.2% used
+  (normal for a server with 150 GB storage).
+""".strip()
+
+    result = validator.validate_answer(
+        answer=answer,
+        snapshot=build_snapshot(),
+    )
+
+    issue_codes = {issue.code for issue in result.issues}
+
+    expected_codes = {
+        "contradictory_memory_capacity_baseline",
+        "contradictory_disk_capacity_baseline",
+    }
+
+    assert expected_codes <= issue_codes
+    assert result.passed is False
+    assert result.validated_answer is None
+
+
+def test_allows_evidence_aligned_capacity_values() -> None:
+    validator = EvidenceValidator()
+
+    answer = """
+- Memory: 11.12 GB total, 38.6% used.
+- System Disk: 97.87 GB total, 45.2% used.
+""".strip()
+
+    result = validator.validate_answer(
+        answer=answer,
+        snapshot=build_snapshot(),
+    )
+
+    assert result.passed is True, [issue.model_dump() for issue in result.issues]
+
+
+def test_deduplicates_repeated_capacity_baselines() -> None:
+    validator = EvidenceValidator()
+
+    answer = """
+- System Disk: 97.87 GB total
+  (normal for a server with 150 GB storage).
+- Recommendation: Disk usage is normal for a server
+  with 150 GB storage.
+""".strip()
+
+    result = validator.validate_answer(
+        answer=answer,
+        snapshot=build_snapshot(),
+    )
+
+    disk_issues = [
+        issue
+        for issue in result.issues
+        if issue.code == "contradictory_disk_capacity_baseline"
+    ]
+
+    assert len(disk_issues) == 1
+    assert result.passed is False
