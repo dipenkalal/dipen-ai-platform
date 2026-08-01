@@ -48,7 +48,7 @@ type DagLayout = {
 };
 
 const NODE_WIDTH = 268;
-const NODE_HEIGHT = 160;
+const NODE_HEIGHT = 192;
 const HORIZONTAL_GAP = 116;
 const VERTICAL_GAP = 28;
 const CANVAS_PADDING = 32;
@@ -463,15 +463,16 @@ export default function OrchestrationDag({
                       {status}
                     </span>
 
-                    <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[11px] text-slate-400">
+                    <span
+                      className={[
+                        "rounded-full border px-2 py-0.5 text-[11px]",
+                        isLead
+                          ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-300"
+                          : "border-white/10 bg-black/20 text-slate-400",
+                      ].join(" ")}
+                    >
                       {formatRole(task.role)}
                     </span>
-
-                    {isLead && (
-                      <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[11px] text-cyan-300">
-                        Lead
-                      </span>
-                    )}
                   </div>
 
                   <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
