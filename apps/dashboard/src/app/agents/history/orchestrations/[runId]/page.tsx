@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { deleteOrchestrationRun, fetchOrchestrationRun } from "../../api";
 
+import MarkdownContent from "../../../../components/MarkdownContent";
 import OrchestrationDag from "./components/OrchestrationDag";
 
 import type {
@@ -367,6 +368,14 @@ function CodeBlock({ value }: { value: string }) {
   );
 }
 
+function MarkdownBlock({ value }: { value: string }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-5">
+      <MarkdownContent value={value} />
+    </div>
+  );
+}
+
 function TaskCard({
   task,
   planTask,
@@ -534,7 +543,7 @@ function TaskCard({
             </p>
 
             <div className="mt-3">
-              <CodeBlock
+              <MarkdownBlock
                 value={task.answer || task.error || "No answer stored."}
               />
             </div>
@@ -1094,7 +1103,7 @@ export default function OrchestrationRunPage() {
           )}
 
           <div className="mt-5">
-            <CodeBlock
+            <MarkdownBlock
               value={run.final_answer || "No final answer was stored."}
             />
           </div>
