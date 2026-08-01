@@ -30,8 +30,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { deleteOrchestrationRun, fetchOrchestrationRun } from "../../api";
 
+import OrchestrationDag from "./components/OrchestrationDag";
+
 import type {
   OrchestrationRunRecord,
+  OrchestrationTaskRole,
   OrchestrationTaskRun,
   OrchestrationValidationStatus,
 } from "../../../types";
@@ -43,7 +46,7 @@ type PlanTask = {
   sequence: number;
   agent_id: string;
   agent_name: string;
-  role: string;
+  role: OrchestrationTaskRole;
   objective: string;
   instructions: string;
   model: string;
@@ -130,6 +133,14 @@ function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
 
+function asTaskRole(value: unknown): OrchestrationTaskRole {
+  if (value === "lead" || value === "specialist" || value === "formatter") {
+    return value;
+  }
+
+  return "specialist";
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -156,7 +167,7 @@ function parsePlan(value: unknown): OrchestrationPlanView | null {
         sequence: asNumber(rawTask.sequence),
         agent_id: asString(rawTask.agent_id),
         agent_name: asString(rawTask.agent_name),
-        role: asString(rawTask.role),
+        role: asTaskRole(rawTask.role),
         objective: asString(rawTask.objective),
         instructions: asString(rawTask.instructions),
         model: asString(rawTask.model),
@@ -873,6 +884,17 @@ export default function OrchestrationRunPage() {
             />
           </div>
         </header>
+
+        {plan && (
+          <div className="mt-6">
+            <OrchestrationDag
+              tasks={plan.tasks}
+              taskRuns={run.task_runs}
+              executionMode={run.execution_mode}
+              leadAgentId={run.lead_agent_id}
+            />
+          </div>
+        )}
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-6">
