@@ -47,6 +47,12 @@ DOCKER_ASSERTION_PATTERNS: tuple[
         r"risks? detected\b",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"\bno docker(?:-|\s+)related\s+"
+        r"(?:risks?|issues?|problems?)\s+"
+        r"(?:were\s+)?reported\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -84,6 +90,62 @@ UNSUPPORTED_MODEL_METADATA_PATTERNS: tuple[
         r"\bwithin acceptable limits\b",
         re.IGNORECASE,
     ),
+)
+
+PERCENT_VALUE_PATTERN = re.compile(
+    r"(?P<value>\d+(?:\.\d+)?)\s*%",
+    re.IGNORECASE,
+)
+
+CPU_PERCENT_LINE_PATTERN = re.compile(
+    r"\bcpu(?:\s+usage)?\b",
+    re.IGNORECASE,
+)
+
+MEMORY_PERCENT_LINE_PATTERN = re.compile(
+    r"\b(?:memory|ram)(?:\s+usage)?\b",
+    re.IGNORECASE,
+)
+
+DISK_PERCENT_LINE_PATTERN = re.compile(
+    r"\b(?:system\s+)?disk(?:\s+usage)?\b",
+    re.IGNORECASE,
+)
+
+DISK_IO_MEASUREMENT_PATTERN = re.compile(
+    r"\bdisk\s*(?:i/o|io|throughput)\b"
+    r"[^\n]*?"
+    r"\b\d+(?:\.\d+)?\s*"
+    r"(?:[kmgt]?i?b|bytes?)\s*"
+    r"(?:/s|ps)\b",
+    re.IGNORECASE,
+)
+
+NETWORK_MEASUREMENT_PATTERN = re.compile(
+    r"\b(?:network(?:\s+(?:usage|throughput|bandwidth))?"
+    r"|bandwidth)\b"
+    r"[^\n]*?"
+    r"\b\d+(?:\.\d+)?\s*"
+    r"(?:[kmgt]?i?b|bytes?|[kmgt]?bits?)\s*"
+    r"(?:/s|ps)\b",
+    re.IGNORECASE,
+)
+
+MEASUREMENT_TOLERANCE = 0.5
+
+NON_OBSERVATION_PREFIXES: tuple[str, ...] = (
+    "recommendation",
+    "recommended",
+    "monitor ",
+    "check ",
+    "verify ",
+    "confirm ",
+    "use ",
+    "inspect ",
+    "review ",
+    "consider ",
+    "target ",
+    "threshold ",
 )
 
 
@@ -204,6 +266,20 @@ class EvidenceValidator:
             )
 
         issues.extend(
+            self._find_contradictory_percentages(
+                answer=answer,
+                snapshot=snapshot,
+            )
+        )
+
+        issues.extend(
+            self._find_uninspected_measurements(
+                answer=answer,
+                snapshot=snapshot,
+            )
+        )
+
+        issues.extend(
             self._find_unit_issues(
                 answer,
             )
@@ -304,6 +380,16 @@ class EvidenceValidator:
                     "normalized evidence says otherwise."
                 ),
                 ("- Use the normalized evidence summary exactly for measured facts."),
+                (
+                    "- Remove CPU, memory, disk, disk-I/O, "
+                    "and network measurements that do not "
+                    "match normalized direct evidence."
+                ),
+                (
+                    "- Do not provide numeric disk-I/O or "
+                    "network measurements unless those "
+                    "topics were directly inspected."
+                ),
                 "",
                 "NORMALIZED EVIDENCE:",
                 validation.snapshot.normalized_summary,
@@ -580,6 +666,207 @@ class EvidenceValidator:
         return "\n".join(
             lines,
         )
+
+    @staticmethod
+    def _is_non_observation_line(
+        line: str,
+    ) -> bool:
+        normalized_line = line.strip().lstrip("#*-0123456789. ").strip()
+
+        normalized_lower = normalized_line.lower()
+
+        return (
+            not normalized_line
+            or "`" in normalized_line
+            or normalized_lower.startswith(NON_OBSERVATION_PREFIXES)
+        )
+
+    @staticmethod
+    def _find_contradictory_percentages(
+        *,
+        answer: str,
+        snapshot: EvidenceSnapshot,
+    ) -> list[EvidenceValidationIssue]:
+        issues: list[EvidenceValidationIssue] = []
+
+        metric_specs = (
+            (
+                "cpu",
+                "usage_percent",
+                CPU_PERCENT_LINE_PATTERN,
+                "contradictory_cpu_percent",
+                "CPU",
+            ),
+            (
+                "memory",
+                "percent",
+                MEMORY_PERCENT_LINE_PATTERN,
+                "contradictory_memory_percent",
+                "memory",
+            ),
+            (
+                "system_disk",
+                "percent",
+                DISK_PERCENT_LINE_PATTERN,
+                "contradictory_disk_percent",
+                "system disk",
+            ),
+        )
+
+        for (
+            fact_name,
+            value_name,
+            line_pattern,
+            issue_code,
+            display_name,
+        ) in metric_specs:
+            facts = snapshot.normalized_facts.get(
+                fact_name,
+            )
+
+            if not isinstance(
+                facts,
+                dict,
+            ):
+                continue
+
+            expected_value = facts.get(
+                value_name,
+            )
+
+            if isinstance(expected_value, bool) or not isinstance(
+                expected_value,
+                (
+                    int,
+                    float,
+                ),
+            ):
+                continue
+
+            expected = float(
+                expected_value,
+            )
+
+            for raw_line in answer.splitlines():
+                line = raw_line.strip()
+
+                if EvidenceValidator._is_non_observation_line(
+                    line,
+                ):
+                    continue
+
+                normalized_line = line.lstrip("#*-0123456789. ").strip()
+
+                if not line_pattern.search(
+                    normalized_line,
+                ):
+                    continue
+
+                for match in PERCENT_VALUE_PATTERN.finditer(
+                    normalized_line,
+                ):
+                    observed = float(
+                        match.group(
+                            "value",
+                        )
+                    )
+
+                    if (
+                        abs(
+                            observed - expected,
+                        )
+                        <= MEASUREMENT_TOLERANCE
+                    ):
+                        continue
+
+                    issues.append(
+                        EvidenceValidationIssue(
+                            code=issue_code,
+                            severity="error",
+                            message=(
+                                f"The answer reports {display_name} "
+                                f"at {observed:g}%, but normalized "
+                                f"direct evidence reports "
+                                f"{expected:g}%."
+                            ),
+                            claim=line,
+                            topic=fact_name,
+                        )
+                    )
+
+                    break
+
+        return issues
+
+    @staticmethod
+    def _find_uninspected_measurements(
+        *,
+        answer: str,
+        snapshot: EvidenceSnapshot,
+    ) -> list[EvidenceValidationIssue]:
+        issues: list[EvidenceValidationIssue] = []
+
+        measurement_specs = (
+            (
+                "disk_io",
+                DISK_IO_MEASUREMENT_PATTERN,
+                "unsupported_disk_io_measurement",
+                "disk-I/O",
+            ),
+            (
+                "network",
+                NETWORK_MEASUREMENT_PATTERN,
+                "unsupported_network_measurement",
+                "network",
+            ),
+        )
+
+        inspected_topics = set(
+            snapshot.inspected_topics,
+        )
+
+        for raw_line in answer.splitlines():
+            line = raw_line.strip()
+
+            if EvidenceValidator._is_non_observation_line(
+                line,
+            ):
+                continue
+
+            normalized_line = line.lstrip("#*-0123456789. ").strip()
+
+            for (
+                topic,
+                pattern,
+                issue_code,
+                display_name,
+            ) in measurement_specs:
+                if topic in inspected_topics:
+                    continue
+
+                match = pattern.search(
+                    normalized_line,
+                )
+
+                if not match:
+                    continue
+
+                issues.append(
+                    EvidenceValidationIssue(
+                        code=issue_code,
+                        severity="error",
+                        message=(
+                            f"The answer provides a numeric "
+                            f"{display_name} measurement even "
+                            "though that topic was not directly "
+                            "inspected."
+                        ),
+                        claim=line,
+                        topic=topic,
+                    )
+                )
+
+        return issues
 
     @staticmethod
     def _find_unsupported_docker_claims(
