@@ -115,9 +115,13 @@ DISK_PERCENT_LINE_PATTERN = re.compile(
 DISK_IO_MEASUREMENT_PATTERN = re.compile(
     r"\bdisk\s*(?:i/o|io|throughput)\b"
     r"[^\n]*?"
+    r"(?:"
+    r"\b\d+(?:\.\d+)?\s*%"
+    r"|"
     r"\b\d+(?:\.\d+)?\s*"
     r"(?:[kmgt]?i?b|bytes?)\s*"
-    r"(?:/s|ps)\b",
+    r"(?:/s|ps)\b"
+    r")",
     re.IGNORECASE,
 )
 
@@ -389,6 +393,11 @@ class EvidenceValidator:
                     "- Do not provide numeric disk-I/O or "
                     "network measurements unless those "
                     "topics were directly inspected."
+                ),
+                (
+                    "- Disk capacity usage is not disk-I/O. "
+                    "Never relabel a disk-used percentage or "
+                    "free-space value as disk-I/O."
                 ),
                 "",
                 "NORMALIZED EVIDENCE:",

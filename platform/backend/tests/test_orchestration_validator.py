@@ -165,3 +165,40 @@ def test_rejects_contradictory_disk_percent() -> None:
     assert "contradictory_disk_percent" in issue_codes
     assert result.passed is False
     assert result.validated_answer is None
+
+
+def test_rejects_disk_capacity_mislabeled_as_disk_io() -> None:
+    validator = EvidenceValidator()
+
+    answer = """
+- Disk Usage: 45.2% used, 50.84 GB free.
+- Disk I/O: Normal usage (45.2% used).
+- Network I/O: Not monitored.
+""".strip()
+
+    result = validator.validate_answer(
+        answer=answer,
+        snapshot=build_snapshot(),
+    )
+
+    issue_codes = {issue.code for issue in result.issues}
+
+    assert "unsupported_disk_io_measurement" in issue_codes
+    assert result.passed is False
+    assert result.validated_answer is None
+
+
+def test_allows_explicitly_unavailable_io_topics() -> None:
+    validator = EvidenceValidator()
+
+    answer = """
+- Disk I/O: Not monitored.
+- Network I/O: Not directly inspected.
+""".strip()
+
+    result = validator.validate_answer(
+        answer=answer,
+        snapshot=build_snapshot(),
+    )
+
+    assert result.passed is True, [issue.model_dump() for issue in result.issues]
