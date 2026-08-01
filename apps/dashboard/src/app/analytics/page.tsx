@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
             <OverviewCards
               overview={analytics.overview}
             />
-            
+
             <RoutingAnalyticsPanel
               routing={analytics.routing}
             />

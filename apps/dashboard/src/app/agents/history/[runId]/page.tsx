@@ -256,7 +256,7 @@ export default function AgentRunDetailPage() {
         <div className="mt-6 space-y-6">
             <ExecutionLifecycle
     run={run}
-  />          
+  />
 
           <UsageMetrics
             usage={run.usage}
