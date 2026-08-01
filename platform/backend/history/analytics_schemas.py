@@ -3,7 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 AnalyticsRunStatus = Literal[
     "queued",
     "running",
@@ -38,9 +37,7 @@ class AgentAnalyticsItem(BaseModel):
 
 
 class AgentAnalyticsResponse(BaseModel):
-    agents: list[AgentAnalyticsItem] = Field(
-        default_factory=list
-    )
+    agents: list[AgentAnalyticsItem] = Field(default_factory=list)
     total: int = 0
 
 
@@ -58,18 +55,29 @@ class RecentAnalyticsRun(BaseModel):
 
 
 class RecentAnalyticsResponse(BaseModel):
-    runs: list[RecentAnalyticsRun] = Field(
-        default_factory=list
-    )
+    runs: list[RecentAnalyticsRun] = Field(default_factory=list)
     total: int = 0
     limit: int = 10
 
 
+class RoutingMatchedTerm(BaseModel):
+    term: str
+    count: int
+
+
+class RoutingAnalytics(BaseModel):
+    smart_runs: int = 0
+    manual_runs: int = 0
+    smart_routing_percentage: float = 0.0
+    average_confidence: float = 0.0
+    average_routing_latency_ms: float = 0.0
+    most_selected_agent: str | None = None
+    agent_selection_distribution: dict[str, int] = Field(default_factory=dict)
+    top_matched_terms: list[RoutingMatchedTerm] = Field(default_factory=list)
+
+
 class AnalyticsDashboardResponse(BaseModel):
     overview: AnalyticsOverview
-    agents: list[AgentAnalyticsItem] = Field(
-        default_factory=list
-    )
-    recent_runs: list[RecentAnalyticsRun] = Field(
-        default_factory=list
-    )
+    routing: RoutingAnalytics
+    agents: list[AgentAnalyticsItem] = Field(default_factory=list)
+    recent_runs: list[RecentAnalyticsRun] = Field(default_factory=list)

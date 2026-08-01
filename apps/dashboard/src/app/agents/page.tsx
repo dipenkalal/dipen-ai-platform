@@ -1,5 +1,5 @@
 "use client";
-
+import SmartRoutingPanel from "./components/SmartRoutingPanel";
 import Link from "next/link";
 
 import {
@@ -10,17 +10,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import {
-  fetchAgents,
-  fetchModels,
-  fetchTools,
-} from "./api";
+import { fetchAgents, fetchModels, fetchTools } from "./api";
 
 import AgentSelector from "./components/AgentSelector";
 import ExecutionTimeline from "./components/ExecutionTimeline";
@@ -32,17 +24,14 @@ import UsageMetrics from "./components/UsageMetrics";
 import { useAgentRunner } from "./hooks/useAgentRunner";
 
 import type {
+  AgentExecutionMode,
   AgentInfo,
   ModelInfo,
   ToolInfo,
 } from "./types";
 
-
-function isChatModel(
-  model: ModelInfo,
-): boolean {
-  const value =
-    `${model.id} ${model.name}`.toLowerCase();
+function isChatModel(model: ModelInfo): boolean {
+  const value = `${model.id} ${model.name}`.toLowerCase();
 
   return (
     model.available &&
@@ -54,52 +43,33 @@ function isChatModel(
   );
 }
 
-
 export default function AgentsPage() {
-  const [agents, setAgents] = useState<
-    AgentInfo[]
-  >([]);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
 
-  const [tools, setTools] = useState<
-    ToolInfo[]
-  >([]);
+  const [tools, setTools] = useState<ToolInfo[]>([]);
 
-  const [models, setModels] = useState<
-    ModelInfo[]
-  >([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
 
-  const [
-    selectedAgentId,
-    setSelectedAgentId,
-  ] = useState("");
+  const [mode, setMode] = useState<AgentExecutionMode>("smart");
 
-  const [
-    selectedModelId,
-    setSelectedModelId,
-  ] = useState("");
+  const [selectedAgentId, setSelectedAgentId] = useState("");
 
-  const [objective, setObjective] =
-    useState("");
+  const [selectedModelId, setSelectedModelId] = useState("");
 
-  const [isLoading, setIsLoading] =
-    useState(true);
+  const [objective, setObjective] = useState("");
 
-  const [loadError, setLoadError] =
-    useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const runner = useAgentRunner();
-
 
   async function loadRegistry(): Promise<void> {
     try {
       setIsLoading(true);
       setLoadError(null);
 
-      const [
-        loadedAgents,
-        loadedTools,
-        loadedModels,
-      ] = await Promise.all([
+      const [loadedAgents, loadedTools, loadedModels] = await Promise.all([
         fetchAgents(),
         fetchTools(),
         fetchModels(),
@@ -109,53 +79,33 @@ export default function AgentsPage() {
       setTools(loadedTools);
       setModels(loadedModels);
 
-      const firstEnabledAgent =
-        loadedAgents.find(
-          (agent) => agent.enabled,
+      const firstEnabledAgent = loadedAgents.find((agent) => agent.enabled);
+
+      setSelectedAgentId((currentAgentId) => {
+        const stillExists = loadedAgents.some(
+          (agent) => agent.id === currentAgentId && agent.enabled,
         );
 
-      setSelectedAgentId(
-        (currentAgentId) => {
-          const stillExists =
-            loadedAgents.some(
-              (agent) =>
-                agent.id ===
-                  currentAgentId &&
-                agent.enabled,
-            );
+        if (stillExists) {
+          return currentAgentId;
+        }
 
-          if (stillExists) {
-            return currentAgentId;
-          }
+        return firstEnabledAgent?.id ?? "";
+      });
 
-          return (
-            firstEnabledAgent?.id ?? ""
-          );
-        },
-      );
+      const firstAvailableModel = loadedModels.find(isChatModel);
 
-      const firstAvailableModel =
-        loadedModels.find(isChatModel);
+      setSelectedModelId((currentModelId) => {
+        const stillExists = loadedModels.some(
+          (model) => model.id === currentModelId && isChatModel(model),
+        );
 
-      setSelectedModelId(
-        (currentModelId) => {
-          const stillExists =
-            loadedModels.some(
-              (model) =>
-                model.id ===
-                  currentModelId &&
-                isChatModel(model),
-            );
+        if (stillExists) {
+          return currentModelId;
+        }
 
-          if (stillExists) {
-            return currentModelId;
-          }
-
-          return (
-            firstAvailableModel?.id ?? ""
-          );
-        },
-      );
+        return firstAvailableModel?.id ?? "";
+      });
     } catch (error) {
       setLoadError(
         error instanceof Error
@@ -167,48 +117,41 @@ export default function AgentsPage() {
     }
   }
 
-
   useEffect(() => {
     void loadRegistry();
   }, []);
 
-
   const selectedAgent = useMemo(
-    () =>
-      agents.find(
-        (agent) =>
-          agent.id ===
-          selectedAgentId,
-      ) ?? null,
+    () => agents.find((agent) => agent.id === selectedAgentId) ?? null,
     [agents, selectedAgentId],
   );
 
-
   async function handleRun(): Promise<void> {
-    const trimmedObjective =
-      objective.trim();
+    const trimmedObjective = objective.trim();
+
+    const requiresAgent = mode === "manual";
 
     if (
-      !selectedAgentId ||
       !selectedModelId ||
-      !trimmedObjective
+      !trimmedObjective ||
+      (requiresAgent && !selectedAgentId)
     ) {
       return;
     }
 
     await runner.runAgent({
-      agent_id: selectedAgentId,
+      mode,
+      agent_id: mode === "manual" ? selectedAgentId : null,
       objective: trimmedObjective,
       model: selectedModelId,
+      provider: "auto",
     });
   }
-
 
   function handleReset(): void {
     runner.resetRun();
     setObjective("");
   }
-
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -229,10 +172,8 @@ export default function AgentsPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Run specialised agents that plan
-                objectives, execute registered
-                tools, stream their progress and
-                return auditable results.
+                Run specialised agents that plan objectives, execute registered
+                tools, stream their progress and return auditable results.
               </p>
             </div>
 
@@ -247,10 +188,7 @@ export default function AgentsPage() {
 
               <button
                 type="button"
-                disabled={
-                  isLoading ||
-                  runner.isRunning
-                }
+                disabled={isLoading || runner.isRunning}
                 onClick={() => {
                   void loadRegistry();
                 }}
@@ -266,7 +204,6 @@ export default function AgentsPage() {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-
                 Refresh registry
               </button>
             </div>
@@ -278,9 +215,7 @@ export default function AgentsPage() {
                 Agents
               </p>
 
-              <p className="mt-2 text-2xl font-semibold">
-                {agents.length}
-              </p>
+              <p className="mt-2 text-2xl font-semibold">{agents.length}</p>
             </div>
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -288,9 +223,7 @@ export default function AgentsPage() {
                 Tools
               </p>
 
-              <p className="mt-2 text-2xl font-semibold">
-                {tools.length}
-              </p>
+              <p className="mt-2 text-2xl font-semibold">{tools.length}</p>
             </div>
 
             <div className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -299,11 +232,7 @@ export default function AgentsPage() {
               </p>
 
               <p className="mt-2 text-2xl font-semibold">
-                {
-                  models.filter(
-                    isChatModel,
-                  ).length
-                }
+                {models.filter(isChatModel).length}
               </p>
             </div>
           </div>
@@ -314,26 +243,20 @@ export default function AgentsPage() {
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
 
             <div>
-              <p className="font-medium">
-                Unable to load the registry
-              </p>
+              <p className="font-medium">Unable to load the registry</p>
 
-              <p className="mt-1 text-sm text-rose-300/80">
-                {loadError}
-              </p>
+              <p className="mt-1 text-sm text-rose-300/80">{loadError}</p>
             </div>
           </div>
         )}
 
-        {isLoading &&
-        agents.length === 0 ? (
+        {isLoading && agents.length === 0 ? (
           <div className="flex min-h-96 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
             <div className="text-center">
               <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-cyan-300" />
 
               <p className="mt-3 text-sm text-slate-400">
-                Loading agents, tools and
-                models...
+                Loading agents, tools and models...
               </p>
             </div>
           </div>
@@ -342,54 +265,43 @@ export default function AgentsPage() {
             <AgentSelector
               agents={agents}
               tools={tools}
-              selectedAgentId={
-                selectedAgentId
-              }
-              disabled={runner.isRunning}
+              selectedAgentId={selectedAgentId}
+              disabled={runner.isRunning || mode === "smart"}
               onSelect={(agentId) => {
-                setSelectedAgentId(
-                  agentId,
-                );
+                setSelectedAgentId(agentId);
 
                 runner.resetRun();
               }}
             />
 
             <RunPanel
+              mode={mode}
+              onModeChange={(nextMode) => {
+                setMode(nextMode);
+                runner.resetRun();
+              }}
               agents={agents}
               models={models}
-              selectedAgentId={
-                selectedAgentId
-              }
-              selectedModelId={
-                selectedModelId
-              }
+              selectedAgentId={selectedAgentId}
+              selectedModelId={selectedModelId}
               objective={objective}
               status={runner.status}
               isLoading={isLoading}
-              onObjectiveChange={
-                setObjective
-              }
-              onModelChange={
-                setSelectedModelId
-              }
+              onObjectiveChange={setObjective}
+              onModelChange={setSelectedModelId}
               onRun={() => {
                 void handleRun();
               }}
-              onCancel={
-                runner.cancelRun
-              }
+              onCancel={runner.cancelRun}
               onReset={handleReset}
             />
-
+            <SmartRoutingPanel routing={runner.routing} />
             {runner.error && (
               <div className="flex items-start gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] p-4 text-rose-200">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
 
                 <div>
-                  <p className="font-medium">
-                    Agent execution failed
-                  </p>
+                  <p className="font-medium">Agent execution failed</p>
 
                   <p className="mt-1 text-sm text-rose-300/80">
                     {runner.error}
@@ -406,9 +318,7 @@ export default function AgentsPage() {
               />
 
               <div className="space-y-6">
-                <UsageMetrics
-                  usage={runner.usage}
-                />
+                <UsageMetrics usage={runner.usage} />
 
                 {selectedAgent && (
                   <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
@@ -421,37 +331,27 @@ export default function AgentsPage() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {
-                        selectedAgent.description
-                      }
+                      {selectedAgent.description}
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {selectedAgent.tools.map(
-                        (toolId) => (
-                          <span
-                            key={toolId}
-                            className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-xs text-slate-300"
-                          >
-                            {toolId}
-                          </span>
-                        ),
-                      )}
+                      {selectedAgent.tools.map((toolId) => (
+                        <span
+                          key={toolId}
+                          className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-xs text-slate-300"
+                        >
+                          {toolId}
+                        </span>
+                      ))}
                     </div>
                   </section>
                 )}
               </div>
             </div>
 
-            <ToolOutput
-              steps={runner.steps}
-              tools={tools}
-            />
+            <ToolOutput steps={runner.steps} tools={tools} />
 
-            <FinalAnswer
-              answer={runner.answer}
-              sources={runner.sources}
-            />
+            <FinalAnswer answer={runner.answer} sources={runner.sources} />
           </div>
         )}
       </div>

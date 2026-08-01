@@ -1,6 +1,14 @@
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from agents.orchestration.schemas import (
+    OrchestrationPlanRequest,
+    OrchestrationPlanResponse,
+    OrchestrationRunResponse,
+)
+from agents.orchestration.service import (
+    orchestration_service,
+)
 from agents.schemas import (
     AgentListResponse,
     AgentRunRequest,
@@ -8,7 +16,6 @@ from agents.schemas import (
     ToolListResponse,
 )
 from agents.service import agent_service
-
 
 router = APIRouter(
     prefix="/api/v1",
@@ -20,10 +27,9 @@ router = APIRouter(
     "/agents",
     response_model=AgentListResponse,
 )
-async def list_agents(
-) -> AgentListResponse:
+async def list_agents() -> AgentListResponse:
     return AgentListResponse(
-        agents=agent_service.list_agents()
+        agents=agent_service.list_agents(),
     )
 
 
@@ -31,10 +37,35 @@ async def list_agents(
     "/tools",
     response_model=ToolListResponse,
 )
-async def list_tools(
-) -> ToolListResponse:
+async def list_tools() -> ToolListResponse:
     return ToolListResponse(
-        tools=agent_service.list_tools()
+        tools=agent_service.list_tools(),
+    )
+
+
+@router.post(
+    "/agents/orchestration/plan",
+    response_model=OrchestrationPlanResponse,
+)
+async def create_orchestration_plan(
+    request: OrchestrationPlanRequest,
+) -> OrchestrationPlanResponse:
+    return OrchestrationPlanResponse(
+        plan=orchestration_service.create_plan(
+            request,
+        ),
+    )
+
+
+@router.post(
+    "/agents/orchestration/run",
+    response_model=OrchestrationRunResponse,
+)
+async def run_orchestration(
+    request: OrchestrationPlanRequest,
+) -> OrchestrationRunResponse:
+    return await orchestration_service.run(
+        request,
     )
 
 
@@ -46,7 +77,7 @@ async def run_agent(
     request: AgentRunRequest,
 ) -> AgentRunResponse:
     return await agent_service.run(
-        request
+        request,
     )
 
 
@@ -59,13 +90,9 @@ async def stream_agent(
 ) -> StreamingResponse:
     return StreamingResponse(
         agent_service.stream(request),
-        media_type=(
-            "application/x-ndjson"
-        ),
+        media_type="application/x-ndjson",
         headers={
-            "Cache-Control": (
-                "no-cache, no-transform"
-            ),
+            "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
         },
     )

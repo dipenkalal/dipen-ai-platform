@@ -9,13 +9,14 @@ import {
 } from "lucide-react";
 
 import type {
+  AgentExecutionMode,
   AgentInfo,
   AgentRunStatus,
   ModelInfo,
 } from "../types";
 
-
 type RunPanelProps = {
+  mode: AgentExecutionMode;
   agents: AgentInfo[];
   models: ModelInfo[];
   selectedAgentId: string;
@@ -23,21 +24,15 @@ type RunPanelProps = {
   objective: string;
   status: AgentRunStatus;
   isLoading?: boolean;
-  onObjectiveChange: (
-    objective: string,
-  ) => void;
-  onModelChange: (
-    modelId: string,
-  ) => void;
+  onModeChange: (mode: AgentExecutionMode) => void;
+  onObjectiveChange: (objective: string) => void;
+  onModelChange: (modelId: string) => void;
   onRun: () => void;
   onCancel: () => void;
   onReset: () => void;
 };
 
-
-function getStatusLabel(
-  status: AgentRunStatus,
-): string {
+function getStatusLabel(status: AgentRunStatus): string {
   switch (status) {
     case "running":
       return "Running";
@@ -52,10 +47,7 @@ function getStatusLabel(
   }
 }
 
-
-function getStatusClassName(
-  status: AgentRunStatus,
-): string {
+function getStatusClassName(status: AgentRunStatus): string {
   switch (status) {
     case "running":
       return "border-cyan-400/20 bg-cyan-400/10 text-cyan-300";
@@ -70,12 +62,8 @@ function getStatusClassName(
   }
 }
 
-
-function isChatModel(
-  model: ModelInfo,
-): boolean {
-  const value =
-    `${model.id} ${model.name}`.toLowerCase();
+function isChatModel(model: ModelInfo): boolean {
+  const value = `${model.id} ${model.name}`.toLowerCase();
 
   return (
     model.available &&
@@ -87,8 +75,8 @@ function isChatModel(
   );
 }
 
-
 export default function RunPanel({
+  mode,
   agents,
   models,
   selectedAgentId,
@@ -96,29 +84,26 @@ export default function RunPanel({
   objective,
   status,
   isLoading = false,
+  onModeChange,
   onObjectiveChange,
   onModelChange,
   onRun,
   onCancel,
   onReset,
 }: RunPanelProps) {
-  const selectedAgent = agents.find(
-    (agent) =>
-      agent.id === selectedAgentId,
-  );
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
 
-  const availableModels =
-    models.filter(isChatModel);
+  const availableModels = models.filter(isChatModel);
 
   const isRunning = status === "running";
 
   const canRun =
-    Boolean(selectedAgentId) &&
     Boolean(selectedModelId) &&
     Boolean(objective.trim()) &&
     !isRunning &&
     !isLoading &&
-    selectedAgent?.enabled !== false;
+    (mode === "smart" ||
+      (Boolean(selectedAgentId) && selectedAgent?.enabled !== false));
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
@@ -137,10 +122,8 @@ export default function RunPanel({
           </h2>
 
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-            Describe the outcome you want. The
-            selected agent will plan the task,
-            execute its tools and generate a final
-            response.
+            Describe the outcome you want. The selected agent will plan the
+            task, execute its tools and generate a final response.
           </p>
         </div>
 
@@ -160,6 +143,51 @@ export default function RunPanel({
 
       <div className="mt-5 space-y-5">
         <div>
+          <p className="mb-2 block text-sm font-medium text-slate-200">
+            Execution mode
+          </p>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={isRunning || isLoading}
+              onClick={() => onModeChange("smart")}
+              className={[
+                "rounded-xl border p-4 text-left transition",
+                mode === "smart"
+                  ? "border-cyan-400/50 bg-cyan-400/10"
+                  : "border-white/10 bg-black/20 hover:border-white/20",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              ].join(" ")}
+            >
+              <p className="font-medium text-white">Smart routing</p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                DAP selects the best specialist for the objective.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              disabled={isRunning || isLoading}
+              onClick={() => onModeChange("manual")}
+              className={[
+                "rounded-xl border p-4 text-left transition",
+                mode === "manual"
+                  ? "border-violet-400/50 bg-violet-400/10"
+                  : "border-white/10 bg-black/20 hover:border-white/20",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              ].join(" ")}
+            >
+              <p className="font-medium text-white">Manual agent</p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Choose the specialist agent yourself.
+              </p>
+            </button>
+          </div>
+        </div>
+        <div>
           <label
             htmlFor="agent-objective"
             className="mb-2 block text-sm font-medium text-slate-200"
@@ -171,11 +199,7 @@ export default function RunPanel({
             id="agent-objective"
             value={objective}
             disabled={isRunning || isLoading}
-            onChange={(event) =>
-              onObjectiveChange(
-                event.target.value,
-              )
-            }
+            onChange={(event) => onObjectiveChange(event.target.value)}
             placeholder="Example: Check the current server health and explain any warnings."
             rows={5}
             className={[
@@ -188,14 +212,9 @@ export default function RunPanel({
           />
 
           <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>
-              Be specific about the result you
-              expect.
-            </span>
+            <span>Be specific about the result you expect.</span>
 
-            <span>
-              {objective.length} characters
-            </span>
+            <span>{objective.length} characters</span>
           </div>
         </div>
 
@@ -211,8 +230,9 @@ export default function RunPanel({
             <input
               id="agent-name"
               value={
-                selectedAgent?.name ??
-                "No agent selected"
+                mode === "smart"
+                  ? "Automatically selected by DAP"
+                  : (selectedAgent?.name ?? "No agent selected")
               }
               readOnly
               className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 outline-none"
@@ -230,16 +250,8 @@ export default function RunPanel({
             <select
               id="agent-model"
               value={selectedModelId}
-              disabled={
-                isRunning ||
-                isLoading ||
-                availableModels.length === 0
-              }
-              onChange={(event) =>
-                onModelChange(
-                  event.target.value,
-                )
-              }
+              disabled={isRunning || isLoading || availableModels.length === 0}
+              onChange={(event) => onModelChange(event.target.value)}
               className={[
                 "w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3",
                 "text-sm text-white outline-none transition",
@@ -248,19 +260,12 @@ export default function RunPanel({
               ].join(" ")}
             >
               {availableModels.length === 0 ? (
-                <option value="">
-                  No chat models available
-                </option>
+                <option value="">No chat models available</option>
               ) : (
                 availableModels.map((model) => (
-                  <option
-                    key={model.id}
-                    value={model.id}
-                  >
+                  <option key={model.id} value={model.id}>
                     {model.name}
-                    {model.local
-                      ? " · Local"
-                      : ""}
+                    {model.local ? " · Local" : ""}
                   </option>
                 ))
               )}
@@ -275,16 +280,14 @@ export default function RunPanel({
             </p>
 
             <div className="mt-2 flex flex-wrap gap-2">
-              {selectedAgent.tools.map(
-                (toolId) => (
-                  <span
-                    key={toolId}
-                    className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300"
-                  >
-                    {toolId}
-                  </span>
-                ),
-              )}
+              {selectedAgent.tools.map((toolId) => (
+                <span
+                  key={toolId}
+                  className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300"
+                >
+                  {toolId}
+                </span>
+              ))}
             </div>
           </div>
         )}
@@ -340,9 +343,7 @@ export default function RunPanel({
                 <Play className="h-4 w-4" />
               )}
 
-              {isRunning
-                ? "Running agent"
-                : "Run agent"}
+              {isRunning ? "Running agent" : "Run agent"}
             </button>
           </div>
         </div>

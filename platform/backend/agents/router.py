@@ -1,4 +1,6 @@
+import time
 from dataclasses import dataclass
+from typing import ClassVar
 
 from agents.registry import agent_registry
 from agents.schemas import AgentRunRequest
@@ -10,13 +12,13 @@ class AgentRoute:
     model: str | None
     confidence: float
     reason: str
+    matched_terms: list[str]
+    candidate_scores: dict[str, int]
+    routing_latency_ms: float
 
 
 class AgentRouter:
-    _keyword_weights: dict[
-        str,
-        dict[str, int],
-    ] = {
+    _keyword_weights: ClassVar[dict[str, dict[str, int]]] = {
         "system-agent": {
             "cpu": 5,
             "memory": 5,
@@ -97,7 +99,7 @@ class AgentRouter:
         },
     }
 
-    _priority: tuple[str, ...] = (
+    _priority: ClassVar[tuple[str, ...]] = (
         "system-agent",
         "knowledge-agent",
         "research-agent",
@@ -110,56 +112,40 @@ class AgentRouter:
         self,
         request: AgentRunRequest,
     ) -> AgentRoute:
+        started = time.perf_counter()
+
         objective = request.objective.lower().strip()
 
-        scores: dict[str, int] = {
-            agent_id: 0
-            for agent_id in self._keyword_weights
-        }
+        scores: dict[str, int] = {agent_id: 0 for agent_id in self._keyword_weights}
 
         matched_terms: dict[
             str,
             list[str],
-        ] = {
-            agent_id: []
-            for agent_id in self._keyword_weights
-        }
+        ] = {agent_id: [] for agent_id in self._keyword_weights}
 
-        for (
-            agent_id,
-            keywords,
-        ) in self._keyword_weights.items():
+        for agent_id, keywords in self._keyword_weights.items():
             for keyword, weight in keywords.items():
                 if keyword in objective:
                     scores[agent_id] += weight
-                    matched_terms[agent_id].append(
-                        keyword
-                    )
+                    matched_terms[agent_id].append(keyword)
 
         selected_agent_id = max(
             self._priority,
             key=lambda agent_id: (
                 scores[agent_id],
-                -self._priority.index(
-                    agent_id
-                ),
+                -self._priority.index(agent_id),
             ),
         )
 
-        selected_score = scores[
-            selected_agent_id
-        ]
+        selected_score = scores[selected_agent_id]
 
         if selected_score == 0:
             selected_agent_id = (
-                "knowledge-agent"
-                if request.document_id
-                else "coding-agent"
+                "knowledge-agent" if request.document_id else "coding-agent"
             )
 
             reason = (
-                "A document was supplied, so the "
-                "Knowledge Agent was selected."
+                "A document was supplied, so the Knowledge Agent was selected."
                 if request.document_id
                 else (
                     "No specialised routing keywords "
@@ -177,41 +163,31 @@ class AgentRouter:
                 0.99,
                 max(
                     0.55,
-                    selected_score /
-                    max(total_score, 1),
+                    selected_score / max(total_score, 1),
                 ),
             )
 
-            terms = ", ".join(
-                matched_terms[
-                    selected_agent_id
-                ][:4]
-            )
+            terms = ", ".join(matched_terms[selected_agent_id][:4])
 
-            agent = agent_registry.get(
-                selected_agent_id
-            )
+            agent = agent_registry.get(selected_agent_id)
 
-            reason = (
-                f"{agent.name} matched the request "
-                f"based on: {terms}."
-            )
+            reason = f"{agent.name} matched the request based on: {terms}."
 
-        agent = agent_registry.get(
-            selected_agent_id
-        )
+        agent = agent_registry.get(selected_agent_id)
+
+        elapsed = (time.perf_counter() - started) * 1000
 
         return AgentRoute(
             agent_id=selected_agent_id,
-            model=(
-                request.model
-                or agent.recommended_model
-            ),
-            confidence=round(
-                confidence,
+            model=(request.model or agent.recommended_model),
+            confidence=round(confidence, 2),
+            reason=reason,
+            matched_terms=matched_terms[selected_agent_id],
+            candidate_scores=scores,
+            routing_latency_ms=round(
+                elapsed,
                 2,
             ),
-            reason=reason,
         )
 
 

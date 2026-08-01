@@ -1,5 +1,7 @@
 "use client";
-
+import ExecutionLifecycle from "../../components/ExecutionLifecycle";
+import RoutingDecision from "../../components/RoutingDecision";
+import RunSummary from "../../components/RunSummary";
 import Link from "next/link";
 
 import {
@@ -242,7 +244,9 @@ export default function AgentRunDetailPage() {
             </button>
           </div>
         </header>
-
+        <RunSummary
+  run={run}
+/>
         {run.error && (
           <div className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] p-4 text-rose-200">
             {run.error}
@@ -250,9 +254,25 @@ export default function AgentRunDetailPage() {
         )}
 
         <div className="mt-6 space-y-6">
+            <ExecutionLifecycle
+    run={run}
+  />          
+
           <UsageMetrics
             usage={run.usage}
           />
+
+         <RoutingDecision
+  routing={run.request.routing}
+/>
+
+<ExecutionTimeline
+  steps={run.steps}
+  status={normalizeRunStatus(
+    run.status,
+  )}
+  message="Loaded from persistent agent run history."
+/>
 
           <ExecutionTimeline
             steps={run.steps}

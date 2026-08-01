@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   History,
   Home,
+  ServerCog,
 } from "lucide-react";
 
 
@@ -48,6 +49,11 @@ const navigationItems: NavigationItem[] = [
     label: "Analytics",
     href: "/analytics",
     icon: BarChart3,
+  },
+  {
+    label: "Monitoring",
+    href: "/monitoring",
+    icon: ServerCog,
   },
 ];
 
@@ -127,7 +133,7 @@ export default function AppNavigation() {
               >
                 <Icon className="h-4 w-4" />
 
-                <span className="hidden md:inline">
+                <span className="hidden lg:inline">
                   {item.label}
                 </span>
               </Link>

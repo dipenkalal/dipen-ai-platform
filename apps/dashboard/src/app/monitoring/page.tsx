@@ -1,14 +1,14 @@
 "use client";
-import RoutingAnalyticsPanel from "./components/RoutingAnalyticsPanel";
+
 import Link from "next/link";
 
 import {
   AlertTriangle,
   BarChart3,
-  Bot,
-  History,
+  CheckCircle2,
   LoaderCircle,
   RefreshCw,
+  ServerCog,
 } from "lucide-react";
 
 import {
@@ -18,28 +18,85 @@ import {
 } from "react";
 
 import {
-  fetchAnalyticsDashboard,
+  fetchMonitoringOverview,
 } from "./api";
 
-import AgentTable from "./components/AgentTable";
-import OverviewCards from "./components/OverviewCards";
-import RecentRuns from "./components/RecentRuns";
+import PlatformOverview from "./components/PlatformOverview";
+import ServiceHealthGrid from "./components/ServiceHealthGrid";
+import SystemOverview from "./components/SystemOverview";
 
 import type {
-  AnalyticsDashboardResponse,
+  MonitoringOverview,
+  ServiceStatus,
 } from "./types";
 
 
-const REFRESH_INTERVAL_MS = 30_000;
+const REFRESH_INTERVAL_MS = 5_000;
 
 
-export default function AnalyticsPage() {
+function formatLastUpdated(
+  value: Date | null,
+): string {
+  if (!value) {
+    return "Not updated yet";
+  }
+
+  return new Intl.DateTimeFormat(
+    "en-GB",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    },
+  ).format(value);
+}
+
+
+function statusStyles(
+  status: ServiceStatus,
+): string {
+  switch (status) {
+    case "healthy":
+      return (
+        "border-emerald-300/20 " +
+        "bg-emerald-300/[0.08] " +
+        "text-emerald-300"
+      );
+
+    case "degraded":
+      return (
+        "border-amber-300/20 " +
+        "bg-amber-300/[0.08] " +
+        "text-amber-300"
+      );
+
+    case "offline":
+      return (
+        "border-rose-300/20 " +
+        "bg-rose-300/[0.08] " +
+        "text-rose-300"
+      );
+  }
+}
+
+
+function formatStatus(
+  status: ServiceStatus,
+): string {
+  return (
+    status.charAt(0).toUpperCase() +
+    status.slice(1)
+  );
+}
+
+
+export default function MonitoringPage() {
   const [
-    analytics,
-    setAnalytics,
-  ] = useState<
-    AnalyticsDashboardResponse | null
-  >(null);
+    monitoring,
+    setMonitoring,
+  ] = useState<MonitoringOverview | null>(
+    null,
+  );
 
   const [
     isLoading,
@@ -62,7 +119,7 @@ export default function AnalyticsPage() {
   ] = useState<Date | null>(null);
 
 
-  const loadAnalytics = useCallback(
+  const loadMonitoring = useCallback(
     async (
       background = false,
     ): Promise<void> => {
@@ -76,18 +133,15 @@ export default function AnalyticsPage() {
         setError(null);
 
         const response =
-          await fetchAnalyticsDashboard({
-            agentLimit: 20,
-            recentLimit: 10,
-          });
+          await fetchMonitoringOverview();
 
-        setAnalytics(response);
+        setMonitoring(response);
         setLastUpdated(new Date());
       } catch (loadError) {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load analytics dashboard",
+            : "Unable to load monitoring data",
         );
       } finally {
         setIsLoading(false);
@@ -101,20 +155,20 @@ export default function AnalyticsPage() {
   useEffect(() => {
     let active = true;
 
-    fetchAnalyticsDashboard({
-      agentLimit: 20,
-      recentLimit: 10,
-    })
-      .then((response) => {
+    async function initialLoad():
+    Promise<void> {
+      try {
+        const response =
+          await fetchMonitoringOverview();
+
         if (!active) {
           return;
         }
 
-        setAnalytics(response);
+        setMonitoring(response);
         setLastUpdated(new Date());
         setError(null);
-      })
-      .catch((loadError: unknown) => {
+      } catch (loadError) {
         if (!active) {
           return;
         }
@@ -122,33 +176,32 @@ export default function AnalyticsPage() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Unable to load analytics dashboard",
+            : "Unable to load monitoring data",
         );
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setIsLoading(false);
         }
-      });
+      }
+    }
+
+    void initialLoad();
 
     const intervalId =
       window.setInterval(() => {
-        fetchAnalyticsDashboard({
-          agentLimit: 20,
-          recentLimit: 10,
-        })
+        fetchMonitoringOverview()
           .then((response) => {
             if (!active) {
               return;
             }
 
-            setAnalytics(response);
+            setMonitoring(response);
             setLastUpdated(new Date());
             setError(null);
           })
           .catch(() => {
-            // Keep existing dashboard data during
-            // background refresh failures.
+            // Preserve the last valid snapshot if
+            // a background refresh fails.
           });
       }, REFRESH_INTERVAL_MS);
 
@@ -159,22 +212,6 @@ export default function AnalyticsPage() {
   }, []);
 
 
-  function formatLastUpdated(): string {
-    if (!lastUpdated) {
-      return "Not updated yet";
-    }
-
-    return new Intl.DateTimeFormat(
-      "en-GB",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      },
-    ).format(lastUpdated);
-  }
-
-
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -182,7 +219,7 @@ export default function AnalyticsPage() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-3xl">
               <div className="flex items-center gap-2 text-cyan-300">
-                <BarChart3 className="h-5 w-5" />
+                <ServerCog className="h-5 w-5" />
 
                 <p className="text-xs font-semibold uppercase tracking-[0.24em]">
                   Dipen AI Platform
@@ -190,50 +227,67 @@ export default function AnalyticsPage() {
               </div>
 
               <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-                Agent Analytics
+                Platform Monitoring
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Monitor agent usage, execution
-                success, latency and token
-                consumption across the platform.
+                Monitor host resources, backend
+                services, Ollama models, Qdrant,
+                platform registries and execution
+                storage.
               </p>
 
               <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                 <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-                  Auto-refresh: 30 seconds
+                  Auto-refresh: 5 seconds
                 </span>
 
                 <span>
                   Last updated:{" "}
                   <span className="text-slate-200">
-                    {formatLastUpdated()}
+                    {formatLastUpdated(
+                      lastUpdated,
+                    )}
                   </span>
                 </span>
+
+                {monitoring && (
+                  <span
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 font-medium",
+                      statusStyles(
+                        monitoring.status,
+                      ),
+                    ].join(" ")}
+                  >
+                    {monitoring.status ===
+                    "healthy" ? (
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                    )}
+
+                    {formatStatus(
+                      monitoring.status,
+                    )}
+                  </span>
+                )}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/agents"
+                href="/analytics"
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.08]"
               >
-                <Bot className="h-4 w-4" />
-                Agents
-              </Link>
-
-              <Link
-                href="/agents/history"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.08]"
-              >
-                <History className="h-4 w-4" />
-                History
+                <BarChart3 className="h-4 w-4" />
+                Analytics
               </Link>
 
               <button
                 type="button"
                 onClick={() => {
-                  void loadAnalytics(true);
+                  void loadMonitoring(true);
                 }}
                 disabled={
                   isLoading ||
@@ -242,11 +296,12 @@ export default function AnalyticsPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <RefreshCw
-                  className={`h-4 w-4 ${
+                  className={[
+                    "h-4 w-4",
                     isRefreshing
                       ? "animate-spin"
-                      : ""
-                  }`}
+                      : "",
+                  ].join(" ")}
                 />
 
                 {isRefreshing
@@ -257,27 +312,27 @@ export default function AnalyticsPage() {
           </div>
         </header>
 
-        {isLoading && !analytics ? (
+        {isLoading && !monitoring ? (
           <section className="flex min-h-80 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.025]">
             <div className="text-center">
               <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-cyan-300" />
 
               <p className="mt-4 font-medium text-slate-200">
-                Loading analytics
+                Loading monitoring data
               </p>
 
               <p className="mt-2 text-sm text-slate-400">
-                Collecting agent performance
-                metrics.
+                Checking services and collecting
+                system measurements.
               </p>
             </div>
           </section>
-        ) : error && !analytics ? (
+        ) : error && !monitoring ? (
           <section className="rounded-3xl border border-rose-400/20 bg-rose-400/[0.06] p-8 text-center">
             <AlertTriangle className="mx-auto h-10 w-10 text-rose-300" />
 
             <h2 className="mt-4 text-lg font-semibold text-white">
-              Analytics unavailable
+              Monitoring unavailable
             </h2>
 
             <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-rose-100/70">
@@ -287,7 +342,7 @@ export default function AnalyticsPage() {
             <button
               type="button"
               onClick={() => {
-                void loadAnalytics();
+                void loadMonitoring();
               }}
               className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
             >
@@ -295,7 +350,7 @@ export default function AnalyticsPage() {
               Try again
             </button>
           </section>
-        ) : analytics ? (
+        ) : monitoring ? (
           <div className="space-y-6">
             {error && (
               <div className="flex items-start gap-3 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-sm text-amber-100">
@@ -304,25 +359,21 @@ export default function AnalyticsPage() {
                 <p>
                   The latest refresh failed.
                   Showing the most recently loaded
-                  analytics data.
+                  monitoring snapshot.
                 </p>
               </div>
             )}
 
-            <OverviewCards
-              overview={analytics.overview}
-            />
-            
-            <RoutingAnalyticsPanel
-              routing={analytics.routing}
+            <SystemOverview
+              system={monitoring.system}
             />
 
-            <AgentTable
-              agents={analytics.agents}
+            <ServiceHealthGrid
+              services={monitoring.services}
             />
 
-            <RecentRuns
-              runs={analytics.recent_runs}
+            <PlatformOverview
+              platform={monitoring.platform}
             />
           </div>
         ) : null}
