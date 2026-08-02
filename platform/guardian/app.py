@@ -488,6 +488,10 @@ GUARDIAN_TEMPERATURE = float(
     os.getenv("DAP_GUARDIAN_TEMPERATURE", "0.0"),
 )
 MAX_QUESTION_BYTES = 16_384
+GUARDIAN_ACTION_TOKEN = os.getenv(
+    "DAP_GUARDIAN_ACTION_TOKEN",
+    "",
+)
 
 
 def format_bytes(value: Any) -> str:
@@ -832,6 +836,37 @@ def ask_guardian(question: str) -> dict[str, Any]:
         }
 
 
+def validate_action_authorization(
+    authorization_header: str | None,
+) -> tuple[bool, int, str | None]:
+    if not GUARDIAN_ACTION_TOKEN:
+        return (
+            False,
+            503,
+            "Guardian action API is disabled because no action token is configured.",
+        )
+
+    if not authorization_header:
+        return False, 401, "Authorization header is required."
+
+    scheme, separator, supplied_token = authorization_header.partition(" ")
+
+    if (
+        separator != " "
+        or scheme.lower() != "bearer"
+        or not supplied_token
+    ):
+        return False, 401, "A valid Bearer token is required."
+
+    if not secrets.compare_digest(
+        supplied_token,
+        GUARDIAN_ACTION_TOKEN,
+    ):
+        return False, 403, "Action authorization failed."
+
+    return True, 200, None
+
+
 def build_action_plan(
     action: str,
     target: str,
@@ -971,6 +1006,19 @@ class GuardianHandler(BaseHTTPRequestHandler):
 
             self.send_json(
                 ask_guardian(question.strip()),
+            )
+            return
+
+        authorized, status_code, authorization_error = (
+            validate_action_authorization(
+                self.headers.get("Authorization"),
+            )
+        )
+
+        if not authorized:
+            self.send_json(
+                {"error": authorization_error},
+                status_code=status_code,
             )
             return
 
