@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -30,6 +31,48 @@ HTTP_DEPENDENCIES = {
 DISK_PATHS = {
     "root": Path("/"),
     "data": Path("/data"),
+}
+
+ACTION_CATALOG = {
+    "restart_service": {
+        "backend": {
+            "unit": SERVICE_UNITS["backend"],
+            "risk": "medium",
+            "impact": (
+                "The backend API will be briefly unavailable while "
+                "systemd restarts it."
+            ),
+            "verification": [
+                "Confirm dap-backend.service is active.",
+                "Confirm http://127.0.0.1:8002/health returns HTTP 200.",
+            ],
+        },
+        "guardian": {
+            "unit": SERVICE_UNITS["guardian"],
+            "risk": "medium",
+            "impact": (
+                "Guardian will briefly disconnect while its own "
+                "systemd service restarts."
+            ),
+            "verification": [
+                "Confirm dap-guardian.service is active.",
+                "Confirm http://127.0.0.1:8001/health returns HTTP 200.",
+            ],
+        },
+        "docker": {
+            "unit": SERVICE_UNITS["docker"],
+            "risk": "high",
+            "impact": (
+                "Docker and all managed containers may be unavailable "
+                "during the restart."
+            ),
+            "verification": [
+                "Confirm docker.service is active.",
+                "Confirm expected DAP containers are running.",
+                "Confirm monitored HTTP dependencies are healthy.",
+            ],
+        },
+    },
 }
 
 
@@ -318,7 +361,7 @@ def read_top_processes(
             [
                 "ps",
                 "-eo",
-                "pid=,user=,comm=,rss=,%mem=,etimes=,args=",
+                "pid=,user=,comm=,rss=,%mem=,etimes=",
                 "--sort=-rss",
             ],
             capture_output=True,
@@ -335,7 +378,7 @@ def read_top_processes(
     processes: list[dict[str, Any]] = []
 
     for line in completed.stdout.splitlines():
-        fields = line.strip().split(None, 6)
+        fields = line.strip().split()
 
         if len(fields) < 6:
             continue
@@ -349,12 +392,6 @@ def read_top_processes(
             elapsed_seconds_value,
         ) = fields[:6]
 
-        arguments = (
-            fields[6]
-            if len(fields) == 7
-            else command
-        )
-
         try:
             process = {
                 "pid": int(pid_value),
@@ -367,7 +404,6 @@ def read_top_processes(
                 "elapsed_seconds": int(
                     elapsed_seconds_value
                 ),
-                "arguments": arguments[:300],
             }
         except ValueError:
             continue
@@ -411,7 +447,7 @@ def build_state() -> dict[str, Any]:
         "guardian": {
             "name": "DAP Guardian",
             "version": "0.1.0",
-            "mode": "read-only",
+            "mode": "planning-only",
             "generated_at": utc_now(),
         },
         "host": {
@@ -607,10 +643,6 @@ def build_grounded_context(
     )
 
     for process in processes[:8]:
-        arguments = " ".join(
-            str(process.get("arguments", "")).split()
-        )[:180]
-
         lines.append(
             "PROCESS "
             f"pid={process.get('pid', 'unknown')} "
@@ -620,8 +652,7 @@ def build_grounded_context(
             f"memory_percent="
             f"{process.get('memory_percent', 'unknown')} "
             f"elapsed_seconds="
-            f"{process.get('elapsed_seconds', 'unknown')} "
-            f"arguments={arguments}"
+            f"{process.get('elapsed_seconds', 'unknown')}"
         )
 
     for name, disk in disks.items():
@@ -686,7 +717,7 @@ Rules:
 - Base factual claims only on the supplied live snapshot.
 - Every PROCESS line is an exact PID, command and memory pairing.
 - Copy process names and PIDs exactly; never relabel or rearrange them.
-- Do not infer an application identity unless its arguments prove it.
+- Do not infer an application identity from generic process names such as python3, node, or uvicorn.
 - Clearly separate measured facts from possible explanations.
 - Describe listed processes as observed contributors, not the complete cause of total memory use.
 - Never say memory usage is "due to" a process unless the supplied measurements prove that conclusion.
@@ -801,6 +832,49 @@ def ask_guardian(question: str) -> dict[str, Any]:
         }
 
 
+def build_action_plan(
+    action: str,
+    target: str,
+) -> dict[str, Any]:
+    action_targets = ACTION_CATALOG[action]
+    definition = action_targets[target]
+    unit = definition["unit"]
+
+    return {
+        "plan_id": secrets.token_hex(16),
+        "status": "approval_required",
+        "generated_at": utc_now(),
+        "action": action,
+        "target": target,
+        "description": f"Restart {unit} through systemd.",
+        "risk": definition["risk"],
+        "impact": definition["impact"],
+        "command": [
+            "systemctl",
+            "restart",
+            unit,
+        ],
+        "approval": {
+            "required": True,
+            "level": "explicit",
+            "root_required": True,
+        },
+        "verification": definition["verification"],
+        "rollback": (
+            "Restore the previous known-good configuration or code, "
+            "then restart the same unit and repeat verification."
+        ),
+        "execution": {
+            "available": False,
+            "reason": (
+                "The privileged action broker is not connected yet. "
+                "This endpoint only creates a proposed plan."
+            ),
+        },
+        "persisted": False,
+    }
+
+
 STATIC_DIR = Path(__file__).parent / "static"
 STATUS_PAGE = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
@@ -827,7 +901,12 @@ class GuardianHandler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_POST(self) -> None:
-        if self.path != "/api/v1/ask":
+        supported_paths = {
+            "/api/v1/ask",
+            "/api/v1/actions/plan",
+        }
+
+        if self.path not in supported_paths:
             self.send_json(
                 {
                     "error": "Not found",
@@ -873,17 +952,56 @@ class GuardianHandler(BaseHTTPRequestHandler):
             )
             return
 
-        question = payload.get("question")
-
-        if not isinstance(question, str) or not question.strip():
+        if not isinstance(payload, dict):
             self.send_json(
-                {"error": "A non-empty question is required"},
+                {"error": "Request body must be a JSON object"},
+                status_code=400,
+            )
+            return
+
+        if self.path == "/api/v1/ask":
+            question = payload.get("question")
+
+            if not isinstance(question, str) or not question.strip():
+                self.send_json(
+                    {"error": "A non-empty question is required"},
+                    status_code=400,
+                )
+                return
+
+            self.send_json(
+                ask_guardian(question.strip()),
+            )
+            return
+
+        action = payload.get("action")
+        target = payload.get("target")
+
+        if action not in ACTION_CATALOG:
+            self.send_json(
+                {
+                    "error": "Unsupported action",
+                    "allowed_actions": sorted(ACTION_CATALOG),
+                },
+                status_code=400,
+            )
+            return
+
+        allowed_targets = ACTION_CATALOG[action]
+
+        if target not in allowed_targets:
+            self.send_json(
+                {
+                    "error": "Unsupported target",
+                    "allowed_targets": sorted(allowed_targets),
+                },
                 status_code=400,
             )
             return
 
         self.send_json(
-            ask_guardian(question.strip()),
+            build_action_plan(action, target),
+            status_code=201,
         )
 
     def do_GET(self) -> None:
