@@ -470,6 +470,270 @@ def reserve_execution(
     return validation
 
 
+def transition_execution_state(
+    database_path: Path,
+    plan_id: str,
+    reservation_id: str,
+    expected_status: str,
+    new_status: str,
+    event_type: str,
+    details: dict[str, Any],
+    dry_run: bool,
+) -> dict[str, Any]:
+    if os.geteuid() != 0:
+        raise PlanValidationError(
+            "Execution-state transitions require root."
+        )
+
+    if not database_path.is_file():
+        raise PlanValidationError(
+            f"Action database does not exist: {database_path}"
+        )
+
+    transitioned_at = datetime.now(timezone.utc)
+
+    try:
+        with sqlite3.connect(
+            database_path,
+            timeout=5.0,
+        ) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA busy_timeout = 5000")
+            connection.execute("BEGIN IMMEDIATE")
+
+            row = connection.execute(
+                """
+                SELECT
+                    plan_id,
+                    status,
+                    plan_json
+                FROM action_plans
+                WHERE plan_id = ?
+                """,
+                (plan_id,),
+            ).fetchone()
+
+            if row is None:
+                raise PlanValidationError(
+                    "Action plan was not found."
+                )
+
+            try:
+                plan = json.loads(row["plan_json"])
+            except (json.JSONDecodeError, TypeError) as error:
+                raise PlanValidationError(
+                    "Stored action plan is not valid JSON."
+                ) from error
+
+            if not isinstance(plan, dict):
+                raise PlanValidationError(
+                    "Stored action plan must be a JSON object."
+                )
+
+            if row["plan_id"] != plan_id:
+                raise PlanValidationError(
+                    "Database plan ID does not match."
+                )
+
+            if plan.get("plan_id") != plan_id:
+                raise PlanValidationError(
+                    "Stored JSON plan ID does not match."
+                )
+
+            if row["status"] != expected_status:
+                raise PlanValidationError(
+                    f"Plan status is {row['status']}, "
+                    f"not {expected_status}."
+                )
+
+            if plan.get("status") != expected_status:
+                raise PlanValidationError(
+                    "Stored JSON status does not match "
+                    "the database status."
+                )
+
+            reservation = plan.get(
+                "execution_reservation"
+            )
+
+            if not isinstance(reservation, dict):
+                raise PlanValidationError(
+                    "Execution reservation is missing."
+                )
+
+            stored_reservation_id = reservation.get(
+                "reservation_id"
+            )
+
+            if not isinstance(stored_reservation_id, str):
+                raise PlanValidationError(
+                    "Stored reservation ID is invalid."
+                )
+
+            if not secrets.compare_digest(
+                reservation_id,
+                stored_reservation_id,
+            ):
+                raise PlanValidationError(
+                    "Execution reservation ID did not match."
+                )
+
+            plan["status"] = new_status
+
+            if new_status == "executing":
+                plan["execution_started_at"] = (
+                    transitioned_at.isoformat()
+                )
+            else:
+                plan["execution_completed_at"] = (
+                    transitioned_at.isoformat()
+                )
+
+            plan["execution"] = {
+                "state": new_status,
+                "performed": not dry_run,
+                "dry_run": dry_run,
+                "details": details,
+            }
+
+            serialized_plan = json.dumps(
+                plan,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+
+            update = connection.execute(
+                """
+                UPDATE action_plans
+                SET status = ?, plan_json = ?
+                WHERE plan_id = ?
+                  AND status = ?
+                """,
+                (
+                    new_status,
+                    serialized_plan,
+                    plan_id,
+                    expected_status,
+                ),
+            )
+
+            if update.rowcount != 1:
+                raise PlanValidationError(
+                    "Execution-state transition lost "
+                    "an atomic status race."
+                )
+
+            connection.execute(
+                """
+                INSERT INTO action_events (
+                    plan_id,
+                    event_type,
+                    event_at,
+                    details_json
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    plan_id,
+                    event_type,
+                    transitioned_at.isoformat(),
+                    json.dumps(
+                        {
+                            "reservation_id": reservation_id,
+                            "previous_status": expected_status,
+                            "new_status": new_status,
+                            "dry_run": dry_run,
+                            "details": details,
+                        },
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                ),
+            )
+    except sqlite3.Error as error:
+        raise PlanValidationError(
+            f"Could not transition execution state: {error}"
+        ) from error
+
+    return {
+        "plan_id": plan_id,
+        "reservation_id": reservation_id,
+        "previous_status": expected_status,
+        "status": new_status,
+        "transitioned_at": transitioned_at.isoformat(),
+        "dry_run": dry_run,
+        "execution": {
+            "performed": not dry_run,
+        },
+    }
+
+
+def begin_execution_state(
+    database_path: Path,
+    plan_id: str,
+    reservation_id: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    return transition_execution_state(
+        database_path=database_path,
+        plan_id=plan_id,
+        reservation_id=reservation_id,
+        expected_status="execution_reserved",
+        new_status="executing",
+        event_type="execution_started",
+        details={
+            "message": (
+                "Execution lifecycle entered the executing state."
+            ),
+        },
+        dry_run=dry_run,
+    )
+
+
+def complete_execution_state(
+    database_path: Path,
+    plan_id: str,
+    reservation_id: str,
+    outcome: str,
+    result_summary: str,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    if outcome not in {"succeeded", "failed"}:
+        raise PlanValidationError(
+            "Execution outcome must be succeeded or failed."
+        )
+
+    if not isinstance(result_summary, str):
+        raise PlanValidationError(
+            "Execution result summary must be text."
+        )
+
+    cleaned_summary = result_summary.strip()
+
+    if not cleaned_summary:
+        raise PlanValidationError(
+            "Execution result summary cannot be empty."
+        )
+
+    if len(cleaned_summary) > 1000:
+        raise PlanValidationError(
+            "Execution result summary is too long."
+        )
+
+    return transition_execution_state(
+        database_path=database_path,
+        plan_id=plan_id,
+        reservation_id=reservation_id,
+        expected_status="executing",
+        new_status=outcome,
+        event_type=f"execution_{outcome}",
+        details={
+            "result_summary": cleaned_summary,
+        },
+        dry_run=dry_run,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
