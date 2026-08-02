@@ -5,7 +5,6 @@ import json
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
-from pathlib import Path
 from unittest.mock import patch
 
 import app
@@ -182,6 +181,24 @@ class ControlPlaneTestCase(unittest.TestCase):
                 }
             ],
         )
+
+    def test_docker_fallback_does_not_claim_zero_containers(self) -> None:
+        state = {
+            "docker": {
+                "available": False,
+                "containers": [],
+                "error": "permission denied",
+            }
+        }
+
+        answer = control_plane.deterministic_answer(
+            "How many Docker containers are running?",
+            state,
+        )
+
+        self.assertIn("cannot query Docker", answer)
+        self.assertIn("cannot truthfully report", answer)
+        self.assertNotIn("no running containers", answer.lower())
 
     def test_status_page_does_not_embed_owner_token(self) -> None:
         self.assertIn(
