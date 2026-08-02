@@ -1,4 +1,5 @@
 import inspect
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -34,14 +35,27 @@ from knowledge.routes import (
 from monitoring.routes import (
     router as monitoring_router,
 )
+from shared_http import (
+    close_shared_http_client,
+)
+
 
 APP_VERSION = "0.8.1"
+
+
+@asynccontextmanager
+async def backend_lifespan(_: FastAPI):
+    try:
+        yield
+    finally:
+        await close_shared_http_client()
 
 
 app = FastAPI(
     title="DAP API",
     description=("Backend service for Dipen AI Platform"),
     version=APP_VERSION,
+    lifespan=backend_lifespan,
 )
 
 

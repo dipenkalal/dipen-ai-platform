@@ -20,6 +20,9 @@ from knowledge.config import (
     QDRANT_URL,
 )
 from tools.registry import tool_registry
+from shared_http import (
+    shared_http_client,
+)
 
 from monitoring.schemas import (
     CpuMetric,
@@ -34,8 +37,8 @@ from monitoring.schemas import (
 )
 
 
-APP_VERSION = "0.8.1"
 
+APP_VERSION = "0.8.1"
 
 def _safe_float(
     value: Any,
@@ -158,9 +161,7 @@ async def _get_ollama_details() -> tuple[
     error_message: str | None = None
 
     try:
-        async with httpx.AsyncClient(
-            timeout=4.0
-        ) as client:
+        async with shared_http_client() as client:
             response = await client.get(
                 f"{OLLAMA_BASE_URL}/api/tags"
             )
@@ -262,9 +263,7 @@ async def _get_qdrant_details() -> tuple[
     vector_size: int | None = None
 
     try:
-        async with httpx.AsyncClient(
-            timeout=4.0
-        ) as client:
+        async with shared_http_client() as client:
             collections_response = (
                 await client.get(
                     f"{QDRANT_URL}/collections"

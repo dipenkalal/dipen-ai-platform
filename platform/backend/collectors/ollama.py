@@ -3,6 +3,10 @@ from typing import Any
 
 import httpx
 
+from shared_http import (
+    shared_http_client,
+)
+
 
 OLLAMA_BASE_URL = os.getenv(
     "OLLAMA_BASE_URL",
@@ -13,7 +17,7 @@ OLLAMA_BASE_URL = os.getenv(
 async def get_ollama_status() -> dict[str, Any]:
     """Check Ollama availability and return currently loaded models."""
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with shared_http_client() as client:
             response = await client.get(f"{OLLAMA_BASE_URL}/api/ps")
             response.raise_for_status()
 
