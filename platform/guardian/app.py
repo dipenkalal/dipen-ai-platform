@@ -448,7 +448,7 @@ def build_state() -> dict[str, Any]:
         "guardian": {
             "name": "DAP Guardian",
             "version": "0.1.0",
-            "mode": "planning-only",
+            "mode": "approval-recording",
             "generated_at": utc_now(),
         },
         "host": {
@@ -1004,6 +1004,125 @@ def build_action_plan(
     return plan
 
 
+def approve_action_plan(
+    plan_id: str,
+    confirmation: str,
+) -> tuple[dict[str, Any], int]:
+    expected_confirmation = f"APPROVE {plan_id}"
+
+    if not secrets.compare_digest(
+        confirmation,
+        expected_confirmation,
+    ):
+        return (
+            {
+                "error": "Explicit confirmation did not match.",
+                "expected_confirmation": expected_confirmation,
+            },
+            400,
+        )
+
+    approved_at = datetime.now(timezone.utc)
+
+    with open_action_store() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+
+        row = connection.execute(
+            """
+            SELECT
+                plan_id,
+                expires_at,
+                status,
+                plan_json
+            FROM action_plans
+            WHERE plan_id = ?
+            """,
+            (plan_id,),
+        ).fetchone()
+
+        if row is None:
+            return {"error": "Action plan not found."}, 404
+
+        plan = json.loads(row["plan_json"])
+        expires_at = datetime.fromisoformat(row["expires_at"])
+
+        if approved_at >= expires_at:
+            plan["status"] = "expired"
+            plan["expired_at"] = approved_at.isoformat()
+
+            connection.execute(
+                """
+                UPDATE action_plans
+                SET status = ?, plan_json = ?
+                WHERE plan_id = ?
+                """,
+                (
+                    "expired",
+                    json.dumps(
+                        plan,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    plan_id,
+                ),
+            )
+
+            return (
+                {
+                    "error": "Action plan has expired.",
+                    "plan": plan,
+                },
+                409,
+            )
+
+        if row["status"] != "approval_required":
+            return (
+                {
+                    "error": (
+                        "Action plan cannot be approved because its "
+                        f"status is {row['status']}."
+                    ),
+                    "plan": plan,
+                },
+                409,
+            )
+
+        plan["status"] = "approved"
+        plan["approved_at"] = approved_at.isoformat()
+        plan["approval"]["approved"] = True
+        plan["approval"]["approved_at"] = approved_at.isoformat()
+        plan["execution"] = {
+            "available": False,
+            "reason": (
+                "Approval has been recorded, but the privileged "
+                "action broker is not connected yet."
+            ),
+        }
+
+        serialized_plan = json.dumps(
+            plan,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+        connection.execute(
+            """
+            UPDATE action_plans
+            SET status = ?, plan_json = ?
+            WHERE plan_id = ?
+              AND status = ?
+            """,
+            (
+                "approved",
+                serialized_plan,
+                plan_id,
+                "approval_required",
+            ),
+        )
+
+    return plan, 200
+
+
 STATIC_DIR = Path(__file__).parent / "static"
 STATUS_PAGE = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
@@ -1033,6 +1152,7 @@ class GuardianHandler(BaseHTTPRequestHandler):
         supported_paths = {
             "/api/v1/ask",
             "/api/v1/actions/plan",
+            "/api/v1/actions/approve",
         }
 
         if self.path not in supported_paths:
@@ -1113,6 +1233,38 @@ class GuardianHandler(BaseHTTPRequestHandler):
             self.send_json(
                 {"error": authorization_error},
                 status_code=status_code,
+            )
+            return
+
+        if self.path == "/api/v1/actions/approve":
+            plan_id = payload.get("plan_id")
+            confirmation = payload.get("confirmation")
+
+            if not isinstance(plan_id, str) or not plan_id.strip():
+                self.send_json(
+                    {"error": "A non-empty plan_id is required."},
+                    status_code=400,
+                )
+                return
+
+            if (
+                not isinstance(confirmation, str)
+                or not confirmation.strip()
+            ):
+                self.send_json(
+                    {"error": "Explicit confirmation is required."},
+                    status_code=400,
+                )
+                return
+
+            response, response_status = approve_action_plan(
+                plan_id.strip(),
+                confirmation.strip(),
+            )
+
+            self.send_json(
+                response,
+                status_code=response_status,
             )
             return
 
