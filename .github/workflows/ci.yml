@@ -89,11 +89,14 @@ jobs:
           python -m compileall -q \
             app.py \
             broker.py \
+            broker_client.py \
             broker_entrypoint.py \
             broker_server.py \
+            control_plane.py \
             execution_recovery.py \
             executor.py \
             execution_service.py \
+            owner_authorization.py \
             root_authorization.py \
             root_authorization_cli.py \
             sqlite_support.py \
@@ -107,13 +110,26 @@ jobs:
           if grep -nE \
             'subprocess|os\.system|Popen|check_call|check_output' \
             broker.py \
+            broker_client.py \
             broker_entrypoint.py \
             broker_server.py \
+            control_plane.py \
             execution_recovery.py \
+            owner_authorization.py \
             root_authorization.py \
             root_authorization_cli.py \
             execution_service.py; then
             echo "Only executor.py may contain command execution."
+            exit 1
+          fi
+
+      - name: Confirm validation-only Guardian broker client
+        run: |
+          if grep -nE \
+            'execute_backend_restart|execute_authorized|reservation_id' \
+            broker_client.py \
+            control_plane.py; then
+            echo "Guardian-side broker access must remain validation only."
             exit 1
           fi
 
@@ -146,6 +162,12 @@ jobs:
             'ExecStart=/usr/bin/python3 /opt/dap/guardian/broker_entrypoint.py' \
             ../../deploy/systemd/dap-guardian-broker.service
 
+      - name: Confirm Guardian control-plane entrypoint
+        run: |
+          grep -F \
+            'ExecStart=/usr/bin/python3 /opt/dap/guardian/control_plane.py' \
+            ../../deploy/systemd/dap-guardian.service
+
   dashboard:
     name: dashboard
     runs-on: ubuntu-latest
@@ -173,5 +195,5 @@ jobs:
 
       - name: Build dashboard
         env:
-          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_TELEMETRY_DISABLED: 1
         run: npm run build
