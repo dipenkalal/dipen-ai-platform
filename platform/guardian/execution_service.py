@@ -68,11 +68,18 @@ def execute_authorized_backend_restart(
             "Authorized backend execution requires root."
         )
 
-    plan_validation = validate_reserved_backend_plan(
-        guardian_database_path=guardian_database_path,
-        plan_id=plan_id,
-        reservation_id=reservation_id,
-    )
+    try:
+        plan_validation = validate_reserved_backend_plan(
+            guardian_database_path=guardian_database_path,
+            plan_id=plan_id,
+            reservation_id=reservation_id,
+        )
+    except RootAuthorizationError as error:
+        if "not execution_reserved" in str(error):
+            raise RootAuthorizationError(
+                "Guardian plan is not execution_reserved; replay is rejected."
+            ) from error
+        raise
 
     started = begin_execution_state(
         database_path=guardian_database_path,
@@ -88,7 +95,7 @@ def execute_authorized_backend_restart(
             reservation_id=reservation_id,
         )
     except RootAuthorizationError as error:
-        interrupted = mark_authorization_failure_for_manual_review(
+        mark_authorization_failure_for_manual_review(
             guardian_database_path=guardian_database_path,
             plan_id=plan_id,
             reservation_id=reservation_id,
