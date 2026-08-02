@@ -15,7 +15,7 @@ Environment=DAP_GUARDIAN_BROKER_AUTHORIZATION_DATABASE=/var/lib/dap-guardian-bro
 Environment=DAP_GUARDIAN_BROKER_ALLOWED_USER=dap-guardian
 EnvironmentFile=-/etc/dap/guardian-broker.env
 
-ExecStart=/usr/bin/python3 /opt/dap/guardian/broker_server.py
+ExecStart=/usr/bin/python3 /opt/dap/guardian/broker_entrypoint.py
 
 Restart=on-failure
 RestartSec=1
