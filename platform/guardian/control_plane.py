@@ -185,6 +185,34 @@ def build_hardened_state() -> dict[str, Any]:
     return state
 
 
+def deterministic_answer(
+    question: str,
+    state: dict[str, Any],
+) -> str:
+    docker_state = state.get("docker")
+
+    if (
+        isinstance(docker_state, dict)
+        and docker_state.get("available") is False
+        and any(
+            word in question.lower()
+            for word in ("docker", "container")
+        )
+    ):
+        error = docker_state.get("error")
+        detail = (
+            f" Reported error: {error}."
+            if isinstance(error, str) and error
+            else ""
+        )
+        return (
+            "Guardian cannot query Docker container state, so it cannot "
+            f"truthfully report a container count.{detail}"
+        )
+
+    return app.deterministic_answer(question, state)
+
+
 def ask_guardian(question: str) -> dict[str, Any]:
     state = build_hardened_state()
 
@@ -211,7 +239,7 @@ def ask_guardian(question: str) -> dict[str, Any]:
         ValueError,
     ) as error:
         return {
-            "answer": app.deterministic_answer(question, state),
+            "answer": deterministic_answer(question, state),
             "source": "deterministic-fallback",
             "model": None,
             "fallback": True,
