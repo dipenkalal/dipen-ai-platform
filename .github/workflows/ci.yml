@@ -85,17 +85,55 @@ jobs:
           python-version: "3.14"
 
       - name: Compile Guardian
-        run: python -m compileall -q app.py broker.py broker_server.py tests/test_broker.py
+        run: |
+          python -m compileall -q \
+            app.py \
+            broker.py \
+            broker_server.py \
+            executor.py \
+            execution_service.py \
+            root_authorization.py \
+            root_authorization_cli.py \
+            tests
 
-      - name: Guardian broker safety tests
+      - name: Guardian safety tests
         run: python -m unittest discover -s tests -v
 
-      - name: Confirm broker is non-executing
+      - name: Confirm privileged boundary separation
         run: |
-          if grep -nE 'subprocess|os\.system|Popen|check_call|check_output' broker.py; then
-            echo "Command execution functions are not allowed in the dry-run broker."
+          if grep -nE \
+            'subprocess|os\.system|Popen|check_call|check_output' \
+            broker.py \
+            broker_server.py \
+            root_authorization.py \
+            root_authorization_cli.py \
+            execution_service.py; then
+            echo "Only executor.py may contain command execution."
             exit 1
           fi
+
+      - name: Confirm fixed executor commands
+        run: |
+          if grep -nE 'shell[[:space:]]*=' executor.py; then
+            echo "Shell execution is forbidden."
+            exit 1
+          fi
+
+          python - <<'PY'
+          import executor
+
+          assert executor.BACKEND_RESTART_COMMAND == (
+              "/usr/bin/systemctl",
+              "restart",
+              "dap-backend.service",
+          )
+
+          assert executor.BACKEND_VERIFY_COMMAND == (
+              "/usr/bin/systemctl",
+              "is-active",
+              "dap-backend.service",
+          )
+          PY
 
   dashboard:
     name: dashboard

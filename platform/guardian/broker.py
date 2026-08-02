@@ -478,11 +478,33 @@ def transition_execution_state(
     new_status: str,
     event_type: str,
     details: dict[str, Any],
+    attempted: bool,
+    performed: bool,
     dry_run: bool,
 ) -> dict[str, Any]:
     if os.geteuid() != 0:
         raise PlanValidationError(
             "Execution-state transitions require root."
+        )
+
+    if not isinstance(attempted, bool):
+        raise PlanValidationError(
+            "Execution attempted state must be boolean."
+        )
+
+    if not isinstance(performed, bool):
+        raise PlanValidationError(
+            "Execution performed state must be boolean."
+        )
+
+    if performed and not attempted:
+        raise PlanValidationError(
+            "Execution cannot be performed without being attempted."
+        )
+
+    if dry_run and performed:
+        raise PlanValidationError(
+            "A dry-run execution cannot be marked performed."
         )
 
     if not database_path.is_file():
@@ -591,7 +613,8 @@ def transition_execution_state(
 
             plan["execution"] = {
                 "state": new_status,
-                "performed": not dry_run,
+                "attempted": attempted,
+                "performed": performed,
                 "dry_run": dry_run,
                 "details": details,
             }
@@ -642,6 +665,8 @@ def transition_execution_state(
                             "reservation_id": reservation_id,
                             "previous_status": expected_status,
                             "new_status": new_status,
+                            "attempted": attempted,
+                            "performed": performed,
                             "dry_run": dry_run,
                             "details": details,
                         },
@@ -663,7 +688,8 @@ def transition_execution_state(
         "transitioned_at": transitioned_at.isoformat(),
         "dry_run": dry_run,
         "execution": {
-            "performed": not dry_run,
+            "attempted": attempted,
+            "performed": performed,
         },
     }
 
@@ -686,6 +712,8 @@ def begin_execution_state(
                 "Execution lifecycle entered the executing state."
             ),
         },
+        attempted=False,
+        performed=False,
         dry_run=dry_run,
     )
 
@@ -696,6 +724,8 @@ def complete_execution_state(
     reservation_id: str,
     outcome: str,
     result_summary: str,
+    attempted: bool = False,
+    performed: bool = False,
     dry_run: bool = True,
 ) -> dict[str, Any]:
     if outcome not in {"succeeded", "failed"}:
@@ -730,6 +760,8 @@ def complete_execution_state(
         details={
             "result_summary": cleaned_summary,
         },
+        attempted=attempted,
+        performed=performed,
         dry_run=dry_run,
     )
 

@@ -344,5 +344,56 @@ class BrokerTestCase(unittest.TestCase):
         )
 
 
+    def test_real_lifecycle_records_only_explicit_result(
+        self,
+    ) -> None:
+        plan_id = self.create_approved_plan()
+
+        with patch.object(
+            broker.os,
+            "geteuid",
+            return_value=0,
+        ):
+            reservation = broker.reserve_execution(
+                database_path=self.database_path,
+                plan_id=plan_id,
+                confirmation=f"EXECUTE {plan_id}",
+            )
+            reservation_id = reservation["reservation"][
+                "reservation_id"
+            ]
+
+            started = broker.begin_execution_state(
+                database_path=self.database_path,
+                plan_id=plan_id,
+                reservation_id=reservation_id,
+                dry_run=False,
+            )
+
+            completed = broker.complete_execution_state(
+                database_path=self.database_path,
+                plan_id=plan_id,
+                reservation_id=reservation_id,
+                outcome="succeeded",
+                result_summary="Backend restart verified.",
+                attempted=True,
+                performed=True,
+                dry_run=False,
+            )
+
+        self.assertFalse(
+            started["execution"]["attempted"]
+        )
+        self.assertFalse(
+            started["execution"]["performed"]
+        )
+        self.assertTrue(
+            completed["execution"]["attempted"]
+        )
+        self.assertTrue(
+            completed["execution"]["performed"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
