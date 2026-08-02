@@ -1,5 +1,5 @@
 [Unit]
-Description=DAP Guardian Broker (Dry Run)
+Description=DAP Guardian Broker (Restricted Execution)
 Requires=dap-guardian-broker.socket
 After=dap-guardian-broker.socket
 
@@ -11,6 +11,7 @@ WorkingDirectory=/opt/dap/guardian
 
 Environment=PYTHONUNBUFFERED=1
 Environment=DAP_GUARDIAN_BROKER_DATABASE=/var/lib/dap-guardian/actions.sqlite3
+Environment=DAP_GUARDIAN_BROKER_AUTHORIZATION_DATABASE=/var/lib/dap-guardian-broker/authorizations.sqlite3
 Environment=DAP_GUARDIAN_BROKER_ALLOWED_USER=dap-guardian
 EnvironmentFile=-/etc/dap/guardian-broker.env
 
@@ -18,6 +19,9 @@ ExecStart=/usr/bin/python3 /opt/dap/guardian/broker_server.py
 
 Restart=on-failure
 RestartSec=1
+
+StateDirectory=dap-guardian-broker
+StateDirectoryMode=0700
 
 NoNewPrivileges=true
 PrivateTmp=true
@@ -40,5 +44,5 @@ AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX
 SystemCallArchitectures=native
 ReadOnlyPaths=/opt/dap/guardian
-ReadWritePaths=/var/lib/dap-guardian
+ReadWritePaths=/var/lib/dap-guardian /var/lib/dap-guardian-broker
 UMask=0077
