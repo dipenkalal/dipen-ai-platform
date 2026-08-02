@@ -310,6 +310,76 @@ def build_warnings(
     return warnings
 
 
+def read_top_processes(
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    try:
+        completed = subprocess.run(
+            [
+                "ps",
+                "-eo",
+                "pid=,user=,comm=,rss=,%mem=,etimes=,args=",
+                "--sort=-rss",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+
+    if completed.returncode != 0:
+        return []
+
+    processes: list[dict[str, Any]] = []
+
+    for line in completed.stdout.splitlines():
+        fields = line.strip().split(None, 6)
+
+        if len(fields) < 6:
+            continue
+
+        (
+            pid_value,
+            user,
+            command,
+            rss_kb_value,
+            memory_percent_value,
+            elapsed_seconds_value,
+        ) = fields[:6]
+
+        arguments = (
+            fields[6]
+            if len(fields) == 7
+            else command
+        )
+
+        try:
+            process = {
+                "pid": int(pid_value),
+                "user": user,
+                "command": command,
+                "rss_bytes": int(rss_kb_value) * 1024,
+                "memory_percent": float(
+                    memory_percent_value
+                ),
+                "elapsed_seconds": int(
+                    elapsed_seconds_value
+                ),
+                "arguments": arguments[:300],
+            }
+        except ValueError:
+            continue
+
+        processes.append(process)
+
+        if len(processes) >= limit:
+            break
+
+    return processes
+
+
 def build_state() -> dict[str, Any]:
     services = {
         name: read_service_state(unit)
@@ -349,6 +419,7 @@ def build_state() -> dict[str, Any]:
             "uptime_seconds": read_uptime_seconds(),
             "load_average": load_average,
             "memory": read_memory(),
+            "top_processes": read_top_processes(),
             "disks": disks,
         },
         "services": services,
@@ -359,73 +430,379 @@ def build_state() -> dict[str, Any]:
     }
 
 
-STATUS_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DAP Guardian</title>
-  <style>
-    body {
-      margin: 0;
-      background: #020617;
-      color: #e2e8f0;
-      font-family: system-ui, sans-serif;
-    }
-    main {
-      max-width: 1100px;
-      margin: auto;
-      padding: 32px 20px;
-    }
-    h1 {
-      color: #67e8f9;
-    }
-    pre {
-      overflow: auto;
-      border: 1px solid #1e293b;
-      border-radius: 16px;
-      background: #0f172a;
-      padding: 20px;
-      line-height: 1.5;
-    }
-    .status {
-      margin-bottom: 18px;
-      color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>DAP Guardian</h1>
-    <p class="status" id="status">Loading machine awareness...</p>
-    <pre id="state"></pre>
-  </main>
-  <script>
-    async function refresh() {
-      const status = document.getElementById("status");
-      const state = document.getElementById("state");
 
-      try {
-        const response = await fetch("/api/v1/state");
-        const data = await response.json();
+OLLAMA_CHAT_URL = os.getenv(
+    "DAP_GUARDIAN_OLLAMA_URL",
+    "http://127.0.0.1:11434/api/chat",
+)
+GUARDIAN_MODEL = os.getenv(
+    "DAP_GUARDIAN_MODEL",
+    "qwen3:1.7b",
+)
+GUARDIAN_OLLAMA_TIMEOUT_SECONDS = float(
+    os.getenv("DAP_GUARDIAN_OLLAMA_TIMEOUT_SECONDS", "90"),
+)
+GUARDIAN_KEEP_ALIVE = int(
+    os.getenv("DAP_GUARDIAN_KEEP_ALIVE", "0"),
+)
+GUARDIAN_MAX_RESPONSE_TOKENS = int(
+    os.getenv("DAP_GUARDIAN_MAX_RESPONSE_TOKENS", "220"),
+)
+GUARDIAN_TEMPERATURE = float(
+    os.getenv("DAP_GUARDIAN_TEMPERATURE", "0.0"),
+)
+MAX_QUESTION_BYTES = 16_384
 
-        status.textContent = data.healthy
-          ? "Guardian is healthy"
-          : `Guardian detected ${data.warnings.length} warning(s)`;
 
-        state.textContent = JSON.stringify(data, null, 2);
-      } catch (error) {
-        status.textContent = "Unable to load Guardian state";
-        state.textContent = String(error);
-      }
+def format_bytes(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "unknown"
+
+    units = ("B", "KB", "MB", "GB", "TB")
+    amount = float(value)
+    unit_index = 0
+
+    while amount >= 1024 and unit_index < len(units) - 1:
+        amount /= 1024
+        unit_index += 1
+
+    precision = 1 if amount >= 10 else 2
+    return f"{amount:.{precision}f} {units[unit_index]}"
+
+
+def deterministic_answer(
+    question: str,
+    state: dict[str, Any],
+) -> str:
+    lowered = question.lower()
+    warnings = state.get("warnings", [])
+    host = state.get("host", {})
+    memory = host.get("memory", {})
+    top_processes = host.get("top_processes", [])
+    disks = host.get("disks", {})
+    services = state.get("services", {})
+    containers = state.get("docker", {}).get("containers", [])
+
+    if any(word in lowered for word in ("memory", "ram")):
+        process_summary = "; ".join(
+            (
+                f"{process.get('command', 'unknown')} "
+                f"({format_bytes(process.get('rss_bytes'))})"
+            )
+            for process in top_processes[:5]
+        )
+
+        answer = (
+            f"Memory usage is currently "
+            f"{memory.get('used_percent', 'unknown')}%. "
+            f"Guardian reports "
+            f"{format_bytes(memory.get('used_bytes'))} used and "
+            f"{format_bytes(memory.get('available_bytes'))} available."
+        )
+
+        if process_summary:
+            answer += (
+                " Largest processes by resident memory: "
+                f"{process_summary}."
+            )
+
+        return answer
+
+    if any(word in lowered for word in ("wrong", "problem", "warning", "fail")):
+        if not warnings:
+            return (
+                "I do not detect an active monitored failure. The monitored "
+                "services and HTTP dependencies are currently responding."
+            )
+
+        return "\n".join(
+            f"{item.get('component', 'unknown')}: "
+            f"{item.get('message', 'warning detected')}"
+            for item in warnings
+        )
+
+    if "backup" in lowered:
+        backup = services.get("backup_timer", {})
+        return (
+            "The backup timer is currently "
+            f"{backup.get('active_state', 'unknown')}/"
+            f"{backup.get('sub_state', 'unknown')}."
+        )
+
+    if any(word in lowered for word in ("disk", "storage", "space")):
+        root = disks.get("root", {})
+        data = disks.get("data", {})
+
+        return (
+            f"The root disk is {root.get('used_percent', 'unknown')}% full "
+            f"with {format_bytes(root.get('free_bytes'))} free. "
+            f"The /data disk is {data.get('used_percent', 'unknown')}% full "
+            f"with {format_bytes(data.get('free_bytes'))} free."
+        )
+
+    if any(word in lowered for word in ("docker", "container")):
+        if not containers:
+            return "Guardian does not currently see any running containers."
+
+        details = "\n".join(
+            f"- {item.get('name', 'unknown')}: "
+            f"{item.get('status', item.get('state', 'unknown'))}"
+            for item in containers
+        )
+        return f"Guardian sees {len(containers)} containers:\n{details}"
+
+    return (
+        f"Guardian currently reports {len(warnings)} active warnings, "
+        f"{len(containers)} visible containers, "
+        f"{memory.get('used_percent', 'unknown')}% memory usage, and "
+        f"{disks.get('root', {}).get('used_percent', 'unknown')}% root disk usage."
+    )
+
+
+def build_grounded_context(
+    state: dict[str, Any],
+) -> str:
+    guardian = state.get("guardian", {})
+    host = state.get("host", {})
+    memory = host.get("memory", {})
+    disks = host.get("disks", {})
+    load_average = host.get("load_average", [])
+    processes = host.get("top_processes", [])
+    services = state.get("services", {})
+    dependencies = state.get("dependencies", {})
+    containers = state.get("docker", {}).get(
+        "containers",
+        [],
+    )
+    warnings = state.get("warnings", [])
+
+    lines = [
+        "LIVE DAP GUARDIAN SNAPSHOT",
+        (
+            f"generated_at={guardian.get('generated_at', 'unknown')} "
+            f"hostname={host.get('hostname', 'unknown')} "
+            f"uptime_seconds={host.get('uptime_seconds', 'unknown')}"
+        ),
+        (
+            "MEMORY "
+            f"used_percent={memory.get('used_percent', 'unknown')} "
+            f"used={format_bytes(memory.get('used_bytes'))} "
+            f"available={format_bytes(memory.get('available_bytes'))} "
+            f"total={format_bytes(memory.get('total_bytes'))}"
+        ),
+    ]
+
+    if load_average:
+        lines.append(
+            "LOAD_AVERAGE "
+            + ",".join(
+                str(round(float(value), 3))
+                for value in load_average
+            )
+        )
+
+    lines.append(
+        "TOP_PROCESSES "
+        "(each line is one exact PID/command pairing)"
+    )
+
+    for process in processes[:8]:
+        arguments = " ".join(
+            str(process.get("arguments", "")).split()
+        )[:180]
+
+        lines.append(
+            "PROCESS "
+            f"pid={process.get('pid', 'unknown')} "
+            f"command={process.get('command', 'unknown')} "
+            f"user={process.get('user', 'unknown')} "
+            f"rss={format_bytes(process.get('rss_bytes'))} "
+            f"memory_percent="
+            f"{process.get('memory_percent', 'unknown')} "
+            f"elapsed_seconds="
+            f"{process.get('elapsed_seconds', 'unknown')} "
+            f"arguments={arguments}"
+        )
+
+    for name, disk in disks.items():
+        lines.append(
+            "DISK "
+            f"name={name} "
+            f"path={disk.get('path', 'unknown')} "
+            f"used_percent={disk.get('used_percent', 'unknown')} "
+            f"free={format_bytes(disk.get('free_bytes'))}"
+        )
+
+    for name, service in services.items():
+        lines.append(
+            "SERVICE "
+            f"name={name} "
+            f"unit={service.get('unit', 'unknown')} "
+            f"active={service.get('active_state', 'unknown')} "
+            f"substate={service.get('sub_state', 'unknown')}"
+        )
+
+    for name, dependency in dependencies.items():
+        lines.append(
+            "DEPENDENCY "
+            f"name={name} "
+            f"healthy={dependency.get('healthy', False)} "
+            f"http_status="
+            f"{dependency.get('status_code', 'unknown')}"
+        )
+
+    for container in containers:
+        lines.append(
+            "CONTAINER "
+            f"name={container.get('name', 'unknown')} "
+            f"state={container.get('state', 'unknown')} "
+            f"status={container.get('status', 'unknown')}"
+        )
+
+    if warnings:
+        for warning in warnings:
+            lines.append(
+                "WARNING "
+                f"component={warning.get('component', 'unknown')} "
+                f"message={warning.get('message', 'unknown')}"
+            )
+    else:
+        lines.append("WARNINGS none")
+
+    return "\n".join(lines)
+
+
+def call_ollama(
+    question: str,
+    state: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    system_prompt = """
+You are DAP Guardian, the always-on operations supervisor for Dipen's Acer server.
+
+A live machine-state JSON snapshot will be provided with each question.
+
+Rules:
+- Answer the user's question directly and clearly.
+- Base factual claims only on the supplied live snapshot.
+- Every PROCESS line is an exact PID, command and memory pairing.
+- Copy process names and PIDs exactly; never relabel or rearrange them.
+- Do not infer an application identity unless its arguments prove it.
+- Clearly separate measured facts from possible explanations.
+- Describe listed processes as observed contributors, not the complete cause of total memory use.
+- Never say memory usage is "due to" a process unless the supplied measurements prove that conclusion.
+- Do not call usage high, low, excessive or minimal unless a defined threshold supports that label.
+- Total memory can also include kernel memory, filesystem cache and processes outside the displayed top list.
+- Never invent measurements, failures, commands or completed actions.
+- Do not claim that you executed or changed anything.
+- The approval and execution engine is not connected yet.
+- For action requests, provide a plan and state whether root approval is required.
+- Never expose internal reasoning.
+- Answer in no more than six short sentences or six concise bullets.
+- Finish the answer completely.
+""".strip()
+
+    grounded_context = build_grounded_context(
+        state,
+    )
+
+    user_prompt = (
+        f"User question:\n{question}\n\n"
+        f"{grounded_context}"
+    )
+
+    request_body = {
+        "model": GUARDIAN_MODEL,
+        "stream": False,
+        "think": False,
+        "keep_alive": GUARDIAN_KEEP_ALIVE,
+        "options": {
+            "num_predict": GUARDIAN_MAX_RESPONSE_TOKENS,
+            "temperature": GUARDIAN_TEMPERATURE,
+            "top_p": 0.8,
+        },
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": user_prompt,
+            },
+        ],
     }
 
-    refresh();
-    setInterval(refresh, 15000);
-  </script>
-</body>
-</html>
-"""
+    request = Request(
+        OLLAMA_CHAT_URL,
+        data=json.dumps(request_body).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+
+    with urlopen(
+        request,
+        timeout=GUARDIAN_OLLAMA_TIMEOUT_SECONDS,
+    ) as response:
+        result = json.loads(response.read())
+
+    message = result.get("message", {})
+    answer = message.get("content", "").strip()
+
+    if not answer:
+        raise ValueError("Ollama returned an empty answer")
+
+    usage = {
+        "total_duration": result.get("total_duration"),
+        "load_duration": result.get("load_duration"),
+        "prompt_eval_count": result.get("prompt_eval_count"),
+        "eval_count": result.get("eval_count"),
+        "done_reason": result.get("done_reason"),
+    }
+
+    return answer, usage
+
+
+def ask_guardian(question: str) -> dict[str, Any]:
+    state = build_state()
+
+    try:
+        answer, usage = call_ollama(question, state)
+
+        return {
+            "answer": answer,
+            "source": "ollama",
+            "model": GUARDIAN_MODEL,
+            "fallback": False,
+            "generated_at": utc_now(),
+            "state_generated_at": state["guardian"]["generated_at"],
+            "usage": usage,
+        }
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        socket.timeout,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+    ) as error:
+        return {
+            "answer": deterministic_answer(question, state),
+            "source": "deterministic-fallback",
+            "model": None,
+            "fallback": True,
+            "generated_at": utc_now(),
+            "state_generated_at": state["guardian"]["generated_at"],
+            "reason": f"{type(error).__name__}: {error}",
+        }
+
+
+STATIC_DIR = Path(__file__).parent / "static"
+STATUS_PAGE = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
 
 class GuardianHandler(BaseHTTPRequestHandler):
@@ -448,6 +825,66 @@ class GuardianHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(content)
+
+    def do_POST(self) -> None:
+        if self.path != "/api/v1/ask":
+            self.send_json(
+                {
+                    "error": "Not found",
+                    "path": self.path,
+                },
+                status_code=404,
+            )
+            return
+
+        try:
+            content_length = int(
+                self.headers.get("Content-Length", "0"),
+            )
+        except ValueError:
+            self.send_json(
+                {"error": "Invalid Content-Length"},
+                status_code=400,
+            )
+            return
+
+        if content_length <= 0:
+            self.send_json(
+                {"error": "Request body is required"},
+                status_code=400,
+            )
+            return
+
+        if content_length > MAX_QUESTION_BYTES:
+            self.send_json(
+                {"error": "Request body is too large"},
+                status_code=413,
+            )
+            return
+
+        try:
+            payload = json.loads(
+                self.rfile.read(content_length),
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            self.send_json(
+                {"error": "Request body must be valid JSON"},
+                status_code=400,
+            )
+            return
+
+        question = payload.get("question")
+
+        if not isinstance(question, str) or not question.strip():
+            self.send_json(
+                {"error": "A non-empty question is required"},
+                status_code=400,
+            )
+            return
+
+        self.send_json(
+            ask_guardian(question.strip()),
+        )
 
     def do_GET(self) -> None:
         if self.path == "/health":
