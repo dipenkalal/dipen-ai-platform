@@ -39,5 +39,6 @@ AmbientCapabilities=
 
 RestrictAddressFamilies=AF_UNIX
 SystemCallArchitectures=native
-ReadOnlyPaths=/opt/dap/guardian /var/lib/dap-guardian
+ReadOnlyPaths=/opt/dap/guardian
+ReadWritePaths=/var/lib/dap-guardian
 UMask=0077
