@@ -5,8 +5,9 @@ import os
 import secrets
 import shutil
 import socket
+import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -492,6 +493,16 @@ GUARDIAN_ACTION_TOKEN = os.getenv(
     "DAP_GUARDIAN_ACTION_TOKEN",
     "",
 )
+GUARDIAN_STATE_DIR = Path(
+    os.getenv(
+        "DAP_GUARDIAN_STATE_DIR",
+        str(Path.home() / "dap" / "data" / "guardian"),
+    ),
+)
+GUARDIAN_ACTION_DB = GUARDIAN_STATE_DIR / "actions.sqlite3"
+GUARDIAN_ACTION_PLAN_TTL_SECONDS = int(
+    os.getenv("DAP_GUARDIAN_ACTION_PLAN_TTL_SECONDS", "600"),
+)
 
 
 def format_bytes(value: Any) -> str:
@@ -867,6 +878,80 @@ def validate_action_authorization(
     return True, 200, None
 
 
+def open_action_store() -> sqlite3.Connection:
+    GUARDIAN_STATE_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+        mode=0o700,
+    )
+
+    try:
+        GUARDIAN_STATE_DIR.chmod(0o700)
+    except OSError:
+        pass
+
+    connection = sqlite3.connect(
+        GUARDIAN_ACTION_DB,
+        timeout=5.0,
+    )
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_plans (
+            plan_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            action TEXT NOT NULL,
+            target TEXT NOT NULL,
+            status TEXT NOT NULL,
+            plan_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.commit()
+
+    try:
+        GUARDIAN_ACTION_DB.chmod(0o600)
+    except OSError:
+        pass
+
+    return connection
+
+
+def persist_action_plan(plan: dict[str, Any]) -> None:
+    serialized_plan = json.dumps(
+        plan,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+    with open_action_store() as connection:
+        connection.execute(
+            """
+            INSERT INTO action_plans (
+                plan_id,
+                created_at,
+                expires_at,
+                action,
+                target,
+                status,
+                plan_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                plan["plan_id"],
+                plan["generated_at"],
+                plan["expires_at"],
+                plan["action"],
+                plan["target"],
+                plan["status"],
+                serialized_plan,
+            ),
+        )
+
+
 def build_action_plan(
     action: str,
     target: str,
@@ -875,10 +960,16 @@ def build_action_plan(
     definition = action_targets[target]
     unit = definition["unit"]
 
-    return {
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + timedelta(
+        seconds=GUARDIAN_ACTION_PLAN_TTL_SECONDS,
+    )
+
+    plan = {
         "plan_id": secrets.token_hex(16),
         "status": "approval_required",
-        "generated_at": utc_now(),
+        "generated_at": created_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
         "action": action,
         "target": target,
         "description": f"Restart {unit} through systemd.",
@@ -906,8 +997,11 @@ def build_action_plan(
                 "This endpoint only creates a proposed plan."
             ),
         },
-        "persisted": False,
+        "persisted": True,
     }
+
+    persist_action_plan(plan)
+    return plan
 
 
 STATIC_DIR = Path(__file__).parent / "static"
