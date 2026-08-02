@@ -93,6 +93,7 @@ jobs:
             executor.py \
             execution_service.py \
             root_authorization.py \
+            root_authorization_cli.py \
             tests
 
       - name: Guardian safety tests
@@ -105,6 +106,7 @@ jobs:
             broker.py \
             broker_server.py \
             root_authorization.py \
+            root_authorization_cli.py \
             execution_service.py; then
             echo "Only executor.py may contain command execution."
             exit 1
