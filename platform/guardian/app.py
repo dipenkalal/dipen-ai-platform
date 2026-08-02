@@ -909,6 +909,17 @@ def open_action_store() -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_at TEXT NOT NULL,
+            details_json TEXT NOT NULL
+        )
+        """
+    )
     connection.commit()
 
     try:
@@ -917,6 +928,35 @@ def open_action_store() -> sqlite3.Connection:
         pass
 
     return connection
+
+
+def record_action_event(
+    connection: sqlite3.Connection,
+    plan_id: str,
+    event_type: str,
+    details: dict[str, Any],
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO action_events (
+            plan_id,
+            event_type,
+            event_at,
+            details_json
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            plan_id,
+            event_type,
+            utc_now(),
+            json.dumps(
+                details,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        ),
+    )
 
 
 def persist_action_plan(plan: dict[str, Any]) -> None:
@@ -949,6 +989,18 @@ def persist_action_plan(plan: dict[str, Any]) -> None:
                 plan["status"],
                 serialized_plan,
             ),
+        )
+
+        record_action_event(
+            connection,
+            plan["plan_id"],
+            "plan_created",
+            {
+                "action": plan["action"],
+                "target": plan["target"],
+                "risk": plan["risk"],
+                "expires_at": plan["expires_at"],
+            },
         )
 
 
@@ -1067,6 +1119,16 @@ def approve_action_plan(
                 ),
             )
 
+            record_action_event(
+                connection,
+                plan_id,
+                "plan_expired",
+                {
+                    "previous_status": row["status"],
+                    "expired_at": approved_at.isoformat(),
+                },
+            )
+
             return (
                 {
                     "error": "Action plan has expired.",
@@ -1118,6 +1180,17 @@ def approve_action_plan(
                 plan_id,
                 "approval_required",
             ),
+        )
+
+        record_action_event(
+            connection,
+            plan_id,
+            "plan_approved",
+            {
+                "approved_at": approved_at.isoformat(),
+                "approval_level": plan["approval"]["level"],
+                "root_required": plan["approval"]["root_required"],
+            },
         )
 
     return plan, 200
