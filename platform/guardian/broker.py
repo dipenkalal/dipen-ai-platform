@@ -135,18 +135,12 @@ def load_plan(
     return row, plan
 
 
-def validate_plan(
-    database_path: Path,
+def validate_loaded_plan(
+    row: sqlite3.Row,
+    plan: dict[str, Any],
     plan_id: str,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    if not plan_id:
-        raise PlanValidationError(
-            "A non-empty plan ID is required.",
-        )
-
-    row, plan = load_plan(database_path, plan_id)
-
     current_time = now or datetime.now(timezone.utc)
     current_time = current_time.astimezone(timezone.utc)
 
@@ -255,6 +249,25 @@ def validate_plan(
     }
 
 
+def validate_plan(
+    database_path: Path,
+    plan_id: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    if not plan_id:
+        raise PlanValidationError(
+            "A non-empty plan ID is required.",
+        )
+
+    row, plan = load_plan(database_path, plan_id)
+
+    return validate_loaded_plan(
+        row=row,
+        plan=plan,
+        plan_id=plan_id,
+        now=now,
+    )
+
 def authorize_operator_execution(
     plan_id: str,
     confirmation: str | None,
@@ -294,6 +307,169 @@ def authorize_operator_execution(
     }
 
 
+def reserve_execution(
+    database_path: Path,
+    plan_id: str,
+    confirmation: str | None,
+) -> dict[str, Any]:
+    if not database_path.is_file():
+        raise PlanValidationError(
+            f"Action database does not exist: {database_path}",
+        )
+
+    reserved_at = datetime.now(timezone.utc)
+    reservation_id = secrets.token_hex(16)
+
+    try:
+        with sqlite3.connect(
+            database_path,
+            timeout=5.0,
+        ) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA busy_timeout = 5000")
+            connection.execute("BEGIN IMMEDIATE")
+
+            row = connection.execute(
+                """
+                SELECT
+                    plan_id,
+                    created_at,
+                    expires_at,
+                    action,
+                    target,
+                    status,
+                    plan_json
+                FROM action_plans
+                WHERE plan_id = ?
+                """,
+                (plan_id,),
+            ).fetchone()
+
+            if row is None:
+                raise PlanValidationError(
+                    "Action plan was not found.",
+                )
+
+            try:
+                plan = json.loads(row["plan_json"])
+            except (json.JSONDecodeError, TypeError) as error:
+                raise PlanValidationError(
+                    "Stored action plan is not valid JSON.",
+                ) from error
+
+            if not isinstance(plan, dict):
+                raise PlanValidationError(
+                    "Stored action plan must be a JSON object.",
+                )
+
+            validation = validate_loaded_plan(
+                row=row,
+                plan=plan,
+                plan_id=plan_id,
+                now=reserved_at,
+            )
+
+            operator_authorization = (
+                authorize_operator_execution(
+                    plan_id=plan_id,
+                    confirmation=confirmation,
+                )
+            )
+
+            plan["status"] = "execution_reserved"
+            plan["execution_reserved_at"] = (
+                reserved_at.isoformat()
+            )
+            plan["execution_reservation"] = {
+                "reservation_id": reservation_id,
+                "reserved_at": reserved_at.isoformat(),
+                "reserved_by_uid": os.geteuid(),
+                "single_use": True,
+            }
+            plan["execution"] = {
+                "available": False,
+                "performed": False,
+                "reason": (
+                    "Execution has been reserved exactly once, "
+                    "but command execution is not implemented."
+                ),
+            }
+
+            serialized_plan = json.dumps(
+                plan,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+
+            update = connection.execute(
+                """
+                UPDATE action_plans
+                SET status = ?, plan_json = ?
+                WHERE plan_id = ?
+                  AND status = ?
+                """,
+                (
+                    "execution_reserved",
+                    serialized_plan,
+                    plan_id,
+                    "approved",
+                ),
+            )
+
+            if update.rowcount != 1:
+                raise PlanValidationError(
+                    "Execution reservation lost an atomic status race.",
+                )
+
+            connection.execute(
+                """
+                INSERT INTO action_events (
+                    plan_id,
+                    event_type,
+                    event_at,
+                    details_json
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (
+                    plan_id,
+                    "execution_reserved",
+                    reserved_at.isoformat(),
+                    json.dumps(
+                        {
+                            "reservation_id": reservation_id,
+                            "reserved_by_uid": os.geteuid(),
+                            "single_use": True,
+                        },
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                ),
+            )
+    except sqlite3.Error as error:
+        raise PlanValidationError(
+            f"Could not reserve execution: {error}",
+        ) from error
+
+    validation["operator_authorization"] = (
+        operator_authorization
+    )
+    validation["reservation"] = {
+        "reservation_id": reservation_id,
+        "reserved_at": reserved_at.isoformat(),
+        "single_use": True,
+    }
+    validation["execution"] = {
+        "performed": False,
+        "reason": (
+            "Single-use execution reservation recorded; "
+            "command execution is not implemented."
+        ),
+    }
+
+    return validation
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -325,6 +501,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--confirmation",
         help="Exact phrase: EXECUTE <plan_id>",
     )
+    parser.add_argument(
+        "--reserve-execution",
+        action="store_true",
+        help=(
+            "Atomically reserve an approved plan for one execution. "
+            "No command is executed."
+        ),
+    )
 
     return parser
 
@@ -333,23 +517,44 @@ def main() -> int:
     arguments = build_parser().parse_args()
 
     try:
-        result = validate_plan(
-            database_path=arguments.database,
-            plan_id=arguments.plan_id,
-        )
-
-        if arguments.confirmation and not arguments.authorize_execution:
+        if (
+            arguments.authorize_execution
+            and arguments.reserve_execution
+        ):
             raise PlanValidationError(
-                "--confirmation requires --authorize-execution.",
+                "--authorize-execution and --reserve-execution "
+                "cannot be used together.",
             )
 
-        if arguments.authorize_execution:
-            result["operator_authorization"] = (
-                authorize_operator_execution(
-                    plan_id=arguments.plan_id,
-                    confirmation=arguments.confirmation,
-                )
+        if (
+            arguments.confirmation
+            and not arguments.authorize_execution
+            and not arguments.reserve_execution
+        ):
+            raise PlanValidationError(
+                "--confirmation requires --authorize-execution "
+                "or --reserve-execution.",
             )
+
+        if arguments.reserve_execution:
+            result = reserve_execution(
+                database_path=arguments.database,
+                plan_id=arguments.plan_id,
+                confirmation=arguments.confirmation,
+            )
+        else:
+            result = validate_plan(
+                database_path=arguments.database,
+                plan_id=arguments.plan_id,
+            )
+
+            if arguments.authorize_execution:
+                result["operator_authorization"] = (
+                    authorize_operator_execution(
+                        plan_id=arguments.plan_id,
+                        confirmation=arguments.confirmation,
+                    )
+                )
     except PlanValidationError as error:
         print(
             json.dumps(
