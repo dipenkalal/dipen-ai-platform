@@ -887,11 +887,11 @@ def open_action_store() -> Iterator[sqlite3.Connection]:
     GUARDIAN_STATE_DIR.mkdir(
         parents=True,
         exist_ok=True,
-        mode=0o700,
+        mode=0o770,
     )
 
     try:
-        GUARDIAN_STATE_DIR.chmod(0o700)
+        GUARDIAN_STATE_DIR.chmod(0o770)
     except OSError:
         pass
 
@@ -927,7 +927,7 @@ def open_action_store() -> Iterator[sqlite3.Connection]:
         )
 
         try:
-            GUARDIAN_ACTION_DB.chmod(0o600)
+            GUARDIAN_ACTION_DB.chmod(0o660)
         except OSError:
             pass
 
