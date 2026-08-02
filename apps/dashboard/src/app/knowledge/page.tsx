@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   ChangeEvent,
   DragEvent,
@@ -404,7 +406,13 @@ export default function KnowledgePage() {
   );
 
   useEffect(() => {
-    void loadData();
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadData]);
 
   useEffect(() => {
@@ -944,13 +952,13 @@ export default function KnowledgePage() {
               Refresh
             </button>
 
-            <a
+            <Link
               href="/"
               className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm transition hover:bg-white/10"
             >
               <ArrowLeft size={16} />
               Dashboard
-            </a>
+            </Link>
           </div>
         </header>
 

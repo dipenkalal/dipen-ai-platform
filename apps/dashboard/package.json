@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:lan": "next dev --hostname 192.168.40.212 --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
