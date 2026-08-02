@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-import secrets
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlite_support import managed_connection
+
+
+IDENTIFIER_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 
 
 class ExecutionRecoveryError(Exception):
@@ -20,6 +23,16 @@ def require_root() -> None:
         raise ExecutionRecoveryError(
             "Execution recovery requires effective UID 0."
         )
+
+
+def require_identifier(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or IDENTIFIER_PATTERN.fullmatch(value) is None:
+        raise ExecutionRecoveryError(
+            f"Stored {field_name} must be exactly 32 lowercase "
+            "hexadecimal characters."
+        )
+
+    return value
 
 
 def recover_interrupted_executions(
@@ -78,12 +91,10 @@ def recover_interrupted_executions(
                         "Stored executing plan must be a JSON object."
                     )
 
-                plan_id = row["plan_id"]
-
-                if not isinstance(plan_id, str):
-                    raise ExecutionRecoveryError(
-                        "Stored executing plan ID is invalid."
-                    )
+                plan_id = require_identifier(
+                    row["plan_id"],
+                    "plan_id",
+                )
 
                 if row["status"] != "executing":
                     raise ExecutionRecoveryError(
@@ -107,12 +118,10 @@ def recover_interrupted_executions(
                         "Executing plan reservation is missing."
                     )
 
-                reservation_id = reservation.get("reservation_id")
-
-                if not isinstance(reservation_id, str):
-                    raise ExecutionRecoveryError(
-                        "Executing plan reservation ID is invalid."
-                    )
+                reservation_id = require_identifier(
+                    reservation.get("reservation_id"),
+                    "reservation_id",
+                )
 
                 plan["status"] = "manual_review"
                 plan["execution_completed_at"] = (
