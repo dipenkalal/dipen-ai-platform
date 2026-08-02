@@ -13,10 +13,17 @@ from pathlib import Path
 from typing import Any
 
 from broker import PlanValidationError, validate_plan
+from execution_service import (
+    BackendExecutionOrchestrationError,
+    execute_authorized_backend_restart,
+)
+from root_authorization import RootAuthorizationError
 
 
 MAX_REQUEST_BYTES = 8192
 PLAN_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+RESERVATION_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+BROKER_MODE = "restricted-execution"
 
 
 class BrokerRequestError(Exception):
@@ -108,10 +115,27 @@ def send_response(
     connection.sendall(response)
 
 
+def require_identifier(
+    payload: dict[str, Any],
+    field_name: str,
+    pattern: re.Pattern[str],
+) -> str:
+    value = payload.get(field_name)
+
+    if not isinstance(value, str) or pattern.fullmatch(value) is None:
+        raise BrokerRequestError(
+            f"{field_name} must be exactly 32 lowercase "
+            "hexadecimal characters.",
+        )
+
+    return value
+
+
 def handle_connection(
     connection: socket.socket,
     allowed_uid: int,
     database_path: Path,
+    authorization_database_path: Path,
 ) -> None:
     peer_pid, peer_uid, peer_gid = read_peer_credentials(
         connection,
@@ -123,7 +147,7 @@ def handle_connection(
             {
                 "ok": False,
                 "error": "Broker peer identity is not authorized.",
-                "broker_mode": "dry-run",
+                "broker_mode": BROKER_MODE,
                 "execution": {
                     "performed": False,
                 },
@@ -133,54 +157,85 @@ def handle_connection(
 
     try:
         payload = read_request(connection)
-
-        if payload.get("operation") != "validate_plan":
-            raise BrokerRequestError(
-                "Unsupported broker operation.",
-            )
-
-        plan_id = payload.get("plan_id")
-
-        if (
-            not isinstance(plan_id, str)
-            or PLAN_ID_PATTERN.fullmatch(plan_id) is None
-        ):
-            raise BrokerRequestError(
-                "plan_id must be exactly 32 lowercase hexadecimal characters.",
-            )
-
-        validation = validate_plan(
-            database_path=database_path,
-            plan_id=plan_id,
+        operation = payload.get("operation")
+        plan_id = require_identifier(
+            payload,
+            "plan_id",
+            PLAN_ID_PATTERN,
         )
 
-        send_response(
-            connection,
-            {
-                "ok": True,
-                "broker_mode": "dry-run",
-                "peer": {
-                    "pid": peer_pid,
-                    "uid": peer_uid,
-                    "gid": peer_gid,
+        peer = {
+            "pid": peer_pid,
+            "uid": peer_uid,
+            "gid": peer_gid,
+        }
+
+        if operation == "validate_plan":
+            validation = validate_plan(
+                database_path=database_path,
+                plan_id=plan_id,
+            )
+
+            send_response(
+                connection,
+                {
+                    "ok": True,
+                    "broker_mode": BROKER_MODE,
+                    "operation": operation,
+                    "peer": peer,
+                    "validation": validation,
+                    "execution": {
+                        "performed": False,
+                        "reason": "Validation operation only.",
+                    },
                 },
-                "validation": validation,
-                "execution": {
-                    "performed": False,
-                    "reason": (
-                        "Dry-run broker boundary; system action "
-                        "execution is not implemented."
-                    ),
+            )
+            return
+
+        if operation == "execute_backend_restart":
+            reservation_id = require_identifier(
+                payload,
+                "reservation_id",
+                RESERVATION_ID_PATTERN,
+            )
+
+            result = execute_authorized_backend_restart(
+                guardian_database_path=database_path,
+                authorization_database_path=(
+                    authorization_database_path
+                ),
+                plan_id=plan_id,
+                reservation_id=reservation_id,
+            )
+
+            send_response(
+                connection,
+                {
+                    "ok": result["ok"],
+                    "broker_mode": BROKER_MODE,
+                    "operation": operation,
+                    "peer": peer,
+                    "result": result,
+                    "execution": result["execution"],
                 },
-            },
+            )
+            return
+
+        raise BrokerRequestError(
+            "Unsupported broker operation.",
         )
-    except (BrokerRequestError, PlanValidationError) as error:
+    except (
+        BackendExecutionOrchestrationError,
+        BrokerRequestError,
+        PlanValidationError,
+        RootAuthorizationError,
+    ) as error:
         send_response(
             connection,
             {
                 "ok": False,
                 "error": str(error),
-                "broker_mode": "dry-run",
+                "broker_mode": BROKER_MODE,
                 "execution": {
                     "performed": False,
                 },
@@ -245,6 +300,7 @@ def serve(
     listener: socket.socket,
     allowed_uid: int,
     database_path: Path,
+    authorization_database_path: Path,
     once: bool,
 ) -> None:
     while True:
@@ -255,6 +311,9 @@ def serve(
                 connection=connection,
                 allowed_uid=allowed_uid,
                 database_path=database_path,
+                authorization_database_path=(
+                    authorization_database_path
+                ),
             )
 
         if once:
@@ -264,7 +323,8 @@ def serve(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Serve the DAP Guardian dry-run broker over a Unix socket."
+            "Serve the restricted DAP Guardian execution broker "
+            "over a Unix socket."
         ),
     )
 
@@ -285,6 +345,19 @@ def build_parser() -> argparse.ArgumentParser:
             os.getenv(
                 "DAP_GUARDIAN_BROKER_DATABASE",
                 "/var/lib/dap-guardian/actions.sqlite3",
+            ),
+        ),
+    )
+    parser.add_argument(
+        "--authorization-database",
+        type=Path,
+        default=Path(
+            os.getenv(
+                "DAP_GUARDIAN_BROKER_AUTHORIZATION_DATABASE",
+                (
+                    "/var/lib/dap-guardian-broker/"
+                    "authorizations.sqlite3"
+                ),
             ),
         ),
     )
@@ -320,7 +393,7 @@ def main() -> int:
             )
 
         print(
-            "DAP Guardian dry-run broker listening "
+            "DAP Guardian restricted broker listening "
             f"for uid={allowed_uid}",
             flush=True,
         )
@@ -330,6 +403,9 @@ def main() -> int:
                 listener=listener,
                 allowed_uid=allowed_uid,
                 database_path=arguments.database,
+                authorization_database_path=(
+                    arguments.authorization_database
+                ),
                 once=arguments.once,
             )
     except (BrokerRequestError, OSError) as error:
