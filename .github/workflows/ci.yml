@@ -89,7 +89,9 @@ jobs:
           python -m compileall -q \
             app.py \
             broker.py \
+            broker_entrypoint.py \
             broker_server.py \
+            execution_recovery.py \
             executor.py \
             execution_service.py \
             root_authorization.py \
@@ -105,7 +107,9 @@ jobs:
           if grep -nE \
             'subprocess|os\.system|Popen|check_call|check_output' \
             broker.py \
+            broker_entrypoint.py \
             broker_server.py \
+            execution_recovery.py \
             root_authorization.py \
             root_authorization_cli.py \
             execution_service.py; then
@@ -135,6 +139,12 @@ jobs:
               "dap-backend.service",
           )
           PY
+
+      - name: Confirm broker recovery entrypoint
+        run: |
+          grep -F \
+            'ExecStart=/usr/bin/python3 /opt/dap/guardian/broker_entrypoint.py' \
+            ../../deploy/systemd/dap-guardian-broker.service
 
   dashboard:
     name: dashboard
