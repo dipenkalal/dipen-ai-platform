@@ -18,7 +18,7 @@ Environment=DAP_GUARDIAN_PORT=8001
 Environment=DAP_GUARDIAN_STATE_DIR=/var/lib/dap-guardian
 EnvironmentFile=-/etc/dap/guardian.env
 
-ExecStart=/usr/bin/python3 /opt/dap/guardian/app.py
+ExecStart=/usr/bin/python3 /opt/dap/guardian/control_plane.py
 
 Restart=always
 RestartSec=2
