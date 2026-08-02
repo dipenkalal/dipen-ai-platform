@@ -1,0 +1,30 @@
+[Unit]
+Description=DAP Guardian Core
+After=local-fs.target docker.service
+Wants=docker.service
+Before=dap-backend.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=dipen
+Group=dipen
+WorkingDirectory=/home/dipen/dap/source/dipen-ai-platform/platform/guardian
+Environment=HOME=/home/dipen
+Environment=PYTHONUNBUFFERED=1
+Environment=DAP_GUARDIAN_HOST=0.0.0.0
+Environment=DAP_GUARDIAN_PORT=8001
+ExecStart=/usr/bin/python3 /home/dipen/dap/source/dipen-ai-platform/platform/guardian/app.py
+
+Restart=always
+RestartSec=2
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target
