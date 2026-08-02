@@ -7,12 +7,16 @@ import shutil
 import socket
 import sqlite3
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from sqlite_support import managed_connection
 
 
 SERVICE_UNITS = {
@@ -878,7 +882,8 @@ def validate_action_authorization(
     return True, 200, None
 
 
-def open_action_store() -> sqlite3.Connection:
+@contextmanager
+def open_action_store() -> Iterator[sqlite3.Connection]:
     GUARDIAN_STATE_DIR.mkdir(
         parents=True,
         exist_ok=True,
@@ -890,44 +895,43 @@ def open_action_store() -> sqlite3.Connection:
     except OSError:
         pass
 
-    connection = sqlite3.connect(
+    with managed_connection(
         GUARDIAN_ACTION_DB,
         timeout=5.0,
-    )
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA busy_timeout = 5000")
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS action_plans (
-            plan_id TEXT PRIMARY KEY,
-            created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            action TEXT NOT NULL,
-            target TEXT NOT NULL,
-            status TEXT NOT NULL,
-            plan_json TEXT NOT NULL
+    ) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS action_plans (
+                plan_id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target TEXT NOT NULL,
+                status TEXT NOT NULL,
+                plan_json TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    connection.execute(
-        """
-        CREATE TABLE IF NOT EXISTS action_events (
-            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            plan_id TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            event_at TEXT NOT NULL,
-            details_json TEXT NOT NULL
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS action_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                event_at TEXT NOT NULL,
+                details_json TEXT NOT NULL
+            )
+            """
         )
-        """
-    )
-    connection.commit()
 
-    try:
-        GUARDIAN_ACTION_DB.chmod(0o600)
-    except OSError:
-        pass
+        try:
+            GUARDIAN_ACTION_DB.chmod(0o600)
+        except OSError:
+            pass
 
-    return connection
+        yield connection
 
 
 def record_action_event(
