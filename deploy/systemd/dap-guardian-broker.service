@@ -6,7 +6,7 @@ After=dap-guardian-broker.socket
 [Service]
 Type=simple
 User=root
-Group=root
+Group=dap-guardian
 WorkingDirectory=/opt/dap/guardian
 
 Environment=PYTHONUNBUFFERED=1
@@ -45,4 +45,4 @@ RestrictAddressFamilies=AF_UNIX
 SystemCallArchitectures=native
 ReadOnlyPaths=/opt/dap/guardian
 ReadWritePaths=/var/lib/dap-guardian /var/lib/dap-guardian-broker
-UMask=0077
+UMask=0007
