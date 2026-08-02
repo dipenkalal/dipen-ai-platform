@@ -1,0 +1,88 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dap-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - /home/dipen/dap/data/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dap-network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: dap-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - /home/dipen/dap/data/qdrant:/qdrant/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333;
+          printf "GET /healthz HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3;
+          IFS= read -r response <&3;
+          [[ "$$response" == *" 200 "* ]]'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - dap-network
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: dap-open-webui
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "3000:8080"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - /home/dipen/dap/data/open-webui:/app/backend/data
+    networks:
+      - dap-network
+
+  dashboard:
+    build:
+      context: /home/dipen/dap/source/dipen-ai-platform/apps/dashboard
+      dockerfile: Dockerfile
+    container_name: dap-dashboard
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      DAP_BACKEND_BASE_URL: http://host.docker.internal:8002
+      DAP_BACKEND_URL: http://host.docker.internal:8002/api/status
+      DAP_BACKEND_MODELS_URL: http://host.docker.internal:8002/api/v1/models
+      DAP_BACKEND_CHAT_STREAM_URL: http://host.docker.internal:8002/api/v1/chat/stream
+      DAP_BACKEND_KNOWLEDGE_HEALTH_URL: http://host.docker.internal:8002/api/v1/knowledge/health
+      DAP_BACKEND_KNOWLEDGE_DOCUMENTS_URL: http://host.docker.internal:8002/api/v1/knowledge/documents
+      DAP_BACKEND_KNOWLEDGE_ASK_STREAM_URL: http://host.docker.internal:8002/api/v1/knowledge/ask/stream
+      NEXT_PUBLIC_DAP_API_URL: /api/status
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - dap-network
+
+networks:
+  dap-network:
+    driver: bridge
