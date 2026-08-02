@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import secrets
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -253,6 +255,45 @@ def validate_plan(
     }
 
 
+def authorize_operator_execution(
+    plan_id: str,
+    confirmation: str | None,
+) -> dict[str, Any]:
+    if os.geteuid() != 0:
+        raise PlanValidationError(
+            "Execution authorization requires an interactive root operator.",
+        )
+
+    expected_confirmation = f"EXECUTE {plan_id}"
+
+    if not isinstance(confirmation, str):
+        raise PlanValidationError(
+            "Execution confirmation is required.",
+        )
+
+    if not secrets.compare_digest(
+        confirmation,
+        expected_confirmation,
+    ):
+        raise PlanValidationError(
+            "Execution confirmation did not match the approved plan.",
+        )
+
+    return {
+        "authorized": True,
+        "method": "local-root-cli",
+        "effective_uid": os.geteuid(),
+        "authorized_at": datetime.now(timezone.utc).isoformat(),
+        "execution": {
+            "performed": False,
+            "reason": (
+                "Root operator authorization passed, but command "
+                "execution is not implemented."
+            ),
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -272,6 +313,18 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Approved Guardian action-plan ID.",
     )
+    parser.add_argument(
+        "--authorize-execution",
+        action="store_true",
+        help=(
+            "Validate a second, root-only operator authorization. "
+            "No command is executed."
+        ),
+    )
+    parser.add_argument(
+        "--confirmation",
+        help="Exact phrase: EXECUTE <plan_id>",
+    )
 
     return parser
 
@@ -284,6 +337,19 @@ def main() -> int:
             database_path=arguments.database,
             plan_id=arguments.plan_id,
         )
+
+        if arguments.confirmation and not arguments.authorize_execution:
+            raise PlanValidationError(
+                "--confirmation requires --authorize-execution.",
+            )
+
+        if arguments.authorize_execution:
+            result["operator_authorization"] = (
+                authorize_operator_execution(
+                    plan_id=arguments.plan_id,
+                    confirmation=arguments.confirmation,
+                )
+            )
     except PlanValidationError as error:
         print(
             json.dumps(
