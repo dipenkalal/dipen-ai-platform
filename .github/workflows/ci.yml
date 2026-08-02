@@ -94,10 +94,11 @@ jobs:
             execution_service.py \
             root_authorization.py \
             root_authorization_cli.py \
+            sqlite_support.py \
             tests
 
       - name: Guardian safety tests
-        run: python -m unittest discover -s tests -v
+        run: PYTHONWARNINGS=error::ResourceWarning python -m unittest discover -s tests -v
 
       - name: Confirm privileged boundary separation
         run: |

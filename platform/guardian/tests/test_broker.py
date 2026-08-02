@@ -1,11 +1,12 @@
 import json
 import secrets
-import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
+
+from sqlite_support import managed_connection
 
 import broker
 
@@ -17,7 +18,7 @@ class BrokerTestCase(unittest.TestCase):
             Path(self.temporary_directory.name) / "actions.sqlite3"
         )
 
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             connection.executescript(
                 """
                 CREATE TABLE action_plans (
@@ -76,7 +77,7 @@ class BrokerTestCase(unittest.TestCase):
             },
         }
 
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             connection.execute(
                 """
                 INSERT INTO action_plans (
@@ -108,7 +109,7 @@ class BrokerTestCase(unittest.TestCase):
         return plan_id
 
     def read_status(self, plan_id: str) -> str:
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             row = connection.execute(
                 """
                 SELECT status
@@ -122,7 +123,7 @@ class BrokerTestCase(unittest.TestCase):
         return row[0]
 
     def read_events(self, plan_id: str) -> list[str]:
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             rows = connection.execute(
                 """
                 SELECT event_type

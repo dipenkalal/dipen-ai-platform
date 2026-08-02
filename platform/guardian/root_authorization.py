@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlite_support import managed_connection
+
 
 PLAN_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 RESERVATION_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
@@ -268,7 +270,7 @@ def initialize_store(database_path: Path) -> None:
     os.chmod(database_path.parent, 0o700)
 
     try:
-        with sqlite3.connect(
+        with managed_connection(
             database_path,
             timeout=5.0,
         ) as connection:
@@ -357,7 +359,7 @@ def issue_backend_restart_authorization(
     expires_at = issued_at + timedelta(seconds=ttl_seconds)
 
     try:
-        with sqlite3.connect(
+        with managed_connection(
             database_path,
             timeout=5.0,
         ) as connection:
@@ -468,7 +470,7 @@ def consume_backend_restart_authorization(
     result: dict[str, Any] | None = None
 
     try:
-        with sqlite3.connect(
+        with managed_connection(
             database_path,
             timeout=5.0,
         ) as connection:

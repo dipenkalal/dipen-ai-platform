@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlite_support import managed_connection
+
 
 BROKER_ACTIONS = {
     "restart_service": {
@@ -321,7 +323,7 @@ def reserve_execution(
     reservation_id = secrets.token_hex(16)
 
     try:
-        with sqlite3.connect(
+        with managed_connection(
             database_path,
             timeout=5.0,
         ) as connection:
@@ -515,7 +517,7 @@ def transition_execution_state(
     transitioned_at = datetime.now(timezone.utc)
 
     try:
-        with sqlite3.connect(
+        with managed_connection(
             database_path,
             timeout=5.0,
         ) as connection:

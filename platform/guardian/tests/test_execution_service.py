@@ -1,12 +1,13 @@
 import json
 import secrets
-import sqlite3
 import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
+
+from sqlite_support import managed_connection
 
 import broker
 import execution_service
@@ -89,7 +90,7 @@ class ExecutionServiceTestCase(unittest.TestCase):
             },
         }
 
-        with sqlite3.connect(
+        with managed_connection(
             self.guardian_database_path
         ) as connection:
             connection.executescript(
@@ -143,7 +144,7 @@ class ExecutionServiceTestCase(unittest.TestCase):
             )
 
     def read_guardian_status(self) -> str:
-        with sqlite3.connect(
+        with managed_connection(
             self.guardian_database_path
         ) as connection:
             row = connection.execute(
@@ -159,7 +160,7 @@ class ExecutionServiceTestCase(unittest.TestCase):
         return row[0]
 
     def read_authorization_status(self) -> str:
-        with sqlite3.connect(
+        with managed_connection(
             self.authorization_database_path
         ) as connection:
             row = connection.execute(
