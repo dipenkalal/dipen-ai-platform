@@ -127,9 +127,12 @@ export default function AgentsPage() {
     };
   }, []);
 
-  const selectedAgent = useMemo(
-    () => agents.find((agent) => agent.id === selectedAgentId) ?? null,
-    [agents, selectedAgentId],
+  const effectiveAgentId =
+    mode === "smart" ? (runner.routing?.agent_id ?? "") : selectedAgentId;
+
+  const effectiveAgent = useMemo(
+    () => agents.find((agent) => agent.id === effectiveAgentId) ?? null,
+    [agents, effectiveAgentId],
   );
 
   async function handleRun(): Promise<void> {
@@ -271,7 +274,7 @@ export default function AgentsPage() {
             <AgentSelector
               agents={agents}
               tools={tools}
-              selectedAgentId={selectedAgentId}
+              selectedAgentId={effectiveAgentId}
               disabled={runner.isRunning || mode === "smart"}
               onSelect={(agentId) => {
                 setSelectedAgentId(agentId);
@@ -288,7 +291,7 @@ export default function AgentsPage() {
               }}
               agents={agents}
               models={models}
-              selectedAgentId={selectedAgentId}
+              selectedAgentId={effectiveAgentId}
               selectedModelId={selectedModelId}
               objective={objective}
               status={runner.status}
@@ -326,22 +329,22 @@ export default function AgentsPage() {
               <div className="space-y-6">
                 <UsageMetrics usage={runner.usage} />
 
-                {selectedAgent && (
+                {effectiveAgent && (
                   <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
                     <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
                       Active Agent
                     </p>
 
                     <h2 className="mt-2 text-xl font-semibold text-white">
-                      {selectedAgent.name}
+                      {effectiveAgent.name}
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedAgent.description}
+                      {effectiveAgent.description}
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {selectedAgent.tools.map((toolId) => (
+                      {effectiveAgent.tools.map((toolId) => (
                         <span
                           key={toolId}
                           className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-xs text-slate-300"
