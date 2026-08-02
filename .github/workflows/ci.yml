@@ -67,6 +67,36 @@ jobs:
             -q \
             tests/test_orchestration_validator.py
 
+  guardian:
+    name: guardian
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: platform/guardian
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Compile Guardian
+        run: python -m compileall -q app.py broker.py broker_server.py tests/test_broker.py
+
+      - name: Guardian broker safety tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Confirm broker is non-executing
+        run: |
+          if grep -nE 'subprocess|os\.system|Popen|check_call|check_output' broker.py; then
+            echo "Command execution functions are not allowed in the dry-run broker."
+            exit 1
+          fi
+
   dashboard:
     name: dashboard
     runs-on: ubuntu-latest

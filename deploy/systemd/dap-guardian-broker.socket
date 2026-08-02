@@ -1,0 +1,15 @@
+[Unit]
+Description=DAP Guardian Broker Socket
+
+[Socket]
+ListenStream=/run/dap-guardian/broker.sock
+Accept=no
+SocketUser=root
+SocketGroup=dap-guardian
+SocketMode=0660
+DirectoryMode=0750
+RemoveOnStop=true
+Service=dap-guardian-broker.service
+
+[Install]
+WantedBy=sockets.target

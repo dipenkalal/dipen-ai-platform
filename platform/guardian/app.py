@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import shutil
 import socket
+import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -30,6 +32,48 @@ HTTP_DEPENDENCIES = {
 DISK_PATHS = {
     "root": Path("/"),
     "data": Path("/data"),
+}
+
+ACTION_CATALOG = {
+    "restart_service": {
+        "backend": {
+            "unit": SERVICE_UNITS["backend"],
+            "risk": "medium",
+            "impact": (
+                "The backend API will be briefly unavailable while "
+                "systemd restarts it."
+            ),
+            "verification": [
+                "Confirm dap-backend.service is active.",
+                "Confirm http://127.0.0.1:8002/health returns HTTP 200.",
+            ],
+        },
+        "guardian": {
+            "unit": SERVICE_UNITS["guardian"],
+            "risk": "medium",
+            "impact": (
+                "Guardian will briefly disconnect while its own "
+                "systemd service restarts."
+            ),
+            "verification": [
+                "Confirm dap-guardian.service is active.",
+                "Confirm http://127.0.0.1:8001/health returns HTTP 200.",
+            ],
+        },
+        "docker": {
+            "unit": SERVICE_UNITS["docker"],
+            "risk": "high",
+            "impact": (
+                "Docker and all managed containers may be unavailable "
+                "during the restart."
+            ),
+            "verification": [
+                "Confirm docker.service is active.",
+                "Confirm expected DAP containers are running.",
+                "Confirm monitored HTTP dependencies are healthy.",
+            ],
+        },
+    },
 }
 
 
@@ -318,7 +362,7 @@ def read_top_processes(
             [
                 "ps",
                 "-eo",
-                "pid=,user=,comm=,rss=,%mem=,etimes=,args=",
+                "pid=,user=,comm=,rss=,%mem=,etimes=",
                 "--sort=-rss",
             ],
             capture_output=True,
@@ -335,7 +379,7 @@ def read_top_processes(
     processes: list[dict[str, Any]] = []
 
     for line in completed.stdout.splitlines():
-        fields = line.strip().split(None, 6)
+        fields = line.strip().split()
 
         if len(fields) < 6:
             continue
@@ -349,12 +393,6 @@ def read_top_processes(
             elapsed_seconds_value,
         ) = fields[:6]
 
-        arguments = (
-            fields[6]
-            if len(fields) == 7
-            else command
-        )
-
         try:
             process = {
                 "pid": int(pid_value),
@@ -367,7 +405,6 @@ def read_top_processes(
                 "elapsed_seconds": int(
                     elapsed_seconds_value
                 ),
-                "arguments": arguments[:300],
             }
         except ValueError:
             continue
@@ -411,7 +448,7 @@ def build_state() -> dict[str, Any]:
         "guardian": {
             "name": "DAP Guardian",
             "version": "0.1.0",
-            "mode": "read-only",
+            "mode": "approval-recording",
             "generated_at": utc_now(),
         },
         "host": {
@@ -452,6 +489,20 @@ GUARDIAN_TEMPERATURE = float(
     os.getenv("DAP_GUARDIAN_TEMPERATURE", "0.0"),
 )
 MAX_QUESTION_BYTES = 16_384
+GUARDIAN_ACTION_TOKEN = os.getenv(
+    "DAP_GUARDIAN_ACTION_TOKEN",
+    "",
+)
+GUARDIAN_STATE_DIR = Path(
+    os.getenv(
+        "DAP_GUARDIAN_STATE_DIR",
+        str(Path.home() / "dap" / "data" / "guardian"),
+    ),
+)
+GUARDIAN_ACTION_DB = GUARDIAN_STATE_DIR / "actions.sqlite3"
+GUARDIAN_ACTION_PLAN_TTL_SECONDS = int(
+    os.getenv("DAP_GUARDIAN_ACTION_PLAN_TTL_SECONDS", "600"),
+)
 
 
 def format_bytes(value: Any) -> str:
@@ -607,10 +658,6 @@ def build_grounded_context(
     )
 
     for process in processes[:8]:
-        arguments = " ".join(
-            str(process.get("arguments", "")).split()
-        )[:180]
-
         lines.append(
             "PROCESS "
             f"pid={process.get('pid', 'unknown')} "
@@ -620,8 +667,7 @@ def build_grounded_context(
             f"memory_percent="
             f"{process.get('memory_percent', 'unknown')} "
             f"elapsed_seconds="
-            f"{process.get('elapsed_seconds', 'unknown')} "
-            f"arguments={arguments}"
+            f"{process.get('elapsed_seconds', 'unknown')}"
         )
 
     for name, disk in disks.items():
@@ -686,7 +732,7 @@ Rules:
 - Base factual claims only on the supplied live snapshot.
 - Every PROCESS line is an exact PID, command and memory pairing.
 - Copy process names and PIDs exactly; never relabel or rearrange them.
-- Do not infer an application identity unless its arguments prove it.
+- Do not infer an application identity from generic process names such as python3, node, or uvicorn.
 - Clearly separate measured facts from possible explanations.
 - Describe listed processes as observed contributors, not the complete cause of total memory use.
 - Never say memory usage is "due to" a process unless the supplied measurements prove that conclusion.
@@ -801,6 +847,355 @@ def ask_guardian(question: str) -> dict[str, Any]:
         }
 
 
+def validate_action_authorization(
+    authorization_header: str | None,
+) -> tuple[bool, int, str | None]:
+    if not GUARDIAN_ACTION_TOKEN:
+        return (
+            False,
+            503,
+            "Guardian action API is disabled because no action token is configured.",
+        )
+
+    if not authorization_header:
+        return False, 401, "Authorization header is required."
+
+    scheme, separator, supplied_token = authorization_header.partition(" ")
+
+    if (
+        separator != " "
+        or scheme.lower() != "bearer"
+        or not supplied_token
+    ):
+        return False, 401, "A valid Bearer token is required."
+
+    if not secrets.compare_digest(
+        supplied_token,
+        GUARDIAN_ACTION_TOKEN,
+    ):
+        return False, 403, "Action authorization failed."
+
+    return True, 200, None
+
+
+def open_action_store() -> sqlite3.Connection:
+    GUARDIAN_STATE_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+        mode=0o700,
+    )
+
+    try:
+        GUARDIAN_STATE_DIR.chmod(0o700)
+    except OSError:
+        pass
+
+    connection = sqlite3.connect(
+        GUARDIAN_ACTION_DB,
+        timeout=5.0,
+    )
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_plans (
+            plan_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            action TEXT NOT NULL,
+            target TEXT NOT NULL,
+            status TEXT NOT NULL,
+            plan_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            plan_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_at TEXT NOT NULL,
+            details_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.commit()
+
+    try:
+        GUARDIAN_ACTION_DB.chmod(0o600)
+    except OSError:
+        pass
+
+    return connection
+
+
+def record_action_event(
+    connection: sqlite3.Connection,
+    plan_id: str,
+    event_type: str,
+    details: dict[str, Any],
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO action_events (
+            plan_id,
+            event_type,
+            event_at,
+            details_json
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            plan_id,
+            event_type,
+            utc_now(),
+            json.dumps(
+                details,
+                separators=(",", ":"),
+                sort_keys=True,
+            ),
+        ),
+    )
+
+
+def persist_action_plan(plan: dict[str, Any]) -> None:
+    serialized_plan = json.dumps(
+        plan,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+    with open_action_store() as connection:
+        connection.execute(
+            """
+            INSERT INTO action_plans (
+                plan_id,
+                created_at,
+                expires_at,
+                action,
+                target,
+                status,
+                plan_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                plan["plan_id"],
+                plan["generated_at"],
+                plan["expires_at"],
+                plan["action"],
+                plan["target"],
+                plan["status"],
+                serialized_plan,
+            ),
+        )
+
+        record_action_event(
+            connection,
+            plan["plan_id"],
+            "plan_created",
+            {
+                "action": plan["action"],
+                "target": plan["target"],
+                "risk": plan["risk"],
+                "expires_at": plan["expires_at"],
+            },
+        )
+
+
+def build_action_plan(
+    action: str,
+    target: str,
+) -> dict[str, Any]:
+    action_targets = ACTION_CATALOG[action]
+    definition = action_targets[target]
+    unit = definition["unit"]
+
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + timedelta(
+        seconds=GUARDIAN_ACTION_PLAN_TTL_SECONDS,
+    )
+
+    plan = {
+        "plan_id": secrets.token_hex(16),
+        "status": "approval_required",
+        "generated_at": created_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "action": action,
+        "target": target,
+        "description": f"Restart {unit} through systemd.",
+        "risk": definition["risk"],
+        "impact": definition["impact"],
+        "command": [
+            "systemctl",
+            "restart",
+            unit,
+        ],
+        "approval": {
+            "required": True,
+            "level": "explicit",
+            "root_required": True,
+        },
+        "verification": definition["verification"],
+        "rollback": (
+            "Restore the previous known-good configuration or code, "
+            "then restart the same unit and repeat verification."
+        ),
+        "execution": {
+            "available": False,
+            "reason": (
+                "The privileged action broker is not connected yet. "
+                "This endpoint only creates a proposed plan."
+            ),
+        },
+        "persisted": True,
+    }
+
+    persist_action_plan(plan)
+    return plan
+
+
+def approve_action_plan(
+    plan_id: str,
+    confirmation: str,
+) -> tuple[dict[str, Any], int]:
+    expected_confirmation = f"APPROVE {plan_id}"
+
+    if not secrets.compare_digest(
+        confirmation,
+        expected_confirmation,
+    ):
+        return (
+            {
+                "error": "Explicit confirmation did not match.",
+                "expected_confirmation": expected_confirmation,
+            },
+            400,
+        )
+
+    approved_at = datetime.now(timezone.utc)
+
+    with open_action_store() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+
+        row = connection.execute(
+            """
+            SELECT
+                plan_id,
+                expires_at,
+                status,
+                plan_json
+            FROM action_plans
+            WHERE plan_id = ?
+            """,
+            (plan_id,),
+        ).fetchone()
+
+        if row is None:
+            return {"error": "Action plan not found."}, 404
+
+        plan = json.loads(row["plan_json"])
+        expires_at = datetime.fromisoformat(row["expires_at"])
+
+        if approved_at >= expires_at:
+            plan["status"] = "expired"
+            plan["expired_at"] = approved_at.isoformat()
+
+            connection.execute(
+                """
+                UPDATE action_plans
+                SET status = ?, plan_json = ?
+                WHERE plan_id = ?
+                """,
+                (
+                    "expired",
+                    json.dumps(
+                        plan,
+                        separators=(",", ":"),
+                        sort_keys=True,
+                    ),
+                    plan_id,
+                ),
+            )
+
+            record_action_event(
+                connection,
+                plan_id,
+                "plan_expired",
+                {
+                    "previous_status": row["status"],
+                    "expired_at": approved_at.isoformat(),
+                },
+            )
+
+            return (
+                {
+                    "error": "Action plan has expired.",
+                    "plan": plan,
+                },
+                409,
+            )
+
+        if row["status"] != "approval_required":
+            return (
+                {
+                    "error": (
+                        "Action plan cannot be approved because its "
+                        f"status is {row['status']}."
+                    ),
+                    "plan": plan,
+                },
+                409,
+            )
+
+        plan["status"] = "approved"
+        plan["approved_at"] = approved_at.isoformat()
+        plan["approval"]["approved"] = True
+        plan["approval"]["approved_at"] = approved_at.isoformat()
+        plan["execution"] = {
+            "available": False,
+            "reason": (
+                "Approval has been recorded, but the privileged "
+                "action broker is not connected yet."
+            ),
+        }
+
+        serialized_plan = json.dumps(
+            plan,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+        connection.execute(
+            """
+            UPDATE action_plans
+            SET status = ?, plan_json = ?
+            WHERE plan_id = ?
+              AND status = ?
+            """,
+            (
+                "approved",
+                serialized_plan,
+                plan_id,
+                "approval_required",
+            ),
+        )
+
+        record_action_event(
+            connection,
+            plan_id,
+            "plan_approved",
+            {
+                "approved_at": approved_at.isoformat(),
+                "approval_level": plan["approval"]["level"],
+                "root_required": plan["approval"]["root_required"],
+            },
+        )
+
+    return plan, 200
+
+
 STATIC_DIR = Path(__file__).parent / "static"
 STATUS_PAGE = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
 
@@ -827,7 +1222,13 @@ class GuardianHandler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_POST(self) -> None:
-        if self.path != "/api/v1/ask":
+        supported_paths = {
+            "/api/v1/ask",
+            "/api/v1/actions/plan",
+            "/api/v1/actions/approve",
+        }
+
+        if self.path not in supported_paths:
             self.send_json(
                 {
                     "error": "Not found",
@@ -873,17 +1274,101 @@ class GuardianHandler(BaseHTTPRequestHandler):
             )
             return
 
-        question = payload.get("question")
-
-        if not isinstance(question, str) or not question.strip():
+        if not isinstance(payload, dict):
             self.send_json(
-                {"error": "A non-empty question is required"},
+                {"error": "Request body must be a JSON object"},
+                status_code=400,
+            )
+            return
+
+        if self.path == "/api/v1/ask":
+            question = payload.get("question")
+
+            if not isinstance(question, str) or not question.strip():
+                self.send_json(
+                    {"error": "A non-empty question is required"},
+                    status_code=400,
+                )
+                return
+
+            self.send_json(
+                ask_guardian(question.strip()),
+            )
+            return
+
+        authorized, status_code, authorization_error = (
+            validate_action_authorization(
+                self.headers.get("Authorization"),
+            )
+        )
+
+        if not authorized:
+            self.send_json(
+                {"error": authorization_error},
+                status_code=status_code,
+            )
+            return
+
+        if self.path == "/api/v1/actions/approve":
+            plan_id = payload.get("plan_id")
+            confirmation = payload.get("confirmation")
+
+            if not isinstance(plan_id, str) or not plan_id.strip():
+                self.send_json(
+                    {"error": "A non-empty plan_id is required."},
+                    status_code=400,
+                )
+                return
+
+            if (
+                not isinstance(confirmation, str)
+                or not confirmation.strip()
+            ):
+                self.send_json(
+                    {"error": "Explicit confirmation is required."},
+                    status_code=400,
+                )
+                return
+
+            response, response_status = approve_action_plan(
+                plan_id.strip(),
+                confirmation.strip(),
+            )
+
+            self.send_json(
+                response,
+                status_code=response_status,
+            )
+            return
+
+        action = payload.get("action")
+        target = payload.get("target")
+
+        if action not in ACTION_CATALOG:
+            self.send_json(
+                {
+                    "error": "Unsupported action",
+                    "allowed_actions": sorted(ACTION_CATALOG),
+                },
+                status_code=400,
+            )
+            return
+
+        allowed_targets = ACTION_CATALOG[action]
+
+        if target not in allowed_targets:
+            self.send_json(
+                {
+                    "error": "Unsupported target",
+                    "allowed_targets": sorted(allowed_targets),
+                },
                 status_code=400,
             )
             return
 
         self.send_json(
-            ask_guardian(question.strip()),
+            build_action_plan(action, target),
+            status_code=201,
         )
 
     def do_GET(self) -> None:
