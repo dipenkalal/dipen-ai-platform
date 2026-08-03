@@ -221,6 +221,48 @@ def handle_connection(
             )
             return
 
+        if operation == "dry_run_backend_restart":
+            reservation_id = require_identifier(
+                payload,
+                "reservation_id",
+                RESERVATION_ID_PATTERN,
+            )
+
+            result = execute_authorized_backend_restart(
+                guardian_database_path=database_path,
+                authorization_database_path=(
+                    authorization_database_path
+                ),
+                plan_id=plan_id,
+                reservation_id=reservation_id,
+                dry_run=True,
+            )
+
+            execution = result.get("execution")
+
+            if (
+                not isinstance(execution, dict)
+                or execution.get("dry_run") is not True
+                or execution.get("attempted") is not False
+                or execution.get("performed") is not False
+            ):
+                raise BrokerRequestError(
+                    "Dry-run execution returned an unsafe result."
+                )
+
+            send_response(
+                connection,
+                {
+                    "ok": result["ok"],
+                    "broker_mode": BROKER_MODE,
+                    "operation": operation,
+                    "peer": peer,
+                    "result": result,
+                    "execution": execution,
+                },
+            )
+            return
+
         raise BrokerRequestError(
             "Unsupported broker operation.",
         )
