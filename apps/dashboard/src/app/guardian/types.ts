@@ -56,10 +56,43 @@ export type GuardianVoiceState =
   | "error";
 
 export type VoiceServerMessage =
-  | { type: "ready"; state: "sleeping" }
-  | { type: "wake"; state: "listening" }
-  | { type: "processing" }
-  | { type: "idle"; state: "sleeping" }
-  | { type: "command"; text: string; state: "sleeping" }
-  | { type: "timeout"; state: "sleeping" }
-  | { type: "error"; message: string };
+  | {
+      type: "ready";
+      state: "sleeping";
+      stt_model: string;
+      tts_voice: string;
+    }
+  | {
+      type: "wake";
+      state: "listening";
+      heard: string;
+      awaiting_command: boolean;
+    }
+  | {
+      type: "processing";
+      segment_ms: number;
+    }
+  | {
+      type: "idle";
+      state: "sleeping";
+    }
+  | {
+      type: "command";
+      text: string;
+      heard: string;
+      state: "sleeping";
+    }
+  | {
+      type: "timeout";
+      state: "sleeping";
+    }
+  | {
+      type: "error";
+      message: string;
+    };
+
+export type GuardianAudioFrame = {
+  type: "audio";
+  pcm: ArrayBuffer;
+  level: number;
+};
