@@ -46,11 +46,20 @@ export type GuardianActionHistory = {
 export type GuardianVoiceState =
   | "locked"
   | "insecure"
-  | "unsupported"
-  | "preparing"
+  | "connecting"
   | "sleeping"
   | "listening"
+  | "processing"
   | "thinking"
   | "speaking"
   | "muted"
   | "error";
+
+export type VoiceServerMessage =
+  | { type: "ready"; state: "sleeping" }
+  | { type: "wake"; state: "listening" }
+  | { type: "processing" }
+  | { type: "idle"; state: "sleeping" }
+  | { type: "command"; text: string; state: "sleeping" }
+  | { type: "timeout"; state: "sleeping" }
+  | { type: "error"; message: string };
