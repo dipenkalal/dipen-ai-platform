@@ -212,9 +212,14 @@ class ExecutionServiceTestCase(unittest.TestCase):
                 return_value=0,
             ),
             patch.object(
-                executor.os,
-                "geteuid",
-                return_value=0,
+                executor,
+                "verify_backend_http_health",
+                return_value={
+                    "url": executor.BACKEND_HEALTH_URL,
+                    "status_code": 200,
+                    "status": "healthy",
+                    "version": "test",
+                },
             ),
         )
 
@@ -256,6 +261,10 @@ class ExecutionServiceTestCase(unittest.TestCase):
         )
         self.assertTrue(
             result["execution"]["verified"]
+        )
+        self.assertEqual(
+            result["execution"]["health"]["status"],
+            "healthy",
         )
         self.assertEqual(
             self.read_guardian_status(),
@@ -355,6 +364,70 @@ class ExecutionServiceTestCase(unittest.TestCase):
         self.assertEqual(
             self.read_guardian_status(),
             "failed",
+        )
+
+    def test_http_health_failure_records_performed(
+        self,
+    ) -> None:
+        restart_result = subprocess.CompletedProcess(
+            executor.BACKEND_RESTART_COMMAND,
+            0,
+            stdout="",
+            stderr="",
+        )
+        active_result = subprocess.CompletedProcess(
+            executor.BACKEND_VERIFY_COMMAND,
+            0,
+            stdout="active\n",
+            stderr="",
+        )
+
+        patches = self.root_patches()
+
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch.object(
+                executor,
+                "verify_backend_http_health",
+                side_effect=executor.BackendHealthError(
+                    "backend HTTP health failed"
+                ),
+            ),
+            patch.object(
+                executor.subprocess,
+                "run",
+                side_effect=(
+                    [restart_result]
+                    + [active_result] * 10
+                ),
+            ),
+            patch.object(executor.time, "sleep"),
+        ):
+            result = self.execute()
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            result["execution"]["attempted"]
+        )
+        self.assertTrue(
+            result["execution"]["performed"]
+        )
+        self.assertFalse(
+            result["execution"]["verified"]
+        )
+        self.assertIn(
+            "HTTP health verification failed",
+            result["execution"]["error"],
+        )
+        self.assertEqual(
+            self.read_guardian_status(),
+            "failed",
+        )
+        self.assertEqual(
+            self.read_authorization_status(),
+            "consumed",
         )
 
     def test_authorization_replay_is_rejected(self) -> None:
