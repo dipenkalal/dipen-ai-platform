@@ -147,6 +147,103 @@ class BrokerServerTestCase(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertTrue(response["execution"]["performed"])
 
+    def test_dry_run_dispatches_without_performed_execution(
+        self,
+    ) -> None:
+        execution_result = {
+            "ok": True,
+            "execution": {
+                "attempted": False,
+                "performed": False,
+                "verified": False,
+                "dry_run": True,
+            },
+        }
+
+        with (
+            patch.object(
+                broker_server,
+                "read_peer_credentials",
+                return_value=(123, 1000, 1000),
+            ),
+            patch.object(
+                broker_server,
+                "read_request",
+                return_value={
+                    "operation": "dry_run_backend_restart",
+                    "plan_id": self.plan_id,
+                    "reservation_id": self.reservation_id,
+                },
+            ),
+            patch.object(
+                broker_server,
+                "execute_authorized_backend_restart",
+                return_value=execution_result,
+            ) as execute,
+            patch.object(
+                broker_server,
+                "send_response",
+            ) as send_response,
+        ):
+            self.handle()
+
+        execute.assert_called_once_with(
+            guardian_database_path=self.guardian_database_path,
+            authorization_database_path=(
+                self.authorization_database_path
+            ),
+            plan_id=self.plan_id,
+            reservation_id=self.reservation_id,
+            dry_run=True,
+        )
+        response = send_response.call_args.args[1]
+        self.assertTrue(response["ok"])
+        self.assertTrue(response["execution"]["dry_run"])
+        self.assertFalse(response["execution"]["attempted"])
+        self.assertFalse(response["execution"]["performed"])
+
+    def test_dry_run_rejects_unsafe_execution_result(self) -> None:
+        execution_result = {
+            "ok": True,
+            "execution": {
+                "attempted": True,
+                "performed": True,
+                "dry_run": True,
+            },
+        }
+
+        with (
+            patch.object(
+                broker_server,
+                "read_peer_credentials",
+                return_value=(123, 1000, 1000),
+            ),
+            patch.object(
+                broker_server,
+                "read_request",
+                return_value={
+                    "operation": "dry_run_backend_restart",
+                    "plan_id": self.plan_id,
+                    "reservation_id": self.reservation_id,
+                },
+            ),
+            patch.object(
+                broker_server,
+                "execute_authorized_backend_restart",
+                return_value=execution_result,
+            ),
+            patch.object(
+                broker_server,
+                "send_response",
+            ) as send_response,
+        ):
+            self.handle()
+
+        response = send_response.call_args.args[1]
+        self.assertFalse(response["ok"])
+        self.assertIn("unsafe result", response["error"])
+        self.assertFalse(response["execution"]["performed"])
+
     def test_invalid_reservation_id_fails_closed(self) -> None:
         with (
             patch.object(
