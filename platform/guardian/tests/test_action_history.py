@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import action_history
+from sqlite_support import managed_connection
 
 
 class ActionHistoryTestCase(unittest.TestCase):
@@ -23,7 +23,7 @@ class ActionHistoryTestCase(unittest.TestCase):
         self.temporary_directory.cleanup()
 
     def initialize_database(self) -> None:
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             connection.executescript(
                 """
                 CREATE TABLE action_plans (
@@ -86,7 +86,7 @@ class ActionHistoryTestCase(unittest.TestCase):
             },
         }
 
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             connection.execute(
                 """
                 INSERT INTO action_plans (
@@ -235,7 +235,7 @@ class ActionHistoryTestCase(unittest.TestCase):
             dry_run=True,
         )
 
-        with sqlite3.connect(self.database_path) as connection:
+        with managed_connection(self.database_path) as connection:
             connection.execute(
                 """
                 UPDATE action_plans
