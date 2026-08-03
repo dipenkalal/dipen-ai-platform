@@ -9,6 +9,27 @@ from unittest.mock import patch
 import app
 
 
+def find_repository_root() -> Path | None:
+    for candidate in Path(__file__).resolve().parents:
+        guardian_unit = (
+            candidate
+            / "deploy"
+            / "systemd"
+            / "dap-guardian.service"
+        )
+        broker_unit = (
+            candidate
+            / "deploy"
+            / "systemd"
+            / "dap-guardian-broker.service"
+        )
+
+        if guardian_unit.is_file() and broker_unit.is_file():
+            return candidate
+
+    return None
+
+
 class SharedStatePermissionsTestCase(unittest.TestCase):
     def test_action_store_uses_group_shared_modes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -52,9 +73,13 @@ class SharedStatePermissionsTestCase(unittest.TestCase):
     def test_systemd_boundary_uses_narrow_group_access(
         self,
     ) -> None:
-        repository_root = (
-            Path(__file__).resolve().parents[3]
-        )
+        repository_root = find_repository_root()
+
+        if repository_root is None:
+            self.skipTest(
+                "repository systemd unit sources are not present "
+                "in the staged Guardian package"
+            )
 
         guardian_unit = (
             repository_root
