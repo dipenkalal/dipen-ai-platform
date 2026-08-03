@@ -16,7 +16,10 @@ RUN apt-get update \
 COPY requirements.txt ./requirements.txt
 RUN python3 -m venv /opt/dap-voice/venv \
     && /opt/dap-voice/venv/bin/pip install \
+        --disable-pip-version-check \
         --no-cache-dir \
+        --retries 12 \
+        --timeout 180 \
         -r requirements.txt
 
 RUN mkdir -p /models \
