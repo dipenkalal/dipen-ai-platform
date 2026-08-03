@@ -35,16 +35,26 @@ class GuardianAudioProcessor extends AudioWorkletProcessor {
 
     while (this.pending.length >= this.frameSamples) {
       const frame = new Int16Array(this.frameSamples);
+      let energy = 0;
 
       for (let index = 0; index < this.frameSamples; index += 1) {
         const sample = this.pending[index];
+        energy += sample * sample;
         frame[index] = sample < 0
           ? Math.round(sample * 0x8000)
           : Math.round(sample * 0x7fff);
       }
 
       this.pending.splice(0, this.frameSamples);
-      this.port.postMessage(frame.buffer, [frame.buffer]);
+      const level = Math.min(1, Math.sqrt(energy / this.frameSamples) * 6);
+      this.port.postMessage(
+        {
+          type: "audio",
+          pcm: frame.buffer,
+          level,
+        },
+        [frame.buffer],
+      );
     }
 
     return true;
