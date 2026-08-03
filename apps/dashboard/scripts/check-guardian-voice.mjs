@@ -48,6 +48,8 @@ requireText(dockerfile, "ggml-base.en-q5_1.bin", "Whisper Base English model is 
 requireText(dockerfile, "en_US-joe-medium.onnx", "Piper Joe voice model is missing.");
 requireText(dockerfile, "sha256sum -c", "Whisper model checksum verification is missing.");
 requireText(dockerfile, "md5sum -c", "Piper voice checksum verification is missing.");
+requireText(dockerfile, "--retries 12", "Voice dependency downloads need retry protection.");
+requireText(dockerfile, "--timeout 180", "Voice dependency downloads need a long read timeout.");
 requireText(requirements, "piper-tts==1.4.2", "Piper dependency must be pinned.");
 
 requireText(overlay, '"127.0.0.1:8003:8003"', "Voice service must remain loopback-only.");
