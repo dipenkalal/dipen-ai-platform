@@ -205,6 +205,9 @@ jobs:
       - name: Lint dashboard
         run: npm run lint
 
+      - name: Guardian local voice safety
+        run: npm run test:guardian-voice
+
       - name: Build dashboard
         env:
           NEXT_TELEMETRY_DISABLED: 1
