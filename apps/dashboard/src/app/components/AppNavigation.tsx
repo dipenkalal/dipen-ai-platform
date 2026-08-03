@@ -10,6 +10,7 @@ import {
   History,
   Home,
   ServerCog,
+  ShieldCheck,
 } from "lucide-react";
 
 
@@ -29,6 +30,11 @@ const navigationItems: NavigationItem[] = [
     href: "/",
     icon: Home,
     exact: true,
+  },
+  {
+    label: "Guardian",
+    href: "/guardian",
+    icon: ShieldCheck,
   },
   {
     label: "Knowledge",
