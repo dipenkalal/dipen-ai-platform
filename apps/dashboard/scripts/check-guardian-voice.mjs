@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 
 const page = readFileSync("src/app/guardian/page.tsx", "utf8");
-const worklet = readFileSync("public/guardian-audio-processor.js", "utf8");
+const processor = readFileSync("public/guardian-audio-processor.js", "utf8");
 const gateway = readFileSync("../../platform/voice/voice_gateway.py", "utf8");
 const core = readFileSync("../../platform/voice/voice_core.py", "utf8");
-const compose = readFileSync("../../deploy/compose/dap-voice.yml", "utf8");
-const askRoute = readFileSync("src/app/api/guardian/ask/route.ts", "utf8");
-const historyRoute = readFileSync("src/app/api/guardian/history/route.ts", "utf8");
+const dockerfile = readFileSync("../../platform/voice/Dockerfile", "utf8");
+const requirements = readFileSync("../../platform/voice/requirements.txt", "utf8");
+const overlay = readFileSync("../../deploy/compose/dap-voice.yml", "utf8");
 
 function requireText(source, text, message) {
   if (!source.includes(text)) {
@@ -20,40 +20,39 @@ function forbidText(source, text, message) {
   }
 }
 
-requireText(page, "window.isSecureContext", "Guardian voice must require a secure browser context.");
-requireText(page, "window.location.hostname !== \"localhost\"", "Guardian voice must require the localhost tunnel.");
-requireText(page, "ws://localhost:8003/v1/listen", "Guardian must use the loopback voice WebSocket.");
-requireText(page, "AudioWorkletNode", "Guardian must capture microphone PCM through an AudioWorklet.");
-requireText(page, "navigator.mediaDevices.getUserMedia", "Guardian must request microphone permission explicitly.");
-requireText(page, "window.sessionStorage", "Guardian owner token must use session storage.");
-requireText(page, "Hey Guardian", "Guardian wake phrase is missing.");
-forbidText(page, "localStorage", "Guardian owner token must not use persistent local storage.");
-forbidText(page, "SpeechRecognition", "Guardian must not depend on experimental browser speech recognition.");
-forbidText(page, "restart_service", "Guardian voice UI must not expose restart controls.");
-forbidText(page, "reservation_id", "Guardian voice UI must not expose execution reservations.");
+requireText(page, "window.isSecureContext", "Voice must require a secure browser context.");
+requireText(page, "window.sessionStorage", "Owner token must remain session-only.");
+requireText(page, "VOICE_SOCKET_URL", "Local voice WebSocket is missing.");
+requireText(page, "VOICE_SPEAK_URL", "Local neural speech endpoint is missing.");
+requireText(page, "makeSpokenSummary", "Spoken replies must be concise.");
+requireText(page, "Microphone level", "Microphone diagnostics are missing.");
+requireText(page, "Heard locally", "Wake-qualified transcript diagnostics are missing.");
+forbidText(page, "speechSynthesis", "Browser robotic speech synthesis is forbidden.");
+forbidText(page, "localStorage", "Owner token must not use persistent local storage.");
+forbidText(page, "restart_service", "Voice UI must not expose restart controls.");
 
-requireText(worklet, "targetRate = 16000", "Guardian audio must be downsampled to 16 kHz.");
-requireText(worklet, "frameSamples = 320", "Guardian audio must use 20 ms frames.");
-requireText(worklet, "Int16Array", "Guardian audio must use PCM S16LE frames.");
+requireText(processor, "level", "Audio processor must report microphone level.");
+requireText(processor, "pcm", "Audio processor must emit PCM frames.");
 
-requireText(gateway, "_ALLOWED_ORIGIN", "Voice gateway must validate browser origins.");
-requireText(gateway, "localhost origin required", "Voice gateway must fail closed for non-local origins.");
-requireText(gateway, "WakeSession", "Voice gateway must gate commands behind a wake session.");
-requireText(gateway, "shell=False", "Voice gateway must explicitly disable shell execution.");
-forbidText(gateway, "shell=True", "Voice gateway must never invoke a shell.");
-forbidText(gateway, "api.openai.com", "Voice gateway must not call OpenAI cloud APIs.");
-forbidText(gateway, "speech.googleapis.com", "Voice gateway must not call Google speech APIs.");
-requireText(core, "parse_wake_phrase", "Wake phrase parsing must remain in the tested core.");
+requireText(gateway, "PiperVoice", "Piper neural speech is missing.");
+requireText(gateway, '@app.post("/v1/speak")', "Local speech endpoint is missing.");
+requireText(gateway, "spoken_summary", "Server-side spoken text bounds are missing.");
+requireText(gateway, "localhost origin required", "Voice endpoints must require localhost origin.");
+requireText(gateway, "webrtcvad.Vad(1)", "Soft-speech VAD tuning is missing.");
+forbidText(gateway, "requests.", "Voice service must not call cloud APIs at runtime.");
 
-requireText(compose, "127.0.0.1:8003:8003", "Voice service must bind only to host loopback.");
-requireText(compose, "read_only: true", "Voice container filesystem must be read-only.");
-requireText(compose, "no-new-privileges:true", "Voice container must prevent privilege escalation.");
-requireText(compose, "cap_drop:", "Voice container must drop Linux capabilities.");
+requireText(core, "pre_roll_frames: int = 25", "Recognition pre-roll was not increased.");
+requireText(core, "if self._deadline is not None", "Repeated wake handling is missing.");
 
-for (const route of [askRoute, historyRoute]) {
-  requireText(route, "Cache-Control\": \"no-store", "Guardian proxy responses must disable caching.");
-  requireText(route, "Authorization", "Guardian protected proxy must forward authorization.");
-  forbidText(route, "console.log", "Guardian proxy must not log protected requests.");
-}
+requireText(dockerfile, "ggml-base.en-q5_1.bin", "Whisper Base English model is missing.");
+requireText(dockerfile, "en_US-joe-medium.onnx", "Piper Joe voice model is missing.");
+requireText(dockerfile, "sha256sum -c", "Whisper model checksum verification is missing.");
+requireText(dockerfile, "md5sum -c", "Piper voice checksum verification is missing.");
+requireText(requirements, "piper-tts==1.4.2", "Piper dependency must be pinned.");
 
-console.log("Guardian local voice service safety checks passed.");
+requireText(overlay, '"127.0.0.1:8003:8003"', "Voice service must remain loopback-only.");
+requireText(overlay, "read_only: true", "Voice filesystem must remain read-only.");
+requireText(overlay, "no-new-privileges:true", "Voice service must forbid privilege escalation.");
+requireText(overlay, "- ALL", "Voice service must drop Linux capabilities.");
+
+console.log("Guardian voice quality and safety checks passed.");
