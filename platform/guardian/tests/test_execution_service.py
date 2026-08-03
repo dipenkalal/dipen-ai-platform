@@ -179,7 +179,7 @@ class ExecutionServiceTestCase(unittest.TestCase):
         self.assertIsNotNone(row)
         return row[0]
 
-    def execute(self) -> dict:
+    def execute(self, *, dry_run: bool = False) -> dict:
         return (
             execution_service
             .execute_authorized_backend_restart(
@@ -191,6 +191,7 @@ class ExecutionServiceTestCase(unittest.TestCase):
                 ),
                 plan_id=self.plan_id,
                 reservation_id=self.reservation_id,
+                dry_run=dry_run,
             )
         )
 
@@ -265,6 +266,47 @@ class ExecutionServiceTestCase(unittest.TestCase):
         self.assertEqual(
             result["execution"]["health"]["status"],
             "healthy",
+        )
+        self.assertEqual(
+            self.read_guardian_status(),
+            "succeeded",
+        )
+        self.assertEqual(
+            self.read_authorization_status(),
+            "consumed",
+        )
+
+    def test_authorized_dry_run_consumes_single_use_authorization(
+        self,
+    ) -> None:
+        patches = self.root_patches()
+
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patches[3],
+            patch.object(
+                execution_service,
+                "restart_backend_service",
+            ) as restart,
+        ):
+            result = self.execute(dry_run=True)
+
+            with self.assertRaisesRegex(
+                root_authorization.RootAuthorizationError,
+                "replay is rejected",
+            ):
+                self.execute(dry_run=True)
+
+        restart.assert_not_called()
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["execution"]["dry_run"])
+        self.assertFalse(result["execution"]["attempted"])
+        self.assertFalse(result["execution"]["performed"])
+        self.assertFalse(result["execution"]["verified"])
+        self.assertTrue(
+            result["execution"]["authorization_consumed"]
         )
         self.assertEqual(
             self.read_guardian_status(),
