@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import re
@@ -9,27 +10,44 @@ import subprocess
 import tempfile
 import time
 import wave
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import uvicorn
 import webrtcvad
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from piper import PiperVoice, SynthesisConfig
+from pydantic import BaseModel, Field
 
 from voice_core import (
     FRAME_BYTES,
+    FRAME_MS,
     SAMPLE_RATE,
     UtteranceSegmenter,
     WakeSession,
     clean_transcript,
+    spoken_summary,
 )
 
 SERVICE_NAME = "dap-voice"
 MODEL_PATH = Path(
     os.environ.get(
         "DAP_VOICE_MODEL_PATH",
-        "/models/ggml-tiny.en-q5_1.bin",
+        "/models/ggml-base.en-q5_1.bin",
+    )
+)
+PIPER_MODEL_PATH = Path(
+    os.environ.get(
+        "DAP_PIPER_MODEL_PATH",
+        "/models/en_US-joe-medium.onnx",
+    )
+)
+PIPER_CONFIG_PATH = Path(
+    os.environ.get(
+        "DAP_PIPER_CONFIG_PATH",
+        "/models/en_US-joe-medium.onnx.json",
     )
 )
 WHISPER_CLI = os.environ.get("DAP_WHISPER_CLI", "whisper-cli")
@@ -42,23 +60,54 @@ TRANSCRIBE_TIMEOUT_SECONDS = max(
     min(float(os.environ.get("DAP_VOICE_TRANSCRIBE_TIMEOUT", "45")), 120.0),
 )
 MAX_BINARY_MESSAGE = 64 * 1024
+MAX_SPEAK_TEXT = 500
 _ALLOWED_ORIGIN = re.compile(
     r"^http://(?:localhost|127\.0\.0\.1)(?::\d{1,5})?$",
     re.IGNORECASE,
 )
+
+_connection_lock = asyncio.Lock()
+_connection_active = False
+_piper_lock = asyncio.Lock()
+_piper_voice: PiperVoice | None = None
+
+
+class SpeakRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_SPEAK_TEXT)
+
+
+def _whisper_available() -> bool:
+    return MODEL_PATH.is_file() and shutil.which(WHISPER_CLI) is not None
+
+
+def _piper_files_available() -> bool:
+    return PIPER_MODEL_PATH.is_file() and PIPER_CONFIG_PATH.is_file()
+
+
+def _load_piper_voice() -> PiperVoice:
+    global _piper_voice
+
+    if _piper_voice is None:
+        if not _piper_files_available():
+            raise RuntimeError("local Piper voice model is unavailable")
+        _piper_voice = PiperVoice.load(str(PIPER_MODEL_PATH))
+
+    return _piper_voice
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    await asyncio.to_thread(_load_piper_voice)
+    yield
+
 
 app = FastAPI(
     title="DAP Local Voice Service",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
+    lifespan=lifespan,
 )
-_connection_lock = asyncio.Lock()
-_connection_active = False
-
-
-def _whisper_available() -> bool:
-    return MODEL_PATH.is_file() and shutil.which(WHISPER_CLI) is not None
 
 
 def _write_wave(pcm: bytes, destination: Path) -> None:
@@ -111,8 +160,43 @@ async def transcribe(pcm: bytes) -> str:
     return await asyncio.to_thread(_transcribe_sync, pcm)
 
 
+def _synthesize_sync(text: str) -> bytes:
+    voice = _load_piper_voice()
+    output = io.BytesIO()
+
+    with wave.open(output, "wb") as wav_file:
+        voice.synthesize_wav(
+            text,
+            wav_file,
+            syn_config=SynthesisConfig(
+                volume=0.92,
+                length_scale=1.04,
+                noise_scale=0.62,
+                noise_w_scale=0.78,
+                normalize_audio=True,
+            ),
+        )
+
+    return output.getvalue()
+
+
+async def synthesize(text: str) -> bytes:
+    async with _piper_lock:
+        return await asyncio.to_thread(_synthesize_sync, text)
+
+
 def _origin_allowed(origin: str | None) -> bool:
     return bool(origin and _ALLOWED_ORIGIN.fullmatch(origin))
+
+
+def _cors_headers(origin: str) -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-store",
+        "Vary": "Origin",
+    }
 
 
 async def _send(websocket: WebSocket, payload: dict[str, Any]) -> None:
@@ -123,7 +207,10 @@ async def _send(websocket: WebSocket, payload: dict[str, Any]) -> None:
 
 @app.get("/health")
 async def health() -> JSONResponse:
-    ready = _whisper_available()
+    whisper_ready = _whisper_available()
+    piper_ready = _piper_files_available() and _piper_voice is not None
+    ready = whisper_ready and piper_ready
+
     return JSONResponse(
         {
             "service": SERVICE_NAME,
@@ -131,12 +218,50 @@ async def health() -> JSONResponse:
             "local_only": True,
             "sample_rate": SAMPLE_RATE,
             "frame_bytes": FRAME_BYTES,
-            "model": MODEL_PATH.name,
+            "stt_model": MODEL_PATH.name,
+            "stt_ready": whisper_ready,
+            "tts_voice": PIPER_MODEL_PATH.stem,
+            "tts_ready": piper_ready,
             "model_present": MODEL_PATH.is_file(),
             "whisper_present": shutil.which(WHISPER_CLI) is not None,
+            "piper_model_present": _piper_files_available(),
         },
         status_code=200 if ready else 503,
         headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.options("/v1/speak")
+async def speak_options(request: Request) -> Response:
+    origin = request.headers.get("origin")
+    if not _origin_allowed(origin):
+        raise HTTPException(status_code=403, detail="localhost origin required")
+    return Response(status_code=204, headers=_cors_headers(origin or ""))
+
+
+@app.post("/v1/speak")
+async def speak(request: Request, payload: SpeakRequest) -> Response:
+    origin = request.headers.get("origin")
+    if not _origin_allowed(origin):
+        raise HTTPException(status_code=403, detail="localhost origin required")
+
+    text = spoken_summary(payload.text, max_chars=360)
+    if not text:
+        raise HTTPException(status_code=400, detail="speak text is empty")
+
+    try:
+        audio = await synthesize(text)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)[:240]) from error
+
+    return Response(
+        content=audio,
+        media_type="audio/wav",
+        headers={
+            **_cors_headers(origin or ""),
+            "Content-Disposition": 'inline; filename="guardian-reply.wav"',
+            "X-DAP-Voice": PIPER_MODEL_PATH.stem,
+        },
     )
 
 
@@ -182,15 +307,23 @@ async def listen(websocket: WebSocket) -> None:
             "type": "start",
             "format": "pcm_s16le",
             "sample_rate": SAMPLE_RATE,
-            "frame_ms": 20,
+            "frame_ms": FRAME_MS,
         }:
             await websocket.close(code=1002, reason="unsupported audio format")
             return
 
-        vad = webrtcvad.Vad(2)
+        vad = webrtcvad.Vad(1)
         segmenter = UtteranceSegmenter()
         wake_session = WakeSession(command_timeout_seconds=8.0)
-        await _send(websocket, {"type": "ready", "state": "sleeping"})
+        await _send(
+            websocket,
+            {
+                "type": "ready",
+                "state": "sleeping",
+                "stt_model": MODEL_PATH.name,
+                "tts_voice": PIPER_MODEL_PATH.stem,
+            },
+        )
 
         while True:
             message = await websocket.receive()
@@ -230,7 +363,13 @@ async def listen(websocket: WebSocket) -> None:
                 if utterance is None:
                     continue
 
-                await _send(websocket, {"type": "processing"})
+                await _send(
+                    websocket,
+                    {
+                        "type": "processing",
+                        "segment_ms": len(utterance) // 2 * 1000 // SAMPLE_RATE,
+                    },
+                )
 
                 try:
                     transcript = await transcribe(utterance)
@@ -249,15 +388,26 @@ async def listen(websocket: WebSocket) -> None:
                 if not events:
                     await _send(websocket, {"type": "idle", "state": "sleeping"})
 
+                command_in_batch = any(event.kind == "command" for event in events)
+
                 for event in events:
                     if event.kind == "wake":
-                        await _send(websocket, {"type": "wake", "state": "listening"})
+                        await _send(
+                            websocket,
+                            {
+                                "type": "wake",
+                                "state": "listening",
+                                "heard": event.heard,
+                                "awaiting_command": not command_in_batch,
+                            },
+                        )
                     elif event.kind == "command":
                         await _send(
                             websocket,
                             {
                                 "type": "command",
                                 "text": event.text,
+                                "heard": event.heard,
                                 "state": "sleeping",
                             },
                         )

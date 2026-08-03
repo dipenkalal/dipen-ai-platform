@@ -81,7 +81,7 @@ function isActiveRoute(
 }
 
 
-export default function AppNavigation() {
+export function AppNavigation() {
   const pathname = usePathname();
 
   return (
@@ -150,3 +150,6 @@ export default function AppNavigation() {
     </header>
   );
 }
+
+
+export default AppNavigation;
