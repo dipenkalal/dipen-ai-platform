@@ -31,6 +31,7 @@ def mark_authorization_failure_for_manual_review(
     plan_id: str,
     reservation_id: str,
     reason: str,
+    dry_run: bool,
 ) -> dict[str, Any]:
     try:
         return transition_execution_state(
@@ -47,7 +48,7 @@ def mark_authorization_failure_for_manual_review(
             },
             attempted=False,
             performed=False,
-            dry_run=False,
+            dry_run=dry_run,
         )
     except PlanValidationError as error:
         raise BackendExecutionOrchestrationError(
@@ -62,7 +63,13 @@ def execute_authorized_backend_restart(
     authorization_database_path: Path,
     plan_id: str,
     reservation_id: str,
+    dry_run: bool = False,
 ) -> dict[str, Any]:
+    if not isinstance(dry_run, bool):
+        raise BackendExecutionOrchestrationError(
+            "Backend execution dry_run state must be boolean."
+        )
+
     if os.geteuid() != 0:
         raise BackendExecutionOrchestrationError(
             "Authorized backend execution requires root."
@@ -85,7 +92,7 @@ def execute_authorized_backend_restart(
         database_path=guardian_database_path,
         plan_id=plan_id,
         reservation_id=reservation_id,
-        dry_run=False,
+        dry_run=dry_run,
     )
 
     try:
@@ -100,12 +107,52 @@ def execute_authorized_backend_restart(
             plan_id=plan_id,
             reservation_id=reservation_id,
             reason=str(error),
+            dry_run=dry_run,
         )
 
         raise BackendExecutionOrchestrationError(
             "Root authorization could not be consumed. The plan was moved "
             "to manual_review and will not be replayed automatically."
         ) from error
+
+    if dry_run:
+        execution = {
+            "attempted": False,
+            "performed": False,
+            "verified": False,
+            "dry_run": True,
+            "authorization_consumed": True,
+            "reason": (
+                "Dry-run completed; the backend restart command was "
+                "not invoked."
+            ),
+        }
+
+        completed = complete_execution_state(
+            database_path=guardian_database_path,
+            plan_id=plan_id,
+            reservation_id=reservation_id,
+            outcome="succeeded",
+            result_summary=(
+                "Authorized backend restart dry-run completed. The "
+                "single-use authorization was consumed and no command "
+                "was attempted or performed."
+            ),
+            attempted=False,
+            performed=False,
+            dry_run=True,
+        )
+
+        return {
+            "ok": True,
+            "plan_id": plan_id,
+            "reservation_id": reservation_id,
+            "plan_validation": plan_validation,
+            "authorization": authorization,
+            "started": started,
+            "completed": completed,
+            "execution": execution,
+        }
 
     try:
         execution = restart_backend_service()
