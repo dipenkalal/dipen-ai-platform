@@ -74,9 +74,11 @@ def verify_backend_http_health(
                 BACKEND_HEALTH_MAX_BYTES + 1
             )
     except HTTPError as error:
+        status_code = error.code
+        error.close()
         raise BackendHealthError(
             "Backend health endpoint returned "
-            f"HTTP {error.code}."
+            f"HTTP {status_code}."
         ) from error
     except (URLError, TimeoutError, OSError) as error:
         raise BackendHealthError(
