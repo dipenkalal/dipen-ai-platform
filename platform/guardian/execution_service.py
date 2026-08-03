@@ -143,8 +143,8 @@ def execute_authorized_backend_restart(
         reservation_id=reservation_id,
         outcome="succeeded",
         result_summary=(
-            "Backend restart completed and systemd "
-            "reported the service active."
+            "Backend restart completed, systemd reported the service "
+            "active, and the backend HTTP health endpoint reported healthy."
         ),
         attempted=execution["attempted"],
         performed=execution["performed"],
