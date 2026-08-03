@@ -6,8 +6,15 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlsplit
 
 import app
+from action_history import (
+    DEFAULT_HISTORY_LIMIT,
+    MAX_HISTORY_LIMIT,
+    ActionHistoryError,
+    read_action_history,
+)
 from broker_client import (
     PLAN_ID_PATTERN,
     BrokerClientError,
@@ -26,6 +33,118 @@ GUARDIAN_BROKER_SOCKET = Path(
         "/run/dap-guardian/broker.sock",
     ),
 )
+
+
+ACTION_HISTORY_PANEL = r"""
+<section class="panel section action-history-panel" id="action-history-panel">
+  <style>
+    .action-history-panel {
+      margin-top: 20px;
+    }
+
+    .action-history-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .action-history-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .action-history-empty,
+    .action-history-card {
+      padding: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 15px;
+      background: rgba(2, 6, 23, 0.38);
+    }
+
+    .action-history-card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .action-history-title {
+      font-weight: 750;
+    }
+
+    .action-history-id {
+      margin-top: 4px;
+      color: #64748b;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.76rem;
+    }
+
+    .action-history-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 12px;
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+
+    .action-history-flags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    .action-event-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 13px;
+    }
+
+    .action-event {
+      padding: 5px 8px;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 999px;
+      color: #94a3b8;
+      font-size: 0.72rem;
+      background: rgba(15, 23, 42, 0.74);
+    }
+
+    .badge.pending {
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.12);
+    }
+
+    .badge.review {
+      color: #fda4af;
+      background: rgba(244, 63, 94, 0.12);
+    }
+  </style>
+
+  <div class="section-header">
+    <div>
+      <h3>Action &amp; audit history</h3>
+      <div class="muted">
+        Read-only Guardian plans, approvals, dry runs, failures, and review states
+      </div>
+    </div>
+    <div class="action-history-toolbar">
+      <span class="badge pending" id="action-history-status">Locked</span>
+      <button class="text-button" type="button" id="action-history-refresh">
+        Unlock / refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="action-history-list" id="action-history-list">
+    <div class="action-history-empty muted">
+      Owner authorization is required to load the read-only audit history.
+    </div>
+  </div>
+</section>
+""".strip()
 
 
 CONTROL_PLANE_SCRIPT = r"""
@@ -71,15 +190,10 @@ CONTROL_PLANE_SCRIPT = r"""
     }
   };
 
-  askGuardian = async function(question) {
-    const pending = appendMessage(
-      "guardian",
-      "Analysing the current machine state..."
-    );
-
+  function getGuardianOwnerToken(promptForToken) {
     let token = sessionStorage.getItem("dapGuardianOwnerToken");
 
-    if (!token) {
+    if (!token && promptForToken) {
       token = window.prompt(
         "Enter the Guardian owner token for this browser session:"
       );
@@ -88,6 +202,182 @@ CONTROL_PLANE_SCRIPT = r"""
         sessionStorage.setItem("dapGuardianOwnerToken", token);
       }
     }
+
+    return token || null;
+  }
+
+  function statusBadgeClass(status) {
+    if (status === "succeeded") return "ok";
+    if (status === "failed" || status === "manual_review") return "review";
+    return "pending";
+  }
+
+  function formatAuditTime(value) {
+    if (!value) return "Unknown";
+
+    const timestamp = new Date(value);
+
+    if (Number.isNaN(timestamp.getTime())) {
+      return String(value);
+    }
+
+    return timestamp.toLocaleString();
+  }
+
+  function renderActionHistory(payload) {
+    const target = document.getElementById("action-history-list");
+    const status = document.getElementById("action-history-status");
+    const plans = payload.plans ?? [];
+
+    status.textContent = `${plans.length} plan${plans.length === 1 ? "" : "s"}`;
+    status.className = "badge ok";
+
+    if (!payload.database_present) {
+      target.innerHTML = `
+        <div class="action-history-empty muted">
+          No Guardian action database exists yet.
+        </div>
+      `;
+      return;
+    }
+
+    if (plans.length === 0) {
+      target.innerHTML = `
+        <div class="action-history-empty muted">
+          No action plans were found.
+        </div>
+      `;
+      return;
+    }
+
+    target.innerHTML = plans.map((plan) => {
+      const execution = plan.execution ?? {};
+      const events = plan.events ?? [];
+      const flags = [];
+
+      if (execution.dry_run === true) {
+        flags.push('<span class="badge ok">Dry run</span>');
+      }
+
+      if (execution.attempted === true) {
+        flags.push('<span class="badge pending">Attempted</span>');
+      }
+
+      if (execution.performed === true) {
+        flags.push('<span class="badge review">Performed</span>');
+      } else if (execution.performed === false) {
+        flags.push('<span class="badge ok">Not performed</span>');
+      }
+
+      if (plan.approved === true) {
+        flags.push('<span class="badge ok">Approved</span>');
+      }
+
+      const eventMarkup = events.map((event) => `
+        <span
+          class="action-event"
+          title="${escapeHtml(formatAuditTime(event.event_at))}"
+        >
+          ${escapeHtml(event.event_type)}
+        </span>
+      `).join("");
+
+      return `
+        <article class="action-history-card">
+          <div class="action-history-card-top">
+            <div>
+              <div class="action-history-title">
+                ${escapeHtml(plan.action)} · ${escapeHtml(plan.target)}
+              </div>
+              <div class="action-history-id" title="${escapeHtml(plan.plan_id)}">
+                ${escapeHtml(plan.plan_id)}
+              </div>
+            </div>
+            <span class="badge ${statusBadgeClass(plan.status)}">
+              ${escapeHtml(plan.status)}
+            </span>
+          </div>
+
+          <div class="action-history-meta">
+            <span>Created ${escapeHtml(formatAuditTime(plan.created_at))}</span>
+            ${plan.execution_completed_at
+              ? `<span>Completed ${escapeHtml(formatAuditTime(plan.execution_completed_at))}</span>`
+              : ""}
+            ${plan.risk ? `<span>Risk ${escapeHtml(plan.risk)}</span>` : ""}
+          </div>
+
+          <div class="action-history-flags">
+            ${flags.join("") || '<span class="muted">No execution flags recorded</span>'}
+          </div>
+
+          <div class="action-event-list">
+            ${eventMarkup || '<span class="muted">No events recorded</span>'}
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  async function refreshActionHistory(promptForToken = false) {
+    const target = document.getElementById("action-history-list");
+    const status = document.getElementById("action-history-status");
+    const token = getGuardianOwnerToken(promptForToken);
+
+    if (!token) {
+      status.textContent = "Locked";
+      status.className = "badge pending";
+      return;
+    }
+
+    status.textContent = "Loading";
+    status.className = "badge pending";
+
+    try {
+      const response = await fetch("/api/v1/actions/history?limit=25", {
+        cache: "no-store",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+        },
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          sessionStorage.removeItem("dapGuardianOwnerToken");
+          status.textContent = "Locked";
+          status.className = "badge pending";
+        }
+
+        throw new Error(
+          payload.error || `Guardian returned HTTP ${response.status}`
+        );
+      }
+
+      renderActionHistory(payload);
+    } catch (error) {
+      target.innerHTML = `
+        <div class="action-history-empty">
+          <strong>Audit history unavailable</strong>
+          <div class="container-meta">${escapeHtml(String(error))}</div>
+        </div>
+      `;
+
+      if (status.textContent !== "Locked") {
+        status.textContent = "Unavailable";
+        status.className = "badge review";
+      }
+    }
+  }
+
+  askGuardian = async function(question) {
+    const pending = appendMessage(
+      "guardian",
+      "Analysing the current machine state..."
+    );
+
+    const token = getGuardianOwnerToken(true);
 
     if (!token) {
       pending.textContent =
@@ -123,6 +413,7 @@ CONTROL_PLANE_SCRIPT = r"""
           : "\n\n— Emergency fallback";
 
       pending.textContent = `${payload.answer}${source}`;
+      refreshActionHistory(false);
     } catch (error) {
       pending.textContent =
         `Guardian reasoning request failed: ${String(error)}`;
@@ -131,14 +422,28 @@ CONTROL_PLANE_SCRIPT = r"""
     const conversation = document.getElementById("conversation");
     conversation.scrollTop = conversation.scrollHeight;
   };
+
+  document
+    .getElementById("action-history-refresh")
+    .addEventListener("click", () => refreshActionHistory(true));
+
+  refreshActionHistory(false);
+  setInterval(() => refreshActionHistory(false), 30000);
 </script>
 """.strip()
 
+
+if "</main>" not in app.STATUS_PAGE:
+    raise RuntimeError("Guardian status page is missing its main terminator.")
 
 if "</body>" not in app.STATUS_PAGE:
     raise RuntimeError("Guardian status page is missing its body terminator.")
 
 STATUS_PAGE = app.STATUS_PAGE.replace(
+    "</main>",
+    f"{ACTION_HISTORY_PANEL}\n</main>",
+    1,
+).replace(
     "</body>",
     f"{CONTROL_PLANE_SCRIPT}\n</body>",
     1,
@@ -249,8 +554,34 @@ def ask_guardian(question: str) -> dict[str, Any]:
         }
 
 
+def parse_history_limit(query: str) -> int:
+    parameters = parse_qs(
+        query,
+        keep_blank_values=True,
+    )
+    values = parameters.get("limit")
+
+    if values is None:
+        return DEFAULT_HISTORY_LIMIT
+
+    if len(values) != 1:
+        raise ValueError("History limit must be supplied once.")
+
+    try:
+        limit = int(values[0])
+    except ValueError as error:
+        raise ValueError("History limit must be an integer.") from error
+
+    if limit < 1 or limit > MAX_HISTORY_LIMIT:
+        raise ValueError(
+            f"History limit must be between 1 and {MAX_HISTORY_LIMIT}."
+        )
+
+    return limit
+
+
 class ControlPlaneHandler(app.GuardianHandler):
-    server_version = "DAPGuardian/0.2"
+    server_version = "DAPGuardian/0.3"
 
     def read_json_payload(self) -> dict[str, Any] | None:
         try:
@@ -398,11 +729,57 @@ class ControlPlaneHandler(app.GuardianHandler):
         super().do_POST()
 
     def do_GET(self) -> None:
-        if self.path == "/api/v1/state":
+        parsed_url = urlsplit(self.path)
+
+        if parsed_url.path == "/api/v1/actions/history":
+            authorized, status_code, authorization_error = (
+                validate_owner_authorization(
+                    self.headers.get("Authorization"),
+                    GUARDIAN_OWNER_TOKEN,
+                )
+            )
+
+            if not authorized:
+                self.send_json(
+                    {"error": authorization_error},
+                    status_code=status_code,
+                )
+                return
+
+            try:
+                limit = parse_history_limit(parsed_url.query)
+            except ValueError as error:
+                self.send_json(
+                    {"error": str(error)},
+                    status_code=400,
+                )
+                return
+
+            try:
+                history = read_action_history(
+                    app.GUARDIAN_ACTION_DB,
+                    limit=limit,
+                )
+            except ActionHistoryError:
+                self.send_json(
+                    {
+                        "error": (
+                            "Guardian action history is temporarily "
+                            "unavailable."
+                        )
+                    },
+                    status_code=503,
+                )
+                return
+
+            self.send_json(history)
+            return
+
+        if parsed_url.path == "/api/v1/state":
             self.send_json(build_hardened_state())
             return
 
-        if self.path == "/":
+        if parsed_url.path == "/":
             content = STATUS_PAGE.encode("utf-8")
 
             self.send_response(200)

@@ -87,6 +87,7 @@ jobs:
       - name: Compile Guardian
         run: |
           python -m compileall -q \
+            action_history.py \
             app.py \
             broker.py \
             broker_client.py \
@@ -109,6 +110,7 @@ jobs:
         run: |
           if grep -nE \
             'subprocess|os\.system|Popen|check_call|check_output' \
+            action_history.py \
             broker.py \
             broker_client.py \
             broker_entrypoint.py \
