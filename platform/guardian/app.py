@@ -22,6 +22,7 @@ from personality import (
     classify_intent,
     conversational_response,
     parse_context,
+    resolve_topic,
 )
 
 
@@ -534,8 +535,10 @@ def format_bytes(value: Any) -> str:
 def deterministic_answer(
     question: str,
     state: dict[str, Any],
+    topic: str | None = None,
 ) -> str:
     lowered = question.lower()
+    topic = topic or resolve_topic(question)
     warnings = state.get("warnings", [])
     host = state.get("host", {})
     memory = host.get("memory", {})
@@ -544,7 +547,7 @@ def deterministic_answer(
     services = state.get("services", {})
     containers = state.get("docker", {}).get("containers", [])
 
-    if any(word in lowered for word in ("memory", "ram")):
+    if topic == "memory":
         process_summary = "; ".join(
             (
                 f"{process.get('command', 'unknown')} "
@@ -590,18 +593,25 @@ def deterministic_answer(
             f"{backup.get('sub_state', 'unknown')}."
         )
 
-    if any(word in lowered for word in ("disk", "storage", "space")):
+    if topic == "storage":
         root = disks.get("root", {})
         data = disks.get("data", {})
+        media_note = ""
+        if any(word in lowered for word in ("ssd", "hdd")):
+            media_note = (
+                "The live snapshot reports filesystem capacity but does not "
+                "identify whether the underlying device is SSD or HDD. "
+            )
 
         return (
-            f"The root disk is {root.get('used_percent', 'unknown')}% full "
+            f"{media_note}"
+            f"The root filesystem is {root.get('used_percent', 'unknown')}% full "
             f"with {format_bytes(root.get('free_bytes'))} free. "
-            f"The /data disk is {data.get('used_percent', 'unknown')}% full "
+            f"The /data filesystem is {data.get('used_percent', 'unknown')}% full "
             f"with {format_bytes(data.get('free_bytes'))} free."
         )
 
-    if any(word in lowered for word in ("docker", "container")):
+    if topic == "docker":
         if not containers:
             return "Guardian does not currently see any running containers."
 
@@ -731,6 +741,7 @@ def build_grounded_context(
 def call_ollama(
     question: str,
     state: dict[str, Any],
+    context: ConversationContext | None = None,
 ) -> tuple[str, dict[str, Any]]:
     system_prompt = """
 You are DAP Guardian, the always-on operations supervisor for Dipen's Acer server.
@@ -739,7 +750,12 @@ A live machine-state JSON snapshot will be provided with each question.
 
 Rules:
 - Answer the user's question directly and clearly.
-- Base factual claims only on the supplied live snapshot.
+- Base current factual claims only on the supplied live snapshot.
+- Previous user and assistant messages are conversational context only and may be stale.
+- Use the previous turn only to resolve references, corrections, and the requested subject.
+- Stay within the requested focus; do not append a generic full-system report.
+- A storage snapshot does not prove whether the device is SSD or HDD.
+- If media type is not explicitly present, say that Guardian cannot distinguish SSD from HDD.
 - Every PROCESS line is an exact PID, command and memory pairing.
 - Copy process names and PIDs exactly; never relabel or rearrange them.
 - Do not infer an application identity from generic process names such as python3, node, or uvicorn.
@@ -757,13 +773,68 @@ Rules:
 - Finish the answer completely.
 """.strip()
 
-    grounded_context = build_grounded_context(
-        state,
+    focus = resolve_topic(question, context) or "technical"
+    full_context = build_grounded_context(state)
+    context_lines = full_context.splitlines()
+    header = context_lines[:2]
+
+    if focus == "storage":
+        focused_lines = header + [
+            line for line in context_lines if line.startswith("DISK ")
+        ]
+        focused_lines.append(
+            "DISK_MEDIA_TYPE unavailable; the snapshot does not identify SSD or HDD"
+        )
+    elif focus == "memory":
+        focused_lines = header + [
+            line
+            for line in context_lines
+            if line.startswith(("MEMORY ", "LOAD_AVERAGE ", "TOP_PROCESSES ", "PROCESS "))
+        ]
+    elif focus == "docker":
+        focused_lines = header + [
+            line
+            for line in context_lines
+            if line.startswith(("CONTAINER ", "SERVICE name=docker"))
+            or (line.startswith("WARNING ") and "docker" in line.lower())
+        ]
+        if len(focused_lines) == len(header):
+            focused_lines.append("CONTAINERS none visible in the supplied snapshot")
+    else:
+        focused_lines = context_lines
+
+    grounded_context = "\n".join(focused_lines)
+    user_prompt = (
+        f"Current user question:\n{question}\n\n"
+        f"REQUESTED_FOCUS {focus}\n"
+        f"{grounded_context}"
     )
 
-    user_prompt = (
-        f"User question:\n{question}\n\n"
-        f"{grounded_context}"
+    messages: list[dict[str, str]] = [
+        {
+            "role": "system",
+            "content": system_prompt,
+        }
+    ]
+    if context is not None and context.previous_user:
+        messages.append(
+            {
+                "role": "user",
+                "content": context.previous_user,
+            }
+        )
+        if context.previous_assistant:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": context.previous_assistant,
+                }
+            )
+    messages.append(
+        {
+            "role": "user",
+            "content": user_prompt,
+        }
     )
 
     request_body = {
@@ -776,16 +847,7 @@ Rules:
             "temperature": GUARDIAN_TEMPERATURE,
             "top_p": 0.8,
         },
-        "messages": [
-            {
-                "role": "system",
-                "content": system_prompt,
-            },
-            {
-                "role": "user",
-                "content": user_prompt,
-            },
-        ],
+        "messages": messages,
     }
 
     request = Request(
@@ -840,7 +902,7 @@ def ask_guardian(
     state = build_state()
 
     try:
-        answer, usage = call_ollama(question, state)
+        answer, usage = call_ollama(question, state, context)
 
         return {
             "answer": answer,
@@ -863,7 +925,11 @@ def ask_guardian(
         ValueError,
     ) as error:
         return {
-            "answer": deterministic_answer(question, state),
+            "answer": deterministic_answer(
+                question,
+                state,
+                resolve_topic(question, context),
+            ),
             "source": "deterministic-fallback",
             "model": None,
             "fallback": True,

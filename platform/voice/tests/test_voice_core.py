@@ -104,6 +104,19 @@ class SpokenSummaryTests(unittest.TestCase):
         self.assertNotIn("PID", summary)
         self.assertNotIn("734 MB", summary)
 
+    def test_telemetry_sentences_are_replaced_not_mangled(self) -> None:
+        answer = (
+            "The system has 11.1 GB of total memory, with 2.70 GB in use. "
+            "Python processes are using 105.6 MB."
+        )
+        summary = spoken_summary(answer)
+        self.assertEqual(
+            summary,
+            "I found the current memory details. The full figures are shown on screen.",
+        )
+        self.assertNotIn("has of total", summary)
+        self.assertNotIn("with in use", summary)
+
     def test_summary_is_bounded(self) -> None:
         answer = "A useful sentence. " * 100
         summary = spoken_summary(answer, max_chars=120)

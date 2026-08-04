@@ -22,6 +22,12 @@ export type GuardianIntent =
   | "technical"
   | "action";
 
+export type GuardianConversationContext = {
+  previous_user: string;
+  previous_assistant: string;
+  previous_intent?: GuardianIntent;
+};
+
 export type GuardianActionEvent = {
   event_id: number;
   event_type: string;

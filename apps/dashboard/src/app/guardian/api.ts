@@ -1,8 +1,8 @@
 import type {
   GuardianActionHistory,
   GuardianAnswer,
+  GuardianConversationContext,
   GuardianHealth,
-  GuardianIntent,
 } from "./types";
 
 
@@ -89,10 +89,7 @@ export async function fetchGuardianHistory(
 export async function askGuardian(
   ownerToken: string,
   question: string,
-  context?: {
-    previous_user: string;
-    previous_intent?: GuardianIntent;
-  },
+  context?: GuardianConversationContext,
 ): Promise<GuardianAnswer> {
   const response = await fetch(
     "/api/guardian/ask",
