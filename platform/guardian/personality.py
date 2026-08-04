@@ -16,7 +16,16 @@ Intent = Literal[
     "technical",
     "action",
 ]
+Topic = Literal[
+    "storage",
+    "memory",
+    "docker",
+    "system_status",
+    "technical",
+]
 
+_MAX_PREVIOUS_USER_CHARS = 500
+_MAX_PREVIOUS_ASSISTANT_CHARS = 1_200
 _WAKE_PREFIX = re.compile(
     r"^\s*(?:(?:hey|hi|hello|okay|ok)\s+guardian\b[\s,.:;!?-]*)+",
     re.IGNORECASE,
@@ -33,19 +42,68 @@ _STATUS = re.compile(
 )
 _TECHNICAL = re.compile(
     r"\b(?:docker|container|service|process|memory|ram|cpu|disk|storage|backup|"
-    r"ollama|qdrant|network|port|log|error|warning|technical|code|api)\b",
+    r"filesystem|file system|drive|space|ssd|hdd|ollama|qdrant|network|port|log|"
+    r"error|warning|technical|code|api)\b",
     re.IGNORECASE,
 )
+_FOLLOW_UP = re.compile(
+    r"^\s*(?:and\b|what about\b|how about\b|tell me more\b|that\b|it\b|"
+    r"no\b|i meant\b|i was talking about\b|not\b)",
+    re.IGNORECASE,
+)
+_STORAGE = re.compile(
+    r"\b(?:disk|storage|filesystem|file system|drive|space|ssd|hdd)\b",
+    re.IGNORECASE,
+)
+_MEMORY = re.compile(r"\b(?:memory|ram)\b", re.IGNORECASE)
+_DOCKER = re.compile(r"\b(?:docker|container)\b", re.IGNORECASE)
+_SYSTEM = re.compile(r"\b(?:server|system|machine|host)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
 class ConversationContext:
     previous_user: str = ""
+    previous_assistant: str = ""
     previous_intent: Intent | None = None
 
 
 def remove_wake_phrase(text: str) -> str:
     return _WAKE_PREFIX.sub("", text).strip(" ,.:;!?-")
+
+
+def _detect_topic(text: str) -> Topic | None:
+    lowered = remove_wake_phrase(text).lower().strip()
+    if _STORAGE.search(lowered):
+        return "storage"
+    if _MEMORY.search(lowered):
+        return "memory"
+    if _DOCKER.search(lowered):
+        return "docker"
+    if _SYSTEM.search(lowered):
+        return "system_status"
+    return None
+
+
+def resolve_topic(
+    question: str,
+    context: ConversationContext | None = None,
+) -> Topic | None:
+    current = _detect_topic(question)
+    if current is not None:
+        return current
+
+    lowered = remove_wake_phrase(question).lower().strip()
+    if context is None or not _FOLLOW_UP.search(lowered):
+        return None
+
+    previous = _detect_topic(context.previous_user)
+    if previous is not None:
+        return previous
+    if context.previous_intent == "system_status":
+        return "system_status"
+    if context.previous_intent == "technical":
+        return "technical"
+    return None
 
 
 def classify_intent(
@@ -79,12 +137,11 @@ def classify_intent(
     ):
         return "greeting"
 
-    if (
-        context
-        and context.previous_intent in {"casual", "greeting"}
-        and re.search(r"\b(?:and|what about)\b.*\b(?:server|system|it)\b", lowered)
-    ):
+    topic = resolve_topic(question, context)
+    if topic == "system_status":
         return "system_status"
+    if topic is not None:
+        return "technical"
 
     return "technical"
 
@@ -96,7 +153,7 @@ _RESPONSES: dict[Intent, tuple[str, ...]] = {
         "Hi, Dipen. Hope your day is going well.",
     ),
     "casual": (
-        "I'm doing well, Dipen. Everything is running smoothly. How are you?",
+        "I'm doing well, Dipen. I'm here and ready to help. How are you?",
         "I'm doing well, thanks. I'm here and ready whenever you need me.",
         "All good here, Dipen. How are things with you?",
     ),
@@ -143,12 +200,22 @@ def parse_context(value: object) -> ConversationContext:
         return ConversationContext()
 
     previous_user = value.get("previous_user", "")
+    previous_assistant = value.get("previous_assistant", "")
     previous_intent = value.get("previous_intent")
     allowed = {
         "greeting", "casual", "gratitude", "farewell", "identity",
         "system_status", "technical", "action",
     }
     return ConversationContext(
-        previous_user=previous_user[:500] if isinstance(previous_user, str) else "",
+        previous_user=(
+            previous_user[:_MAX_PREVIOUS_USER_CHARS]
+            if isinstance(previous_user, str)
+            else ""
+        ),
+        previous_assistant=(
+            previous_assistant[:_MAX_PREVIOUS_ASSISTANT_CHARS]
+            if isinstance(previous_assistant, str)
+            else ""
+        ),
         previous_intent=previous_intent if previous_intent in allowed else None,
     )

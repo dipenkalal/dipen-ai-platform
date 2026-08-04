@@ -18,9 +18,9 @@ _TECHNICAL_RUNNING_PATTERN = re.compile(
     r"\b(?:service|process)\b.*?\brunning\b",
     re.IGNORECASE,
 )
-_PID_PATTERN = re.compile(r"\bPID\s+\d+\b", re.IGNORECASE)
-_MEMORY_PATTERN = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:MB|GB|MiB|GiB)\b",
+_TELEMETRY_PATTERN = re.compile(
+    r"\bPID\s+\d+\b|"
+    r"\b\d+(?:\.\d+)?\s*(?:%|B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)\b",
     re.IGNORECASE,
 )
 _MARKDOWN_PREFIX = re.compile(r"^\s*(?:[-*+]\s+|#{1,6}\s+|\d+[.)]\s+)")
@@ -46,20 +46,36 @@ def _clean_answer_line(value: str) -> str:
     line = _MARKDOWN_PREFIX.sub("", value).strip()
     line = line.replace("`", "")
     line = re.sub(r"https?://\S+", "", line)
-    line = _PID_PATTERN.sub("", line)
-    line = _MEMORY_PATTERN.sub("", line)
     line = re.sub(r"\s+", " ", line)
     line = re.sub(r"\s+([,.;:!?])", r"\1", line)
     return line.strip(" -•")
 
 
-def spoken_summary(answer: str, *, max_chars: int = 320) -> str:
-    """Create a short deterministic sentence for local text-to-speech.
+def _fallback_spoken_summary(answer: str) -> str:
+    lowered = answer.lower()
+    if re.search(r"\b(?:disk|storage|filesystem|drive|ssd|hdd)\b", lowered):
+        return "I found the current storage details. The full figures are shown on screen."
+    if re.search(r"\b(?:memory|ram|process)\b", lowered):
+        return "I found the current memory details. The full figures are shown on screen."
+    if re.search(r"\b(?:docker|container)\b", lowered):
+        return "I found the current Docker status. The full details are shown on screen."
+    return "I found the current system details. The full report is shown on screen."
 
-    The full Guardian answer remains visible in the dashboard. This function
-    removes raw process identifiers and verbose telemetry so the spoken reply
-    sounds conversational without making another model request.
-    """
+
+def _answer_sentences(lines: list[str]) -> list[str]:
+    sentences: list[str] = []
+    for line in lines:
+        # Split only after sentence-ending punctuation followed by whitespace.
+        # This preserves decimal measurements such as 11.1 GB and 105.6 MB.
+        for sentence in re.split(r"(?<=[.!?])\\s+", line):
+            cleaned = sentence.strip()
+            if cleaned and not _TELEMETRY_PATTERN.search(cleaned):
+                sentences.append(cleaned)
+    return sentences
+
+
+def spoken_summary(answer: str, *, max_chars: int = 320) -> str:
+    """Create a short grammatical response for local text-to-speech."""
 
     if max_chars < 80:
         raise ValueError("max_chars must be at least 80")
@@ -71,36 +87,37 @@ def spoken_summary(answer: str, *, max_chars: int = 320) -> str:
     ]
 
     if not lines:
-        cleaned = _clean_answer_line(answer)
-        return cleaned[:max_chars].rstrip(" ,;:-")
+        return _fallback_spoken_summary(answer)
 
     running_count = sum(
         1 for line in lines if _TECHNICAL_RUNNING_PATTERN.search(line)
     )
-    warning = next(
-        (
-            line
-            for line in lines
-            if re.search(r"\b(?:warning|error|issue|failed|degraded)\b", line, re.I)
-        ),
-        "",
-    )
+    warning_sentences = [
+        sentence
+        for sentence in _answer_sentences(lines)
+        if re.search(r"\b(?:warning|error|issue|failed|degraded)\b", sentence, re.I)
+    ]
 
+    candidates: list[str] = []
     if running_count >= 2:
-        intro = (
+        candidates.append(
             f"The live snapshot shows {running_count} core services running normally."
         )
-        candidates = [intro]
-        if warning:
-            candidates.append(warning)
     else:
-        candidates = lines[:2]
-        if warning and warning not in candidates:
-            candidates.append(warning)
+        candidates.extend(_answer_sentences(lines)[:2])
 
-    summary = " ".join(candidates)
-    summary = re.sub(r"\s+", " ", summary).strip()
+    if warning_sentences and warning_sentences[0] not in candidates:
+        candidates.append(warning_sentences[0])
+    elif not warning_sentences and any(
+        re.search(r"\b(?:warning|error|issue|failed|degraded)\b", line, re.I)
+        for line in lines
+    ):
+        candidates.append("Guardian found a warning that needs attention.")
 
+    if not candidates:
+        candidates.append(_fallback_spoken_summary(answer))
+
+    summary = re.sub(r"\s+", " ", " ".join(candidates)).strip()
     if len(summary) <= max_chars:
         return summary
 
@@ -109,7 +126,6 @@ def spoken_summary(answer: str, *, max_chars: int = 320) -> str:
         clipped.rfind(". "),
         clipped.rfind("! "),
         clipped.rfind("? "),
-        clipped.rfind(", "),
         clipped.rfind(" "),
     )
     if boundary >= max_chars // 2:

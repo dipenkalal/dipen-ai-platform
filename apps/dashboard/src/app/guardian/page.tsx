@@ -35,8 +35,8 @@ import type {
   GuardianActionPlan,
   GuardianAnswer,
   GuardianAudioFrame,
+  GuardianConversationContext,
   GuardianHealth,
-  GuardianIntent,
   GuardianVoiceState,
   VoiceServerMessage,
 } from "./types";
@@ -97,11 +97,34 @@ function cleanSpeechLine(value: string): string {
     .replace(/^\s*(?:[-*+]\s+|#{1,6}\s+|\d+[.)]\s+)/, "")
     .replace(/`/g, "")
     .replace(/https?:\/\/\S+/g, "")
-    .replace(/\bPID\s+\d+\b/gi, "")
-    .replace(/\b\d+(?:\.\d+)?\s*(?:MB|GB|MiB|GiB)\b/gi, "")
     .replace(/\s+/g, " ")
     .replace(/\s+([,.;:!?])/g, "$1")
     .trim();
+}
+
+function containsTelemetry(value: string): boolean {
+  return /\bPID\s+\d+\b|\b\d+(?:\.\d+)?\s*(?:%|B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)\b/i
+    .test(value);
+}
+
+function splitSpeechSentences(value: string): string[] {
+  return (value.match(/[^.!?]+(?:[.!?]+|$)/g) ?? [])
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function fallbackSpokenSummary(answer: string): string {
+  const lowered = answer.toLowerCase();
+  if (/\b(?:disk|storage|filesystem|drive|ssd|hdd)\b/.test(lowered)) {
+    return "I found the current storage details. The full figures are shown on screen.";
+  }
+  if (/\b(?:memory|ram|process)\b/.test(lowered)) {
+    return "I found the current memory details. The full figures are shown on screen.";
+  }
+  if (/\b(?:docker|container)\b/.test(lowered)) {
+    return "I found the current Docker status. The full details are shown on screen.";
+  }
+  return "I found the current system details. The full report is shown on screen.";
 }
 
 function makeSpokenSummary(answer: string): string {
@@ -111,29 +134,39 @@ function makeSpokenSummary(answer: string): string {
     .filter(Boolean);
 
   if (lines.length === 0) {
-    return "Guardian has no spoken response.";
+    return fallbackSpokenSummary(answer);
   }
 
   const runningCount = lines.filter((line) =>
     /\b(?:service|process)\b.*\brunning\b/i.test(line),
   ).length;
-  const warning = lines.find((line) =>
-    /\b(?:warning|error|issue|failed|degraded)\b/i.test(line),
+  const completeSentences = lines
+    .flatMap(splitSpeechSentences)
+    .filter((sentence) => !containsTelemetry(sentence));
+  const warning = completeSentences.find((sentence) =>
+    /\b(?:warning|error|issue|failed|degraded)\b/i.test(sentence),
   );
 
-  let summary: string;
+  const selected: string[] = [];
   if (runningCount >= 2) {
-    summary = `The live snapshot shows ${runningCount} core services running normally.`;
-    if (warning) {
-      summary += ` ${warning}`;
-    }
+    selected.push(`The live snapshot shows ${runningCount} core services running normally.`);
   } else {
-    const selected = lines.slice(0, 2);
-    if (warning && !selected.includes(warning)) {
-      selected.push(warning);
-    }
-    summary = selected.join(" ");
+    selected.push(...completeSentences.slice(0, 2));
   }
+
+  if (warning && !selected.includes(warning)) {
+    selected.push(warning);
+  } else if (
+    !warning &&
+    lines.some((line) => /\b(?:warning|error|issue|failed|degraded)\b/i.test(line))
+  ) {
+    selected.push("Guardian found a warning that needs attention.");
+  }
+
+  let summary = selected.length > 0
+    ? selected.join(" ")
+    : fallbackSpokenSummary(answer);
+  summary = summary.replace(/\s+/g, " ").trim();
 
   if (summary.length <= 360) {
     return summary;
@@ -149,6 +182,7 @@ function makeSpokenSummary(answer: string): string {
 
   return `${clipped.slice(0, boundary > 180 ? boundary : 360).trim()}.`;
 }
+
 
 function avatarStyle(state: GuardianVoiceState): {
   shell: string;
@@ -317,10 +351,7 @@ export default function GuardianPage() {
   const speakResponsesRef = useRef(true);
   const lastLevelUpdateRef = useRef(0);
   // Deliberately memory-only: a reload creates a new conversational session.
-  const conversationRef = useRef<{
-    previous_user: string;
-    previous_intent?: GuardianIntent;
-  } | null>(null);
+  const conversationRef = useRef<GuardianConversationContext | null>(null);
 
   const updateVoiceState = useCallback((state: GuardianVoiceState): void => {
     setVoiceState(state);
@@ -481,7 +512,8 @@ export default function GuardianPage() {
         conversationRef.current ?? undefined,
       );
       conversationRef.current = {
-        previous_user: command,
+        previous_user: command.slice(0, 500),
+        previous_assistant: answer.answer.slice(0, 1_200),
         previous_intent: answer.intent,
       };
       setLastAnswer(answer);
@@ -726,6 +758,7 @@ export default function GuardianPage() {
     setLastCommand("");
     setLastHeard("");
     setLastSpokenSummary("");
+    conversationRef.current = null;
     stopVoice("locked");
   }, [stopVoice]);
 

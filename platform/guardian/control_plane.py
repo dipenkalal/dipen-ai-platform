@@ -26,6 +26,7 @@ from personality import (
     classify_intent,
     conversational_response,
     parse_context,
+    resolve_topic,
 )
 
 
@@ -499,16 +500,15 @@ def build_hardened_state() -> dict[str, Any]:
 def deterministic_answer(
     question: str,
     state: dict[str, Any],
+    context: ConversationContext | None = None,
 ) -> str:
     docker_state = state.get("docker")
+    topic = resolve_topic(question, context)
 
     if (
         isinstance(docker_state, dict)
         and docker_state.get("available") is False
-        and any(
-            word in question.lower()
-            for word in ("docker", "container")
-        )
+        and topic == "docker"
     ):
         error = docker_state.get("error")
         detail = (
@@ -521,7 +521,7 @@ def deterministic_answer(
             f"truthfully report a container count.{detail}"
         )
 
-    return app.deterministic_answer(question, state)
+    return app.deterministic_answer(question, state, topic)
 
 
 def ask_guardian(
@@ -543,7 +543,7 @@ def ask_guardian(
     state = build_hardened_state()
 
     try:
-        answer, usage = app.call_ollama(question, state)
+        answer, usage = app.call_ollama(question, state, context)
 
         return {
             "answer": answer,
@@ -566,7 +566,7 @@ def ask_guardian(
         ValueError,
     ) as error:
         return {
-            "answer": deterministic_answer(question, state),
+            "answer": deterministic_answer(question, state, context),
             "source": "deterministic-fallback",
             "model": None,
             "fallback": True,
