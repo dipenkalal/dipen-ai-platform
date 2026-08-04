@@ -9,7 +9,18 @@ export type GuardianAnswer = {
   source: string;
   model: string | null;
   fallback: boolean;
+  intent?: GuardianIntent;
 };
+
+export type GuardianIntent =
+  | "greeting"
+  | "casual"
+  | "gratitude"
+  | "farewell"
+  | "identity"
+  | "system_status"
+  | "technical"
+  | "action";
 
 export type GuardianActionEvent = {
   event_id: number;

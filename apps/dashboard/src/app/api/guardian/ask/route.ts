@@ -104,7 +104,15 @@ export async function POST(
           Authorization: authorization,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          context:
+            "context" in payload &&
+            typeof payload.context === "object" &&
+            payload.context !== null
+              ? payload.context
+              : undefined,
+        }),
       },
     );
 
