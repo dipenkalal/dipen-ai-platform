@@ -17,6 +17,12 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from sqlite_support import managed_connection
+from personality import (
+    ConversationContext,
+    classify_intent,
+    conversational_response,
+    parse_context,
+)
 
 
 SERVICE_UNITS = {
@@ -815,7 +821,22 @@ Rules:
     return answer, usage
 
 
-def ask_guardian(question: str) -> dict[str, Any]:
+def ask_guardian(
+    question: str,
+    context: ConversationContext | None = None,
+) -> dict[str, Any]:
+    intent = classify_intent(question, context)
+    conversational = conversational_response(intent, question)
+    if conversational is not None:
+        return {
+            "answer": conversational,
+            "source": "guardian-personality",
+            "model": None,
+            "fallback": False,
+            "generated_at": utc_now(),
+            "intent": intent,
+        }
+
     state = build_state()
 
     try:
@@ -829,6 +850,7 @@ def ask_guardian(question: str) -> dict[str, Any]:
             "generated_at": utc_now(),
             "state_generated_at": state["guardian"]["generated_at"],
             "usage": usage,
+            "intent": intent,
         }
     except (
         HTTPError,
@@ -848,6 +870,7 @@ def ask_guardian(question: str) -> dict[str, Any]:
             "generated_at": utc_now(),
             "state_generated_at": state["guardian"]["generated_at"],
             "reason": f"{type(error).__name__}: {error}",
+            "intent": intent,
         }
 
 
@@ -1295,8 +1318,11 @@ class GuardianHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            context = payload.get("context")
             self.send_json(
-                ask_guardian(question.strip()),
+                ask_guardian(question.strip(), parse_context(context))
+                if context is not None
+                else ask_guardian(question.strip()),
             )
             return
 

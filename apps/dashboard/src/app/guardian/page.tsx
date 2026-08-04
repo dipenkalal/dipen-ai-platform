@@ -36,6 +36,7 @@ import type {
   GuardianAnswer,
   GuardianAudioFrame,
   GuardianHealth,
+  GuardianIntent,
   GuardianVoiceState,
   VoiceServerMessage,
 } from "./types";
@@ -315,6 +316,11 @@ export default function GuardianPage() {
   const suspendedRef = useRef(false);
   const speakResponsesRef = useRef(true);
   const lastLevelUpdateRef = useRef(0);
+  // Deliberately memory-only: a reload creates a new conversational session.
+  const conversationRef = useRef<{
+    previous_user: string;
+    previous_intent?: GuardianIntent;
+  } | null>(null);
 
   const updateVoiceState = useCallback((state: GuardianVoiceState): void => {
     setVoiceState(state);
@@ -469,7 +475,15 @@ export default function GuardianPage() {
 
     updateVoiceState("thinking");
     try {
-      const answer = await askGuardian(token, command);
+      const answer = await askGuardian(
+        token,
+        command,
+        conversationRef.current ?? undefined,
+      );
+      conversationRef.current = {
+        previous_user: command,
+        previous_intent: answer.intent,
+      };
       setLastAnswer(answer);
       await speakAnswer(answer.answer);
     } catch (requestError) {

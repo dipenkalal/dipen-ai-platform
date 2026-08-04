@@ -21,6 +21,12 @@ from broker_client import (
     validate_plan_over_broker,
 )
 from owner_authorization import validate_owner_authorization
+from personality import (
+    ConversationContext,
+    classify_intent,
+    conversational_response,
+    parse_context,
+)
 
 
 GUARDIAN_OWNER_TOKEN = os.getenv(
@@ -518,7 +524,22 @@ def deterministic_answer(
     return app.deterministic_answer(question, state)
 
 
-def ask_guardian(question: str) -> dict[str, Any]:
+def ask_guardian(
+    question: str,
+    context: ConversationContext | None = None,
+) -> dict[str, Any]:
+    intent = classify_intent(question, context)
+    conversational = conversational_response(intent, question)
+    if conversational is not None:
+        return {
+            "answer": conversational,
+            "source": "guardian-personality",
+            "model": None,
+            "fallback": False,
+            "generated_at": app.utc_now(),
+            "intent": intent,
+        }
+
     state = build_hardened_state()
 
     try:
@@ -532,6 +553,7 @@ def ask_guardian(question: str) -> dict[str, Any]:
             "generated_at": app.utc_now(),
             "state_generated_at": state["guardian"]["generated_at"],
             "usage": usage,
+            "intent": intent,
         }
     except (
         HTTPError,
@@ -551,6 +573,7 @@ def ask_guardian(question: str) -> dict[str, Any]:
             "generated_at": app.utc_now(),
             "state_generated_at": state["guardian"]["generated_at"],
             "reason": f"{type(error).__name__}: {error}",
+            "intent": intent,
         }
 
 
@@ -659,8 +682,11 @@ class ControlPlaneHandler(app.GuardianHandler):
                 )
                 return
 
+            context = payload.get("context")
             self.send_json(
-                ask_guardian(question.strip())
+                ask_guardian(question.strip(), parse_context(context))
+                if context is not None
+                else ask_guardian(question.strip())
             )
             return
 
