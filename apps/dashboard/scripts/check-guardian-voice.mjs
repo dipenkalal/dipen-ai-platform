@@ -50,6 +50,34 @@ requireText(dockerfile, "sha256sum -c", "Whisper model checksum verification is 
 requireText(dockerfile, "md5sum -c", "Piper voice checksum verification is missing.");
 requireText(dockerfile, "--retries 12", "Voice dependency downloads need retry protection.");
 requireText(dockerfile, "--timeout 180", "Voice dependency downloads need a long read timeout.");
+forbidText(
+  dockerfile,
+  "ghcr.io/ggml-org/whisper.cpp:main",
+  "Whisper must not use the mutable main image.",
+);
+requireText(
+  dockerfile,
+  "WHISPER_CPP_COMMIT=64d57d3df5c8dacee098577257edcaa154bf5ef3",
+  "Whisper source must remain pinned to the validated commit.",
+);
+for (const option of [
+  "GGML_NATIVE=OFF",
+  "GGML_AVX=ON",
+  "GGML_AVX2=ON",
+  "GGML_FMA=ON",
+  "GGML_F16C=ON",
+  "GGML_BMI2=ON",
+  "GGML_AVX_VNNI=OFF",
+  "GGML_AVX512=OFF",
+  "GGML_AVX512_VBMI=OFF",
+  "GGML_AVX512_VNNI=OFF",
+  "GGML_AVX512_BF16=OFF",
+  "GGML_AMX_TILE=OFF",
+  "GGML_AMX_INT8=OFF",
+  "GGML_AMX_BF16=OFF",
+]) {
+  requireText(dockerfile, option, `Portable Whisper option ${option} is missing.`);
+}
 requireText(requirements, "piper-tts==1.4.2", "Piper dependency must be pinned.");
 
 requireText(overlay, '"127.0.0.1:8003:8003"', "Voice service must remain loopback-only.");
