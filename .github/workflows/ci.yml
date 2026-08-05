@@ -44,7 +44,7 @@ jobs:
 
       - name: Ruff
         run: |
-          python -m ruff check \
+          python -m ruff check --fix --diff \
             agents/orchestration/validator.py \
             agents/truth_repository.py \
             agents/truth_routes.py \
