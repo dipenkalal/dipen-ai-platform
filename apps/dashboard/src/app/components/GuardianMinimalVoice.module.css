@@ -1,0 +1,670 @@
+.shell {
+  --orb-primary: 82, 196, 255;
+  --orb-secondary: 85, 255, 224;
+  --orb-accent: 131, 103, 255;
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  color: #f7f9fc;
+  background:
+    radial-gradient(circle at 50% 43%, rgba(40, 118, 170, 0.08), transparent 31%),
+    linear-gradient(180deg, #050607 0%, #020303 100%);
+}
+
+.shell::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 44%, rgba(var(--orb-primary), 0.045), transparent 23%),
+    linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.14) 72%, rgba(0, 0, 0, 0.38) 100%);
+}
+
+.topBar {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px;
+}
+
+.identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.healthDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #75808b;
+  box-shadow: 0 0 0 5px rgba(117, 128, 139, 0.07);
+}
+
+.healthDot[data-online="true"] {
+  background: #4ee5ab;
+  box-shadow:
+    0 0 0 5px rgba(78, 229, 171, 0.07),
+    0 0 14px rgba(78, 229, 171, 0.45);
+}
+
+.layersButton,
+.layersClose,
+.composerIconButton,
+.sendButton {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+}
+
+.layersButton {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.layersButton:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-1px);
+}
+
+.stage {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 100svh;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+  padding: 94px 24px 148px;
+  transition: transform 260ms ease;
+}
+
+.stageWithAnswer {
+  justify-content: flex-start;
+  padding-top: clamp(92px, 13vh, 132px);
+}
+
+.orb {
+  position: relative;
+  width: clamp(190px, 24vw, 286px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  isolation: isolate;
+  transition:
+    filter 320ms ease,
+    opacity 320ms ease,
+    transform 320ms ease;
+}
+
+.orb::before,
+.orb::after,
+.orbHalo,
+.orbCloudOne,
+.orbCloudTwo,
+.orbCloudThree,
+.orbCore {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.orb::before {
+  inset: 8%;
+  content: "";
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(var(--orb-primary), 0.22),
+    rgba(var(--orb-primary), 0.055) 48%,
+    transparent 72%
+  );
+  filter: blur(14px);
+  animation: breathe 5.6s ease-in-out infinite;
+}
+
+.orb::after {
+  inset: 20%;
+  content: "";
+  background: radial-gradient(
+    circle at 42% 36%,
+    rgba(255, 255, 255, 0.32),
+    rgba(var(--orb-primary), 0.16) 28%,
+    rgba(var(--orb-secondary), 0.07) 52%,
+    transparent 72%
+  );
+  filter: blur(9px);
+  animation: innerPulse 4.3s ease-in-out infinite;
+}
+
+.orbHalo {
+  inset: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(var(--orb-primary), 0.14),
+    rgba(var(--orb-secondary), 0.035) 46%,
+    transparent 72%
+  );
+  filter: blur(24px);
+  animation: haloPulse 6.4s ease-in-out infinite;
+}
+
+.orbCloudOne,
+.orbCloudTwo,
+.orbCloudThree {
+  inset: 18%;
+  opacity: 0.9;
+  filter: blur(5px) saturate(1.14);
+  mix-blend-mode: screen;
+}
+
+.orbCloudOne {
+  border-radius: 42% 58% 63% 37% / 41% 36% 64% 59%;
+  background:
+    radial-gradient(circle at 36% 33%, rgba(255, 255, 255, 0.74), transparent 11%),
+    radial-gradient(circle at 62% 66%, rgba(var(--orb-secondary), 0.68), transparent 29%),
+    radial-gradient(circle at 48% 48%, rgba(var(--orb-primary), 0.78), rgba(var(--orb-primary), 0.08) 58%, transparent 72%);
+  animation: morphOne 8.8s ease-in-out infinite alternate;
+}
+
+.orbCloudTwo {
+  inset: 22%;
+  border-radius: 60% 40% 47% 53% / 56% 62% 38% 44%;
+  background:
+    radial-gradient(circle at 68% 34%, rgba(255, 255, 255, 0.42), transparent 12%),
+    radial-gradient(circle at 32% 68%, rgba(var(--orb-accent), 0.54), transparent 34%),
+    radial-gradient(circle at center, rgba(var(--orb-primary), 0.5), transparent 70%);
+  animation: morphTwo 10.2s ease-in-out infinite alternate-reverse;
+}
+
+.orbCloudThree {
+  inset: 29%;
+  border-radius: 55% 45% 38% 62% / 48% 60% 40% 52%;
+  background:
+    radial-gradient(circle at 40% 38%, rgba(255, 255, 255, 0.7), transparent 15%),
+    radial-gradient(circle at 58% 56%, rgba(var(--orb-secondary), 0.52), transparent 42%),
+    rgba(var(--orb-primary), 0.2);
+  filter: blur(3px);
+  animation: morphThree 7.2s ease-in-out infinite alternate;
+}
+
+.orbCore {
+  inset: 46%;
+  min-width: 12px;
+  min-height: 12px;
+  background: rgba(244, 252, 255, 0.92);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.92),
+    0 0 38px rgba(var(--orb-primary), 0.78),
+    0 0 72px rgba(var(--orb-secondary), 0.32);
+  animation: corePulse 2.8s ease-in-out infinite;
+}
+
+.orb_thinking {
+  --orb-primary: 165, 130, 255;
+  --orb-secondary: 91, 210, 255;
+  --orb-accent: 225, 102, 255;
+  transform: scale(1.04);
+}
+
+.orb_thinking .orbCloudOne,
+.orb_thinking .orbCloudTwo,
+.orb_thinking .orbCloudThree {
+  animation-duration: 3.2s;
+}
+
+.orb_locked {
+  --orb-primary: 110, 125, 145;
+  --orb-secondary: 105, 130, 150;
+  --orb-accent: 85, 100, 122;
+  filter: saturate(0.44) brightness(0.68);
+}
+
+.orb_degraded,
+.orb_error {
+  --orb-primary: 255, 172, 84;
+  --orb-secondary: 255, 102, 92;
+  --orb-accent: 255, 207, 102;
+}
+
+.stateBlock {
+  text-align: center;
+}
+
+.stateBlock h1 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(1.05rem, 1.8vw, 1.32rem);
+  font-weight: 520;
+  letter-spacing: -0.015em;
+}
+
+.stateBlock p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.36);
+  font-size: 0.76rem;
+}
+
+.answerPanel {
+  width: min(760px, 92vw);
+  max-height: min(28vh, 230px);
+  overflow-y: auto;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: 0 16px 54px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(18px);
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.answerPanel p {
+  margin: 0;
+  white-space: pre-wrap;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.answerPanel span {
+  display: block;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.composerArea {
+  position: absolute;
+  z-index: 15;
+  right: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: min(760px, calc(100vw - 32px));
+  transform: translateX(50%);
+}
+
+.composer {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.095);
+  border-radius: 999px;
+  background: rgba(20, 22, 24, 0.9);
+  box-shadow:
+    0 18px 55px rgba(0, 0, 0, 0.42),
+    inset 0 1px rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(24px);
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.composer:focus-within {
+  border-color: rgba(var(--orb-primary), 0.28);
+  background: rgba(23, 25, 28, 0.95);
+  box-shadow:
+    0 20px 65px rgba(0, 0, 0, 0.48),
+    0 0 0 4px rgba(var(--orb-primary), 0.035);
+}
+
+.composer input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: none;
+  color: rgba(255, 255, 255, 0.92);
+  background: transparent;
+  font-size: 0.94rem;
+}
+
+.composer input::placeholder {
+  color: rgba(255, 255, 255, 0.27);
+}
+
+.leadingIcon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.composerIconButton,
+.sendButton {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.composerIconButton:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sendButton {
+  color: #051013;
+  background: rgba(236, 250, 255, 0.92);
+}
+
+.sendButton:hover:not(:disabled) {
+  transform: scale(1.035);
+  background: white;
+}
+
+.sendButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.28;
+}
+
+.unlockButton {
+  min-width: 94px;
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: #071013;
+  background: rgba(238, 249, 252, 0.94);
+  font-size: 0.82rem;
+  font-weight: 650;
+  transition:
+    background 160ms ease,
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+
+.unlockButton:hover:not(:disabled) {
+  background: white;
+  transform: scale(1.02);
+}
+
+.unlockButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.lockButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px auto 0;
+  border: 0;
+  color: rgba(255, 255, 255, 0.25);
+  background: transparent;
+  font-size: 0.67rem;
+  transition: color 160ms ease;
+}
+
+.lockButton:hover {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.errorMessage {
+  margin: 0 0 10px;
+  color: rgba(255, 184, 140, 0.9);
+  text-align: center;
+  font-size: 0.76rem;
+}
+
+.layersOverlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.76);
+  backdrop-filter: blur(24px);
+  animation: overlayIn 180ms ease-out both;
+}
+
+.layersClose {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  transition:
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.layersClose:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(4deg);
+}
+
+.layersPanel {
+  width: min(620px, 94vw);
+}
+
+.layersHeading {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.layersHeading h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 540;
+}
+
+.layersHeading p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.36);
+  font-size: 0.8rem;
+}
+
+.layerList {
+  display: grid;
+  gap: 8px;
+}
+
+.layerItem {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 16px;
+  color: rgba(255, 255, 255, 0.64);
+  background: rgba(255, 255, 255, 0.025);
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.layerItem:hover {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.layerItem span {
+  min-width: 0;
+}
+
+.layerItem strong,
+.layerItem small {
+  display: block;
+}
+
+.layerItem strong {
+  font-size: 0.88rem;
+  font-weight: 560;
+}
+
+.layerItem small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.62; transform: scale(0.94); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes innerPulse {
+  0%, 100% { opacity: 0.72; transform: scale(0.93); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes haloPulse {
+  0%, 100% { opacity: 0.46; transform: scale(0.9); }
+  50% { opacity: 0.86; transform: scale(1.12); }
+}
+
+@keyframes morphOne {
+  0% { transform: rotate(-7deg) scale(0.94); border-radius: 42% 58% 63% 37% / 41% 36% 64% 59%; }
+  50% { transform: rotate(10deg) scale(1.05); border-radius: 57% 43% 39% 61% / 61% 47% 53% 39%; }
+  100% { transform: rotate(-2deg) scale(0.98); border-radius: 49% 51% 61% 39% / 38% 62% 38% 62%; }
+}
+
+@keyframes morphTwo {
+  0% { transform: rotate(8deg) translate(-2%, 1%) scale(0.9); }
+  50% { transform: rotate(-13deg) translate(2%, -2%) scale(1.08); }
+  100% { transform: rotate(4deg) translate(-1%, 2%) scale(0.97); }
+}
+
+@keyframes morphThree {
+  0% { transform: rotate(-12deg) scale(0.9); }
+  50% { transform: rotate(12deg) scale(1.12); }
+  100% { transform: rotate(-3deg) scale(0.98); }
+}
+
+@keyframes corePulse {
+  0%, 100% { opacity: 0.72; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-height: 760px) and (min-width: 700px) {
+  .orb {
+    width: clamp(170px, 25vh, 220px);
+  }
+
+  .stage {
+    gap: 16px;
+    padding-top: 76px;
+    padding-bottom: 124px;
+  }
+
+  .stageWithAnswer {
+    padding-top: 76px;
+  }
+
+  .answerPanel {
+    max-height: 21vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .topBar {
+    padding: 18px 18px;
+  }
+
+  .stage {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .orb {
+    width: min(66vw, 240px);
+  }
+
+  .composerArea {
+    width: calc(100vw - 20px);
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .composer {
+    min-height: 54px;
+    padding-left: 16px;
+  }
+
+  .composerIconButton,
+  .sendButton,
+  .unlockButton {
+    height: 40px;
+  }
+
+  .composerIconButton,
+  .sendButton {
+    width: 40px;
+  }
+
+  .unlockButton {
+    min-width: 80px;
+    padding-inline: 14px;
+  }
+
+  .layersOverlay {
+    align-items: start;
+    overflow-y: auto;
+    padding-top: 82px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb::before,
+  .orb::after,
+  .orbHalo,
+  .orbCloudOne,
+  .orbCloudTwo,
+  .orbCloudThree,
+  .orbCore,
+  .layersOverlay {
+    animation: none !important;
+  }
+
+  .orb,
+  .stage,
+  .layersButton,
+  .layerItem,
+  .composer,
+  .sendButton,
+  .unlockButton {
+    transition: none !important;
+  }
+}
