@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 
 from agents.schemas import AgentDefinition
 
-
 AgentRuntimeStatus = Literal[
     "unreported",
     "available",
