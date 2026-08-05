@@ -2,11 +2,11 @@
 
 import {
   Activity,
-  Bot,
-  Database,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
   LoaderCircle,
   RefreshCw,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import {
@@ -34,26 +34,53 @@ const REFRESH_INTERVAL_MS = 10_000;
 const runtimeOrder: Record<AgentRuntimeStatus, number> = {
   busy: 0,
   degraded: 1,
-  available: 2,
-  offline: 3,
-  unreported: 4,
+  offline: 2,
+  unreported: 3,
+  available: 4,
   disabled: 5,
 };
+
+const activeTaskStatuses = new Set<TaskLedgerStatus>([
+  "created",
+  "planned",
+  "queued",
+  "assigned",
+  "running",
+  "waiting",
+  "manual_review",
+]);
+
+function runtimeLabel(status: AgentRuntimeStatus): string {
+  switch (status) {
+    case "available":
+      return "Ready";
+    case "busy":
+      return "Busy";
+    case "offline":
+      return "Unavailable";
+    case "unreported":
+      return "Unreported";
+    case "degraded":
+      return "Degraded";
+    case "disabled":
+      return "Disabled";
+  }
+}
 
 function runtimeTone(status: AgentRuntimeStatus): string {
   switch (status) {
     case "available":
-      return "border-emerald-300/25 bg-emerald-300/[0.07] text-emerald-200";
+      return "bg-emerald-300";
     case "busy":
-      return "border-cyan-300/30 bg-cyan-300/[0.09] text-cyan-100";
+      return "bg-cyan-300 animate-pulse";
     case "degraded":
-      return "border-amber-300/30 bg-amber-300/[0.08] text-amber-100";
+      return "bg-amber-300";
     case "offline":
-      return "border-rose-300/25 bg-rose-300/[0.07] text-rose-200";
+      return "bg-rose-300";
     case "disabled":
-      return "border-slate-500/25 bg-slate-500/[0.08] text-slate-400";
+      return "bg-slate-600";
     default:
-      return "border-violet-300/20 bg-violet-300/[0.06] text-violet-200";
+      return "bg-violet-300";
   }
 }
 
@@ -78,113 +105,97 @@ function taskTone(status: TaskLedgerStatus): string {
 
 function formatAge(seconds: number | null): string {
   if (seconds === null) {
-    return "no heartbeat";
+    return "No task heartbeat";
   }
-
   if (seconds < 1) {
-    return "now";
+    return "Heartbeat now";
   }
-
   if (seconds < 60) {
-    return `${Math.round(seconds)}s ago`;
+    return `Heartbeat ${Math.round(seconds)}s ago`;
   }
-
-  return `${Math.round(seconds / 60)}m ago`;
+  return `Last task heartbeat ${Math.round(seconds / 60)}m ago`;
 }
 
 function formatTime(value: string | null): string {
   if (!value) {
-    return "unavailable";
+    return "Unavailable";
+  }
+
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return value;
   }
 
   return new Intl.DateTimeFormat(undefined, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  }).format(new Date(value));
+  }).format(timestamp);
 }
 
-function AgentTruthRow({ state }: { state: AgentRuntimeState }) {
-  const evidenceSources = state.evidence.map((item) => item.source);
-
+function AgentRow({ state }: { state: AgentRuntimeState }) {
   return (
-    <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-3.5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-100">
-            {state.agent.name}
-          </p>
-          <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">
-            {state.agent.id}
-          </p>
-        </div>
-
+    <details className="group border-b border-white/[0.06] py-3 last:border-b-0">
+      <summary className="flex cursor-pointer list-none items-center gap-3">
         <span
-          className={`rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.13em] ${runtimeTone(state.runtime_status)}`}
-        >
-          {state.runtime_status}
+          className={`h-2 w-2 shrink-0 rounded-full ${runtimeTone(state.runtime_status)}`}
+        />
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
+          {state.agent.name}
         </span>
-      </div>
+        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
+          {runtimeLabel(state.runtime_status)}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 text-slate-600 transition group-open:rotate-180" />
+      </summary>
 
-      <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
+      <div className="ml-5 mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] text-slate-500">
         <p>
-          Model: <span className="text-slate-200">{state.model ?? "unavailable"}</span>
-        </p>
-        <p>
-          PID: <span className="text-slate-200">{state.process_id ?? "unavailable"}</span>
-        </p>
-        <p>
-          Heartbeat: <span className="text-slate-200">{formatAge(state.heartbeat_age_seconds)}</span>
-        </p>
-        <p>
-          Container: <span className="text-slate-200">{state.container_id ?? "not reported"}</span>
-        </p>
-      </div>
-
-      {state.current_task_id && (
-        <p className="mt-3 truncate rounded-lg bg-cyan-300/[0.05] px-2.5 py-2 font-mono text-[10px] text-cyan-200/75">
-          Task {state.current_task_id}
-        </p>
-      )}
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {evidenceSources.map((source) => (
-          <span
-            key={source}
-            className="rounded-md border border-white/8 bg-black/20 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500"
-          >
-            {source.replace("agent-", "").replace("runtime-", "")}
+          Model
+          <span className="ml-1 text-slate-300">
+            {state.model ?? "Not active"}
           </span>
-        ))}
+        </p>
+        <p>
+          PID
+          <span className="ml-1 text-slate-300">
+            {state.process_id ?? "Unavailable"}
+          </span>
+        </p>
+        <p className="col-span-2">
+          {formatAge(state.heartbeat_age_seconds)}
+        </p>
+        <p className="col-span-2 truncate font-mono text-[9px] text-slate-600">
+          {state.worker_id ?? "Worker unavailable"}
+        </p>
+        {state.current_task_id && (
+          <p className="col-span-2 truncate rounded-md bg-cyan-300/[0.05] px-2 py-1.5 font-mono text-[9px] text-cyan-200/70">
+            {state.current_task_id}
+          </p>
+        )}
+        <p className="col-span-2 text-[10px] text-slate-600">
+          Evidence: {state.evidence.map((item) => item.source).join(" · ")}
+        </p>
       </div>
-    </article>
+    </details>
   );
 }
 
-function TaskTruthRow({ task }: { task: TaskLedgerRecord }) {
+function TaskRow({ task }: { task: TaskLedgerRecord }) {
   return (
-    <article className="rounded-xl border border-white/8 bg-black/20 px-3.5 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <article className="border-b border-white/[0.06] py-3 last:border-b-0">
+      <div className="flex items-start gap-3">
+        <span className={`mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] ${taskTone(task.status)}`}>
+          {task.status}
+        </span>
+        <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm leading-5 text-slate-200">
             {task.objective}
           </p>
-          <p className="mt-1.5 truncate font-mono text-[9px] uppercase tracking-[0.12em] text-slate-600">
-            {task.task_type} · {task.requested_by}
+          <p className="mt-1 truncate text-[10px] text-slate-600">
+            {task.assigned_agent_ids.join(", ") || "Unassigned"} · {formatTime(task.updated_at)}
           </p>
         </div>
-        <span className={`shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] ${taskTone(task.status)}`}>
-          {task.status}
-        </span>
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-        <span className="truncate">
-          {task.assigned_agent_ids.length > 0
-            ? task.assigned_agent_ids.join(", ")
-            : "unassigned"}
-        </span>
-        <span>{formatTime(task.updated_at)}</span>
       </div>
     </article>
   );
@@ -208,7 +219,6 @@ export default function GuardianTruthConsole() {
     if (fleetResult.status === "fulfilled") {
       setFleet(fleetResult.value);
     }
-
     if (tasksResult.status === "fulfilled") {
       setTasks(tasksResult.value);
     }
@@ -229,7 +239,6 @@ export default function GuardianTruthConsole() {
     const initialRefresh = window.requestAnimationFrame(() => {
       void refresh();
     });
-
     const interval = window.setInterval(() => {
       void refresh();
     }, REFRESH_INTERVAL_MS);
@@ -240,20 +249,46 @@ export default function GuardianTruthConsole() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
   const agents = useMemo(
     () =>
-      [...(fleet?.agents ?? [])].sort(
-        (left, right) =>
-          runtimeOrder[left.runtime_status] - runtimeOrder[right.runtime_status] ||
-          left.agent.name.localeCompare(right.agent.name),
-      ),
+      [...(fleet?.agents ?? [])]
+        .filter((state) => state.agent.enabled)
+        .sort(
+          (left, right) =>
+            runtimeOrder[left.runtime_status] - runtimeOrder[right.runtime_status] ||
+            left.agent.name.localeCompare(right.agent.name),
+        ),
     [fleet],
   );
 
-  const recentTasks = tasks?.tasks.slice(0, 6) ?? [];
+  const activeAgents = agents.filter(
+    (state) => state.runtime_status === "busy",
+  );
+  const recentTasks = tasks?.tasks.slice(0, 4) ?? [];
+  const activeTasks = recentTasks.filter((task) =>
+    activeTaskStatuses.has(task.status),
+  );
   const summary = fleet?.summary ?? null;
-  const liveAgents = summary
-    ? summary.available + summary.busy + summary.degraded
+  const readyOrBusy = summary
+    ? summary.available + summary.busy
+    : null;
+  const attention = summary
+    ? summary.degraded + summary.offline + summary.unreported
     : null;
 
   return (
@@ -267,9 +302,9 @@ export default function GuardianTruthConsole() {
         <Activity className={`h-4 w-4 ${refreshing ? "animate-pulse" : ""}`} />
         <span className="hidden sm:inline">Truth</span>
         <span className="font-mono text-[10px] text-cyan-300/65">
-          {liveAgents === null || summary === null
+          {readyOrBusy === null || summary === null
             ? "—"
-            : `${liveAgents}/${summary.enabled}`}
+            : `${readyOrBusy}/${summary.enabled}`}
         </span>
       </button>
 
@@ -277,144 +312,137 @@ export default function GuardianTruthConsole() {
         <>
           <button
             type="button"
-            aria-label="Close Guardian truth console"
-            className="fixed inset-0 z-[80] cursor-default bg-slate-950/65 backdrop-blur-sm"
+            aria-label="Close Guardian truth panel"
+            className="fixed inset-0 z-[80] cursor-default bg-black/30"
             onClick={() => setOpen(false)}
           />
 
           <aside
             role="dialog"
             aria-modal="true"
-            aria-label="Guardian live truth console"
-            className="fixed inset-x-4 top-16 z-[90] mx-auto max-h-[calc(100svh-5rem)] max-w-5xl overflow-y-auto rounded-[28px] border border-cyan-300/18 bg-[#06101a]/97 p-4 text-white shadow-[0_35px_120px_rgba(0,0,0,0.72)] backdrop-blur-2xl sm:top-20 sm:p-6"
+            aria-label="Guardian live truth"
+            className="fixed inset-y-0 right-0 z-[90] w-full max-w-[430px] overflow-y-auto border-l border-cyan-300/15 bg-[#050a10]/[0.98] px-5 py-5 text-white shadow-[-30px_0_90px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:px-6"
           >
-            <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/8 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] text-cyan-200">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-100">
-                    Live truth console
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Read-only registry, heartbeat and task-ledger evidence
-                  </p>
-                  <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.13em] text-slate-700">
-                    Generated {formatTime(fleet?.generated_at ?? tasks?.generated_at ?? null)}
-                  </p>
-                </div>
+            <header className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-base font-semibold text-slate-100">Live truth</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Registry, backend runtime, heartbeats and ledger
+                </p>
               </div>
-
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => void refresh()}
                   disabled={refreshing}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-3 text-xs text-slate-300 transition hover:border-cyan-300/25 hover:text-cyan-200 disabled:opacity-50"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/[0.05] hover:text-cyan-200 disabled:opacity-50"
+                  aria-label="Refresh truth"
                 >
                   {refreshing ? (
                     <LoaderCircle className="h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
-                  Refresh
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  aria-label="Close truth console"
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-slate-400 transition hover:border-white/20 hover:text-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/[0.05] hover:text-white"
+                  aria-label="Close truth"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </header>
 
+            <div className="mt-5 flex flex-wrap gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-300/[0.07] px-2.5 py-1.5 text-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {summary ? `${summary.available} ready` : "Ready unavailable"}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-300/[0.07] px-2.5 py-1.5 text-cyan-200">
+                <Activity className="h-3.5 w-3.5" />
+                {summary ? `${summary.busy} busy` : "Busy unavailable"}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-300/[0.06] px-2.5 py-1.5 text-amber-200">
+                <CircleAlert className="h-3.5 w-3.5" />
+                {attention ?? "—"} attention
+              </span>
+              <span className="rounded-full bg-white/[0.04] px-2.5 py-1.5 text-slate-500">
+                {tasks?.total ?? "—"} ledger
+              </span>
+            </div>
+
             {error && (
-              <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2.5 text-xs text-amber-100">
+              <p className="mt-4 rounded-lg border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2 text-xs text-amber-100">
                 {error}
               </p>
             )}
 
-            <section className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-              <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-3.5">
-                <Bot className="h-4 w-4 text-cyan-300" />
-                <p className="mt-3 font-mono text-2xl text-slate-100">
-                  {liveAgents ?? "—"}
+            <section className="mt-7">
+              <div className="flex items-center justify-between">
+                <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                  Active now
+                </h2>
+                <span className="text-[10px] text-slate-700">
+                  {formatTime(fleet?.generated_at ?? null)}
+                </span>
+              </div>
+
+              {activeAgents.length > 0 || activeTasks.length > 0 ? (
+                <div className="mt-2 rounded-xl border border-cyan-300/12 bg-cyan-300/[0.025] px-3">
+                  {activeAgents.map((state) => (
+                    <AgentRow key={state.agent.id} state={state} />
+                  ))}
+                  {activeAgents.length === 0 && activeTasks.map((task) => (
+                    <TaskRow key={task.task_id} task={task} />
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-xs text-slate-500">
+                  No agent task is running right now.
                 </p>
-                <p className="mt-1 text-xs text-slate-500">live agents</p>
-              </article>
-              <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-3.5">
-                <Activity className="h-4 w-4 text-cyan-300" />
-                <p className="mt-3 font-mono text-2xl text-slate-100">
-                  {summary?.busy ?? "—"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">busy now</p>
-              </article>
-              <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-3.5">
-                <ShieldCheck className="h-4 w-4 text-cyan-300" />
-                <p className="mt-3 font-mono text-2xl text-slate-100">
-                  {summary ? summary.offline + summary.unreported : "—"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">offline / unreported</p>
-              </article>
-              <article className="rounded-2xl border border-white/8 bg-white/[0.025] p-3.5">
-                <Database className="h-4 w-4 text-cyan-300" />
-                <p className="mt-3 font-mono text-2xl text-slate-100">
-                  {tasks?.total ?? "—"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">ledger tasks</p>
-              </article>
+              )}
             </section>
 
-            <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-              <section>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="font-mono text-xs uppercase tracking-[0.16em] text-cyan-200/75">
-                    Agent runtime evidence
-                  </h3>
-                  <span className="text-[10px] text-slate-600">
-                    {summary ? `${summary.enabled} enabled` : "unavailable"}
-                  </span>
-                </div>
+            <section className="mt-7">
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                Agents
+              </h2>
+              <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.015] px-3">
+                {agents.length > 0 ? (
+                  agents.map((state) => (
+                    <AgentRow key={state.agent.id} state={state} />
+                  ))
+                ) : (
+                  <p className="py-4 text-xs text-slate-600">
+                    Agent truth is unavailable.
+                  </p>
+                )}
+              </div>
+            </section>
 
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  {agents.length > 0 ? (
-                    agents.map((state) => (
-                      <AgentTruthRow key={state.agent.id} state={state} />
-                    ))
-                  ) : (
-                    <p className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-sm text-slate-500">
-                      Agent truth is unavailable.
-                    </p>
-                  )}
-                </div>
-              </section>
+            <section className="mt-7">
+              <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                Recent ledger
+              </h2>
+              <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.015] px-3">
+                {recentTasks.length > 0 ? (
+                  recentTasks.map((task) => (
+                    <TaskRow key={task.task_id} task={task} />
+                  ))
+                ) : (
+                  <p className="py-4 text-xs text-slate-600">
+                    No tasks have been recorded.
+                  </p>
+                )}
+              </div>
+            </section>
 
-              <section>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h3 className="font-mono text-xs uppercase tracking-[0.16em] text-cyan-200/75">
-                    Recent task ledger
-                  </h3>
-                  <span className="text-[10px] text-slate-600">
-                    latest {recentTasks.length}
-                  </span>
-                </div>
-
-                <div className="grid gap-2.5">
-                  {recentTasks.length > 0 ? (
-                    recentTasks.map((task) => (
-                      <TaskTruthRow key={task.task_id} task={task} />
-                    ))
-                  ) : (
-                    <p className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-sm text-slate-500">
-                      No runtime tasks have been recorded yet.
-                    </p>
-                  )}
-                </div>
-              </section>
-            </div>
+            <p className="mt-7 text-[10px] leading-4 text-slate-700">
+              Read-only evidence. Missing values remain unavailable; no container,
+              model, process or task identity is inferred.
+            </p>
           </aside>
         </>
       )}
