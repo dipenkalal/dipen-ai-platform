@@ -94,13 +94,16 @@ function createParticle(index: number) {
   const y = 50 + 43 * Math.cos(phi);
   const depth = (Math.sin(phi) * Math.sin(theta) + 1) / 2;
 
+  // Node and browser trigonometric implementations can differ in the last
+  // floating-point digits. Round all rendered values so SSR and hydration
+  // always produce byte-identical inline styles.
   return {
     id: index,
-    left: `${x}%`,
-    top: `${y}%`,
-    size: 1.8 + depth * 4.2,
-    opacity: 0.28 + depth * 0.68,
-    delay: `${-(index % 24) * 0.16}s`,
+    left: `${x.toFixed(4)}%`,
+    top: `${y.toFixed(4)}%`,
+    size: Number((1.8 + depth * 4.2).toFixed(3)),
+    opacity: Number((0.28 + depth * 0.68).toFixed(3)),
+    delay: `${(-((index % 24) * 0.16)).toFixed(2)}s`,
   };
 }
 
@@ -199,7 +202,7 @@ function StatusCard({
         <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300/55">
           {label}
         </p>
-        <p className="mt-1 truncate font-mono text-2xl text-cyan-200">
+        <p className="mt-1 truncate font-mono text-xl text-cyan-200 sm:text-2xl">
           {value}
         </p>
         <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>
@@ -357,11 +360,11 @@ export default function GuardianControlCore() {
   }, [command, ownerToken]);
 
   return (
-    <main className="guardian-control-shell min-h-screen overflow-hidden bg-[#03070d] p-3 text-white sm:p-5">
-      <section className="guardian-control-frame relative mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[1680px] flex-col overflow-hidden rounded-[28px] border border-cyan-300/15 px-5 py-5 sm:min-h-[calc(100vh-2.5rem)] sm:px-9 sm:py-7">
+    <main className="guardian-control-shell h-[100svh] overflow-hidden bg-[#03070d] p-3 text-white sm:p-5">
+      <section className="guardian-control-frame relative mx-auto flex h-full max-w-[1680px] flex-col overflow-y-auto rounded-[28px] border border-cyan-300/15 px-5 py-5 sm:px-9 sm:py-6 lg:overflow-hidden">
         <div className="guardian-control-grid" />
 
-        <header className="relative z-20 flex flex-wrap items-start justify-between gap-5">
+        <header className="relative z-20 flex flex-none flex-wrap items-start justify-between gap-5">
           <div className="flex items-center gap-4">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/[0.06] text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
               <ShieldCheck className="h-6 w-6" />
@@ -444,22 +447,22 @@ export default function GuardianControlCore() {
           </aside>
         )}
 
-        <section className="relative z-10 flex flex-1 flex-col items-center justify-center py-8 sm:py-10">
+        <section className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center py-2 sm:py-3">
           <div className="relative flex w-full max-w-5xl flex-col items-center">
             <GuardianParticleCore state={coreState} />
 
-            <div className="mt-5 text-center">
+            <div className="mt-2 text-center">
               <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-cyan-300/50">
                 Core state
               </p>
-              <p className="mt-2 font-mono text-sm uppercase tracking-[0.2em] text-cyan-200">
+              <p className="mt-1.5 font-mono text-sm uppercase tracking-[0.2em] text-cyan-200">
                 {thinking ? "Reasoning" : ownerToken ? "Assist mode ready" : "Owner locked"}
               </p>
             </div>
           </div>
         </section>
 
-        <section className="relative z-10 grid gap-3 md:grid-cols-3">
+        <section className="relative z-10 grid flex-none gap-3 md:grid-cols-3">
           <StatusCard
             icon={Bot}
             label="Agent fleet"
@@ -480,14 +483,14 @@ export default function GuardianControlCore() {
           />
         </section>
 
-        <section className="relative z-10 mt-5 border-t border-cyan-300/15 pt-5">
+        <section className="relative z-20 mt-3 flex-none border-t border-cyan-300/15 bg-[#030a11]/90 pt-3 backdrop-blur-xl">
           {answer && (
-            <article className="mb-4 rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.035] p-4 sm:p-5">
+            <article className="mb-3 max-h-40 overflow-y-auto rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.035] p-4 sm:max-h-44 sm:p-5">
               <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan-300/65">
                 <Sparkles className="h-3.5 w-3.5" />
                 Guardian response
               </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-200">
                 {answer.answer}
               </p>
               <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-slate-600">
@@ -548,7 +551,7 @@ export default function GuardianControlCore() {
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 font-mono text-[11px]">
             <p className={commandError ? "text-amber-300" : "text-cyan-300/55"}>
               <ChevronStatus /> {terminalStatus}
               {!commandError && <span className="guardian-terminal-cursor">_</span>}
