@@ -11,6 +11,9 @@ from fastapi.middleware.cors import (
 from agents.routes import (
     router as agents_router,
 )
+from agents.truth_routes import (
+    router as agent_truth_router,
+)
 from collectors.ollama import (
     get_ollama_status,
 )
@@ -40,7 +43,7 @@ from shared_http import (
 )
 
 
-APP_VERSION = "0.8.1"
+APP_VERSION = "0.9.0"
 
 
 @asynccontextmanager
@@ -71,6 +74,7 @@ app.add_middleware(
 app.include_router(gateway_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)
+app.include_router(agent_truth_router)
 app.include_router(history_router)
 app.include_router(orchestration_history_router)
 app.include_router(analytics_router)
