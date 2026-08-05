@@ -70,37 +70,51 @@ class AgentTruthFoundationTestCase(unittest.TestCase):
             self.repository,
             heartbeat_ttl_seconds=90,
             now_provider=lambda: FIXED_NOW,
+            backend_worker_id_provider=(
+                lambda: "dap-backend:test:9001"
+            ),
+            backend_process_id_provider=lambda: 9001,
+            backend_container_id_provider=lambda: None,
         )
 
     def tearDown(self) -> None:
         self.temporary_directory.cleanup()
 
-    def test_registry_state_is_truthful_without_heartbeats(
+    def test_enabled_agents_are_backend_ready_without_task_heartbeats(
         self,
     ) -> None:
         response = self.service.list_agent_states()
 
         self.assertEqual(response.summary.registered, 3)
         self.assertEqual(response.summary.enabled, 2)
-        self.assertEqual(response.summary.unreported, 2)
+        self.assertEqual(response.summary.available, 2)
+        self.assertEqual(response.summary.unreported, 0)
         self.assertEqual(response.summary.disabled, 1)
-        self.assertEqual(response.summary.available, 0)
 
         states = {
             state.agent.id: state
             for state in response.agents
         }
+        research = states["research-agent"]
         self.assertEqual(
-            states["research-agent"].runtime_status,
-            "unreported",
+            research.runtime_status,
+            "available",
+        )
+        self.assertEqual(
+            research.worker_id,
+            "dap-backend:test:9001",
+        )
+        self.assertEqual(research.process_id, 9001)
+        self.assertEqual(
+            [item.source for item in research.evidence],
+            [
+                "agent-registry",
+                "backend-runtime",
+            ],
         )
         self.assertEqual(
             states["sql-agent"].runtime_status,
             "disabled",
-        )
-        self.assertEqual(
-            states["research-agent"].evidence[0].source,
-            "agent-registry",
         )
 
     def test_fresh_heartbeat_reports_live_assignment(
@@ -144,14 +158,48 @@ class AgentTruthFoundationTestCase(unittest.TestCase):
             ],
         )
 
-    def test_stale_heartbeat_is_offline_not_available(
+    def test_stale_available_heartbeat_falls_back_to_backend_ready(
+        self,
+    ) -> None:
+        self.service.record_heartbeat(
+            AgentHeartbeat(
+                agent_id="coding-agent",
+                worker_id="old-worker",
+                status="available",
+                process_id=1111,
+                observed_at=(
+                    FIXED_NOW
+                    - timedelta(seconds=91)
+                ),
+            )
+        )
+
+        state = self.service.get_agent_state(
+            "coding-agent"
+        )
+
+        self.assertEqual(state.runtime_status, "available")
+        self.assertEqual(state.worker_id, "dap-backend:test:9001")
+        self.assertEqual(state.process_id, 9001)
+        self.assertEqual(state.heartbeat_age_seconds, 91.0)
+        self.assertEqual(
+            [item.source for item in state.evidence],
+            [
+                "agent-registry",
+                "runtime-heartbeat",
+                "backend-runtime",
+            ],
+        )
+
+    def test_stale_busy_heartbeat_remains_offline_for_review(
         self,
     ) -> None:
         self.service.record_heartbeat(
             AgentHeartbeat(
                 agent_id="coding-agent",
                 worker_id="worker-02",
-                status="available",
+                status="busy",
+                current_task_id="task-stale",
                 observed_at=(
                     FIXED_NOW
                     - timedelta(seconds=91)
@@ -164,6 +212,7 @@ class AgentTruthFoundationTestCase(unittest.TestCase):
         )
 
         self.assertEqual(state.runtime_status, "offline")
+        self.assertEqual(state.current_task_id, "task-stale")
         self.assertEqual(state.heartbeat_age_seconds, 91.0)
 
     def test_unknown_agent_heartbeat_is_rejected(
