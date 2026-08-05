@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import uuid4
 
-from agents.executor import agent_executor
 from agents.schemas import AgentRunRequest, AgentRunResponse
 from agents.truth_schemas import (
     AgentHeartbeat,
@@ -18,7 +17,6 @@ from agents.truth_schemas import (
     TaskLedgerStatus,
     TaskType,
 )
-from agents.truth_service import agent_truth_service
 
 logger = logging.getLogger(__name__)
 
@@ -515,13 +513,3 @@ class InstrumentedAgentExecutor:
             model=None,
             active_task_ids=[],
         )
-
-
-runtime_instrumentation = RuntimeInstrumentation(
-    agent_truth_service
-)
-
-instrumented_agent_executor = InstrumentedAgentExecutor(
-    agent_executor,
-    runtime_instrumentation,
-)
