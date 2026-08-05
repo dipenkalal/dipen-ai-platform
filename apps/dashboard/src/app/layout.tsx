@@ -3,6 +3,7 @@ import type {
 } from "next";
 
 import "./globals.css";
+import "./guardian-spatial-calibration.css";
 
 import AppNavigation from "./components/AppNavigation";
 
