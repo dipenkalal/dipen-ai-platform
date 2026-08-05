@@ -21,3 +21,286 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+.guardian-control-shell {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(8, 145, 178, 0.1), transparent 27%),
+    radial-gradient(circle at 50% 100%, rgba(14, 116, 144, 0.08), transparent 35%),
+    #02060b;
+}
+
+.guardian-control-frame {
+  background:
+    linear-gradient(rgba(34, 211, 238, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.018) 1px, transparent 1px),
+    radial-gradient(circle at 50% 34%, rgba(8, 47, 73, 0.38), transparent 35%),
+    linear-gradient(160deg, rgba(5, 12, 20, 0.98), rgba(2, 7, 13, 0.99));
+  background-size: 64px 64px, 64px 64px, auto, auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.025),
+    0 36px 120px rgba(0, 0, 0, 0.62);
+}
+
+.guardian-control-frame::before,
+.guardian-control-frame::after {
+  position: absolute;
+  z-index: 1;
+  width: 210px;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.75), transparent);
+}
+
+.guardian-control-frame::before {
+  top: 0;
+  left: 28px;
+}
+
+.guardian-control-frame::after {
+  right: 28px;
+  bottom: 0;
+  transform: rotate(180deg);
+}
+
+.guardian-control-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.18) 0 1px, transparent 1px) top left / 70px 70px no-repeat,
+    linear-gradient(315deg, rgba(34, 211, 238, 0.18) 0 1px, transparent 1px) bottom right / 70px 70px no-repeat;
+  opacity: 0.55;
+}
+
+.guardian-core {
+  position: relative;
+  width: min(62vw, 43vh, 380px);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  perspective: 900px;
+  filter: saturate(1.1);
+}
+
+.guardian-core-halo,
+.guardian-core-scan,
+.guardian-core-particle-shell,
+.guardian-core-orbit,
+.guardian-core-center {
+  position: absolute;
+}
+
+.guardian-core-halo {
+  inset: 16%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.2), rgba(8, 47, 73, 0.04) 52%, transparent 72%);
+  filter: blur(14px);
+  animation: guardian-core-breathe 4.6s ease-in-out infinite;
+}
+
+.guardian-core-scan {
+  inset: 5% 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border-top: 1px solid rgba(34, 211, 238, 0.12);
+  border-bottom: 1px solid rgba(34, 211, 238, 0.08);
+  animation: guardian-scan-tilt 8s ease-in-out infinite;
+}
+
+.guardian-core-scan::after {
+  position: absolute;
+  inset: 48% -5% auto;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.65), transparent);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.45);
+  animation: guardian-scan-line 3.4s ease-in-out infinite;
+}
+
+.guardian-core-orbit {
+  inset: 7%;
+  border: 1px solid rgba(34, 211, 238, 0.12);
+  border-radius: 50%;
+  transform: rotateX(72deg) rotateZ(8deg);
+}
+
+.guardian-core-orbit-inner {
+  inset: 19%;
+  transform: rotateY(72deg) rotateZ(-18deg);
+  border-color: rgba(56, 189, 248, 0.16);
+}
+
+.guardian-core-particle-shell {
+  inset: 13%;
+  border-radius: 50%;
+  animation: guardian-core-turn 24s linear infinite;
+  transform-style: preserve-3d;
+}
+
+.guardian-core-particle-shell-reverse {
+  inset: 22%;
+  animation-duration: 17s;
+  animation-direction: reverse;
+  transform: rotate(31deg);
+}
+
+.guardian-core-particle {
+  position: absolute;
+  display: block;
+  margin-left: -2px;
+  margin-top: -2px;
+  border-radius: 999px;
+  background: rgb(56, 189, 248);
+  box-shadow:
+    0 0 6px rgba(56, 189, 248, 0.95),
+    0 0 14px rgba(14, 165, 233, 0.45);
+  animation: guardian-particle-pulse 2.8s ease-in-out infinite;
+}
+
+.guardian-core-particle-inner {
+  background: rgb(103, 232, 249);
+  box-shadow:
+    0 0 8px rgba(103, 232, 249, 0.95),
+    0 0 18px rgba(34, 211, 238, 0.5);
+}
+
+.guardian-core-center {
+  inset: 42%;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(103, 232, 249, 0.38);
+  border-radius: 18px;
+  color: rgb(103, 232, 249);
+  background: rgba(2, 12, 20, 0.82);
+  box-shadow:
+    0 0 30px rgba(34, 211, 238, 0.28),
+    inset 0 0 22px rgba(34, 211, 238, 0.08);
+  transform: rotate(45deg);
+}
+
+.guardian-core-center svg {
+  transform: rotate(-45deg);
+}
+
+.guardian-core-thinking .guardian-core-particle-shell {
+  animation-duration: 6s;
+}
+
+.guardian-core-thinking .guardian-core-halo {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.28), rgba(76, 29, 149, 0.04) 55%, transparent 72%);
+}
+
+.guardian-core-thinking .guardian-core-particle {
+  background: rgb(129, 140, 248);
+  box-shadow: 0 0 8px rgba(129, 140, 248, 0.95), 0 0 18px rgba(139, 92, 246, 0.55);
+}
+
+.guardian-core-locked {
+  filter: saturate(0.55) brightness(0.72);
+}
+
+.guardian-core-degraded .guardian-core-particle {
+  background: rgb(251, 191, 36);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.8), 0 0 18px rgba(245, 158, 11, 0.35);
+}
+
+.guardian-core-degraded .guardian-core-halo {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18), transparent 68%);
+}
+
+.guardian-status-card {
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid rgba(34, 211, 238, 0.14);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(2, 12, 20, 0.76), rgba(3, 10, 17, 0.48));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.015);
+}
+
+.guardian-status-icon {
+  display: flex;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  border-radius: 14px;
+  color: rgb(34, 211, 238);
+  background: rgba(8, 47, 73, 0.22);
+}
+
+.guardian-terminal-cursor {
+  display: inline-block;
+  margin-left: 4px;
+  animation: guardian-cursor 1s steps(1, end) infinite;
+}
+
+@keyframes guardian-core-turn {
+  from { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.035); }
+  to { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes guardian-core-breathe {
+  0%, 100% { opacity: 0.62; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes guardian-particle-pulse {
+  0%, 100% { filter: brightness(0.72); }
+  50% { filter: brightness(1.5); }
+}
+
+@keyframes guardian-scan-line {
+  0%, 100% { transform: translateY(-75px); opacity: 0.1; }
+  50% { transform: translateY(75px); opacity: 0.9; }
+}
+
+@keyframes guardian-scan-tilt {
+  0%, 100% { transform: rotate(-4deg); opacity: 0.45; }
+  50% { transform: rotate(4deg); opacity: 0.8; }
+}
+
+@keyframes guardian-cursor {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+
+@media (max-width: 640px) {
+  .guardian-core {
+    width: min(82vw, 38vh, 330px);
+  }
+
+  .guardian-control-frame::before,
+  .guardian-control-frame::after {
+    width: 100px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 768px) {
+  .guardian-core {
+    width: min(48vw, 34vh, 285px);
+  }
+
+  .guardian-status-card {
+    min-height: 68px;
+    padding-block: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guardian-core-halo,
+  .guardian-core-scan,
+  .guardian-core-particle-shell,
+  .guardian-core-particle,
+  .guardian-terminal-cursor {
+    animation: none !important;
+  }
+}

@@ -8,7 +8,7 @@ import {
   Bot,
   BrainCircuit,
   History,
-  Home,
+  Mic,
   ServerCog,
   ShieldCheck,
 } from "lucide-react";
@@ -26,15 +26,15 @@ type NavigationItem = {
 
 const navigationItems: NavigationItem[] = [
   {
-    label: "Dashboard",
+    label: "Guardian",
     href: "/",
-    icon: Home,
+    icon: ShieldCheck,
     exact: true,
   },
   {
-    label: "Guardian",
+    label: "Voice",
     href: "/guardian",
-    icon: ShieldCheck,
+    icon: Mic,
   },
   {
     label: "Knowledge",
@@ -84,6 +84,10 @@ function isActiveRoute(
 export function AppNavigation() {
   const pathname = usePathname();
 
+  if (pathname === "/") {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
@@ -99,11 +103,11 @@ export function AppNavigation() {
 
           <div className="hidden sm:block">
             <p className="text-sm font-semibold text-white">
-              Dipen AI Platform
+              Guardian Control Core
             </p>
 
             <p className="text-xs text-slate-500">
-              Agent workspace
+              Dipen AI Platform
             </p>
           </div>
         </Link>
