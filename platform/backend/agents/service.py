@@ -5,9 +5,7 @@ from fastapi import HTTPException
 
 from agents.registry import agent_registry
 from agents.router import AgentRoute, agent_router
-from agents.runtime_instrumentation import (
-    instrumented_agent_executor,
-)
+from agents.runtime import instrumented_agent_executor
 from agents.schemas import (
     AgentDefinition,
     AgentRoutingMetadata,
