@@ -10,6 +10,7 @@ export type AgentRuntimeStatus =
 
 export type TruthEvidenceSource =
   | "agent-registry"
+  | "backend-runtime"
   | "runtime-heartbeat"
   | "task-ledger";
 
