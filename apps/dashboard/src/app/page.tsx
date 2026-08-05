@@ -1,5 +1,5 @@
-import GuardianControlCore from "./components/GuardianControlCore";
+import GuardianMinimalVoice from "./components/GuardianMinimalVoice";
 
 export default function HomePage() {
-  return <GuardianControlCore />;
+  return <GuardianMinimalVoice />;
 }
