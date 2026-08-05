@@ -74,8 +74,9 @@ a {
 
 .guardian-core {
   position: relative;
-  width: min(64vw, 430px);
+  width: min(62vw, 43vh, 380px);
   aspect-ratio: 1;
+  flex: 0 0 auto;
   border-radius: 999px;
   perspective: 900px;
   filter: saturate(1.1);
@@ -212,10 +213,10 @@ a {
 .guardian-status-card {
   display: flex;
   min-width: 0;
+  min-height: 76px;
   align-items: center;
-  gap: 14px;
-  min-height: 88px;
-  padding: 16px;
+  gap: 12px;
+  padding: 13px 15px;
   border: 1px solid rgba(34, 211, 238, 0.14);
   border-radius: 15px;
   background: linear-gradient(145deg, rgba(2, 12, 20, 0.76), rgba(3, 10, 17, 0.48));
@@ -224,8 +225,8 @@ a {
 
 .guardian-status-icon {
   display: flex;
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
@@ -274,12 +275,23 @@ a {
 
 @media (max-width: 640px) {
   .guardian-core {
-    width: min(86vw, 360px);
+    width: min(82vw, 38vh, 330px);
   }
 
   .guardian-control-frame::before,
   .guardian-control-frame::after {
     width: 100px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 768px) {
+  .guardian-core {
+    width: min(48vw, 34vh, 285px);
+  }
+
+  .guardian-status-card {
+    min-height: 68px;
+    padding-block: 10px;
   }
 }
 
