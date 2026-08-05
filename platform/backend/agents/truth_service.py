@@ -5,6 +5,7 @@ from agents.registry import (
     AgentRegistry,
     agent_registry,
 )
+from agents.schemas import AgentDefinition
 from agents.truth_repository import (
     AgentTruthRepository,
     agent_truth_repository,
@@ -172,7 +173,7 @@ class AgentTruthService:
 
     def _build_agent_state(
         self,
-        agent: object,
+        agent: AgentDefinition,
         heartbeat: AgentHeartbeat | None,
         now: datetime,
     ) -> AgentRuntimeState:
@@ -185,7 +186,7 @@ class AgentTruthService:
             )
         ]
 
-        if not getattr(agent, "enabled"):
+        if not agent.enabled:
             return AgentRuntimeState(
                 agent=agent,
                 runtime_status="disabled",
