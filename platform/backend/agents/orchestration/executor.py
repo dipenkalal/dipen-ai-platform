@@ -13,9 +13,9 @@ from agents.orchestration.schemas import (
 from agents.orchestration.synthesizer import (
     orchestration_synthesizer,
 )
+from agents.runtime import instrumented_agent_executor
 from agents.runtime_instrumentation import (
     AgentExecutionContext,
-    instrumented_agent_executor,
 )
 from agents.schemas import (
     AgentRunRequest,
