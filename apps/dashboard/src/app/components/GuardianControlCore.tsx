@@ -241,14 +241,18 @@ export default function GuardianControlCore() {
   }, []);
 
   useEffect(() => {
-    setOwnerToken(window.sessionStorage.getItem(OWNER_TOKEN_KEY) ?? "");
-    void refreshState();
-
+    const initialRefresh = window.requestAnimationFrame(() => {
+      setOwnerToken(window.sessionStorage.getItem(OWNER_TOKEN_KEY) ?? "");
+      void refreshState();
+    });
     const interval = window.setInterval(() => {
       void refreshState();
     }, STATUS_REFRESH_MS);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      window.cancelAnimationFrame(initialRefresh);
+      window.clearInterval(interval);
+    };
   }, [refreshState]);
 
   const enabledAgents = useMemo(
@@ -364,7 +368,7 @@ export default function GuardianControlCore() {
             </div>
             <div>
               <p className="font-mono text-sm uppercase tracking-[0.3em] text-cyan-300 sm:text-lg">
-                Guardian <span className="text-cyan-400/40">//</span> Control Core
+                Guardian <span className="text-cyan-400/40">{"//"}</span> Control Core
               </p>
               <p className="mt-1 text-xs text-slate-600">
                 Dipen AI Platform supervisory interface
