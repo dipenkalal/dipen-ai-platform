@@ -2,7 +2,6 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from agents.executor import agent_executor
 from agents.orchestration.schemas import (
     OrchestrationPlan,
     OrchestrationPlanRequest,
@@ -13,6 +12,10 @@ from agents.orchestration.schemas import (
 )
 from agents.orchestration.synthesizer import (
     orchestration_synthesizer,
+)
+from agents.runtime import instrumented_agent_executor
+from agents.runtime_instrumentation import (
+    AgentExecutionContext,
 )
 from agents.schemas import (
     AgentRunRequest,
@@ -27,6 +30,8 @@ class OrchestrationExecutor:
         self,
         request: OrchestrationPlanRequest,
         plan: OrchestrationPlan,
+        *,
+        parent_task_id: str | None = None,
     ) -> OrchestrationRunResponse:
         orchestration_started_at = datetime.now(
             timezone.utc,
@@ -73,6 +78,7 @@ class OrchestrationExecutor:
                         request=request,
                         task=task,
                         accumulated_outputs=(context_outputs),
+                        parent_task_id=parent_task_id,
                     )
                     for task in ready_tasks
                 ],
@@ -158,6 +164,7 @@ class OrchestrationExecutor:
         request: OrchestrationPlanRequest,
         task: OrchestrationTask,
         accumulated_outputs: list[tuple[str, str]],
+        parent_task_id: str | None,
     ) -> OrchestrationTaskResult:
         task_started_at = datetime.now(
             timezone.utc,
@@ -170,8 +177,20 @@ class OrchestrationExecutor:
                 accumulated_outputs=(accumulated_outputs),
             )
 
-            response = await agent_executor.run(
+            task_id = (
+                f"{parent_task_id}:{task.task_id}"
+                if parent_task_id
+                else None
+            )
+
+            response = await instrumented_agent_executor.run(
                 child_request,
+                context=AgentExecutionContext(
+                    task_id=task_id,
+                    parent_task_id=parent_task_id,
+                    requested_by="orchestration",
+                    objective=task.objective,
+                ),
             )
 
             return OrchestrationTaskResult(

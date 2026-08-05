@@ -45,18 +45,26 @@ jobs:
       - name: Ruff
         run: |
           python -m ruff check \
+            agents/orchestration/executor.py \
+            agents/orchestration/service.py \
             agents/orchestration/validator.py \
+            agents/runtime.py \
+            agents/runtime_instrumentation.py \
+            agents/service.py \
             agents/truth_repository.py \
             agents/truth_routes.py \
             agents/truth_schemas.py \
             agents/truth_service.py \
             tests/test_agent_truth_foundation.py \
-            tests/test_orchestration_validator.py
+            tests/test_orchestration_validator.py \
+            tests/test_runtime_instrumentation.py
 
       - name: Mypy
         run: |
           python -m mypy \
             agents/orchestration/validator.py \
+            agents/runtime.py \
+            agents/runtime_instrumentation.py \
             agents/truth_repository.py \
             agents/truth_service.py \
             --follow-imports=skip
@@ -65,20 +73,27 @@ jobs:
         run: |
           python -m compileall \
             -q \
+            agents/orchestration/executor.py \
+            agents/orchestration/service.py \
             agents/orchestration/validator.py \
+            agents/runtime.py \
+            agents/runtime_instrumentation.py \
+            agents/service.py \
             agents/truth_repository.py \
             agents/truth_routes.py \
             agents/truth_schemas.py \
             agents/truth_service.py \
             tests/test_agent_truth_foundation.py \
-            tests/test_orchestration_validator.py
+            tests/test_orchestration_validator.py \
+            tests/test_runtime_instrumentation.py
 
       - name: Backend tests
         run: |
           python -m pytest \
             -q \
             tests/test_agent_truth_foundation.py \
-            tests/test_orchestration_validator.py
+            tests/test_orchestration_validator.py \
+            tests/test_runtime_instrumentation.py
 
   guardian:
     name: guardian
