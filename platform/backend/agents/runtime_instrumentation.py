@@ -224,7 +224,7 @@ class RuntimeInstrumentation:
             self.truth_writer.record_heartbeat(
                 heartbeat
             )
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "Runtime heartbeat write failed.",
                 exc_info=True,
@@ -264,7 +264,7 @@ class RuntimeInstrumentation:
 
         try:
             self.truth_writer.upsert_task(task)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning(
                 "Runtime task-ledger write failed.",
                 exc_info=True,
