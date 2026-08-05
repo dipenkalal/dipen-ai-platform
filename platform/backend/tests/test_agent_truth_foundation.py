@@ -12,7 +12,6 @@ from agents.truth_schemas import (
 )
 from agents.truth_service import AgentTruthService
 
-
 FIXED_NOW = datetime(
     2026,
     8,
