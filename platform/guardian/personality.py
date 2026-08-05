@@ -12,6 +12,8 @@ Intent = Literal[
     "gratitude",
     "farewell",
     "identity",
+    "agent_status",
+    "task_status",
     "system_status",
     "technical",
     "action",
@@ -47,6 +49,24 @@ _IDENTITY = re.compile(
     r"do you have emotions|do you have a mind|do you have a soul|"
     r"can you feel|do you feel|do you care|do you love|"
     r"do you get lonely|do you dream|are your feelings real)\b",
+    re.IGNORECASE,
+)
+_AGENT_REFERENCE = re.compile(
+    r"\b(?:agent|agents|agent fleet|coding agent|devops agent|documentation agent|"
+    r"knowledge agent|research agent|system agent|sql agent)\b",
+    re.IGNORECASE,
+)
+_AGENT_STATE = re.compile(
+    r"\b(?:doing|working|status|state|running|busy|available|ready|offline|"
+    r"unreported|active|idle|current task|assigned task|what task)\b",
+    re.IGNORECASE,
+)
+_TASK_STATUS = re.compile(
+    r"\b(?:task|tasks|task ledger|ledger task|agent run|agent runs|recent run|"
+    r"recent runs|latest run|latest runs)\b.*\b(?:status|state|running|busy|"
+    r"active|completed|failed|cancelled|recent|latest|doing|happened)\b|"
+    r"\b(?:what|which|show|list|tell me)\b.*\b(?:task|tasks|task ledger|"
+    r"agent run|agent runs)\b",
     re.IGNORECASE,
 )
 _TECHNICAL = re.compile(
@@ -122,12 +142,19 @@ def classify_intent(
     text = remove_wake_phrase(question)
     lowered = text.lower().strip()
 
+    if _IDENTITY.search(lowered):
+        return "identity"
+    if _TASK_STATUS.search(lowered):
+        return "task_status"
+    if (
+        _AGENT_REFERENCE.search(lowered)
+        and _AGENT_STATE.search(lowered)
+    ):
+        return "agent_status"
     if _ACTION.search(lowered):
         return "action"
     if _STATUS.search(lowered):
         return "system_status"
-    if _IDENTITY.search(lowered):
-        return "identity"
     if _TECHNICAL.search(lowered):
         return "technical"
     if re.search(r"\b(?:thank you|thanks|appreciate it)\b", lowered):
@@ -141,6 +168,12 @@ def classify_intent(
         lowered,
     ):
         return "greeting"
+
+    if context is not None and _FOLLOW_UP.search(lowered):
+        if context.previous_intent == "agent_status":
+            return "agent_status"
+        if context.previous_intent == "task_status":
+            return "task_status"
 
     topic = resolve_topic(question, context)
     if topic == "system_status":
@@ -181,6 +214,17 @@ _RESPONSES: dict[Intent, tuple[str, ...]] = {
 
 
 def conversational_response(intent: Intent, question: str) -> str | None:
+    if intent in {
+        "agent_status",
+        "task_status",
+    }:
+        from truth_client import answer_truth_question
+
+        return answer_truth_question(
+            question,
+            intent,
+        )
+
     choices = _RESPONSES.get(intent)
     if not choices:
         return None
@@ -232,7 +276,7 @@ def parse_context(value: object) -> ConversationContext:
     previous_intent = value.get("previous_intent")
     allowed = {
         "greeting", "casual", "gratitude", "farewell", "identity",
-        "system_status", "technical", "action",
+        "agent_status", "task_status", "system_status", "technical", "action",
     }
     return ConversationContext(
         previous_user=(
