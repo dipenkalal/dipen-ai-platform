@@ -48,6 +48,7 @@ jobs:
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
+            agents/runtime.py \
             agents/runtime_instrumentation.py \
             agents/service.py \
             agents/truth_repository.py \
@@ -62,6 +63,7 @@ jobs:
         run: |
           python -m mypy \
             agents/orchestration/validator.py \
+            agents/runtime.py \
             agents/runtime_instrumentation.py \
             agents/truth_repository.py \
             agents/truth_service.py \
@@ -74,6 +76,7 @@ jobs:
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
+            agents/runtime.py \
             agents/runtime_instrumentation.py \
             agents/service.py \
             agents/truth_repository.py \
