@@ -11,7 +11,6 @@ from agents.truth_schemas import (
     TaskLedgerRecord,
 )
 
-
 DEFAULT_TRUTH_DATABASE_PATH = (
     Path.home()
     / "dap"
