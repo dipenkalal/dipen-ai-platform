@@ -26,6 +26,26 @@ class PersonalityTestCase(unittest.TestCase):
     def test_how_are_you_is_casual(self) -> None:
         self.assertEqual(personality.classify_intent("How are you?"), "casual")
 
+    def test_feelings_question_is_identity(self) -> None:
+        self.assertEqual(
+            personality.classify_intent("Do you have feelings?"),
+            "identity",
+        )
+        self.assertEqual(
+            personality.classify_intent("Can you feel emotions?"),
+            "identity",
+        )
+
+    def test_consciousness_question_is_identity(self) -> None:
+        self.assertEqual(
+            personality.classify_intent("Are you self-aware?"),
+            "identity",
+        )
+        self.assertEqual(
+            personality.classify_intent("Are you sentient?"),
+            "identity",
+        )
+
     def test_server_question_is_system_status(self) -> None:
         self.assertEqual(
             personality.classify_intent("How is the server?"),
@@ -46,6 +66,28 @@ class PersonalityTestCase(unittest.TestCase):
         self.assertEqual(result["intent"], "casual")
         self.assertNotRegex(result["answer"], r"\b(?:PID|MB|GB|%)\b")
         self.assertLessEqual(len(result["answer"].split(". ")), 3)
+
+    def test_feelings_response_never_collects_or_exposes_telemetry(self) -> None:
+        with patch.object(app, "build_state") as build_state:
+            result = app.ask_guardian("Do you have feelings?")
+
+        build_state.assert_not_called()
+        self.assertEqual(result["intent"], "identity")
+        self.assertEqual(result["source"], "guardian-personality")
+        self.assertIn("don't have feelings", result["answer"])
+        self.assertIn("supportive", result["answer"])
+        self.assertNotRegex(
+            result["answer"],
+            r"\b(?:PID|MB|GB|%|Docker|memory|disk)\b",
+        )
+
+    def test_identity_routing_precedes_technical_keywords(self) -> None:
+        with patch.object(app, "build_state") as build_state:
+            result = app.ask_guardian("Do you have feelings about Docker?")
+
+        build_state.assert_not_called()
+        self.assertEqual(result["intent"], "identity")
+        self.assertEqual(result["source"], "guardian-personality")
 
     def test_follow_up_uses_memory_context(self) -> None:
         context = personality.ConversationContext(
