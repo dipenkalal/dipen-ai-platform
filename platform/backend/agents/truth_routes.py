@@ -13,7 +13,6 @@ from agents.truth_schemas import (
 )
 from agents.truth_service import agent_truth_service
 
-
 router = APIRouter(
     prefix="/api/v1/truth",
     tags=["Guardian Truth Foundation"],
