@@ -1,0 +1,291 @@
+/*
+ * Guardian spatial calibration
+ *
+ * The chamber and particle core retain real 3D depth, while interface surfaces
+ * use shallower Z planes so text remains crisp and the full control surface
+ * stays inside the viewport at every pointer position.
+ */
+
+.guardian-control-shell {
+  perspective: 2600px;
+  perspective-origin: 50% 50%;
+}
+
+.guardian-control-frame {
+  transform: translateZ(0) !important;
+  transition: box-shadow 240ms ease;
+}
+
+.guardian-scene-world {
+  perspective: 2400px;
+  perspective-origin: 50% 48%;
+}
+
+.guardian-header {
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * 1.5px),
+      calc(var(--pointer-y) * 1px),
+      14px
+    )
+    rotateX(calc(var(--pointer-y) * -0.12deg))
+    rotateY(calc(var(--pointer-x) * 0.16deg));
+}
+
+.guardian-brand-mark {
+  transform: translateZ(5px) rotateY(calc(var(--pointer-x) * 0.8deg));
+}
+
+.guardian-brand-mark-inner,
+.guardian-release-chip,
+.guardian-header-status,
+.guardian-layers-button {
+  transform: translateZ(4px);
+}
+
+.guardian-layers-button:hover {
+  transform: translateZ(10px) translateY(-1px);
+}
+
+.guardian-layers-panel {
+  transform: translateZ(85px) rotateY(-1deg) rotateX(0.35deg);
+}
+
+.guardian-layer-link:hover {
+  transform: translateZ(10px) translateX(-2px);
+}
+
+.guardian-layer-icon,
+.guardian-icon-button:hover {
+  transform: translateZ(5px);
+}
+
+.guardian-hero-content {
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * 2px),
+      calc(var(--pointer-y) * 1.5px),
+      18px
+    )
+    rotateX(calc(var(--pointer-y) * -0.16deg))
+    rotateY(calc(var(--pointer-x) * 0.2deg));
+}
+
+.guardian-hero-kicker {
+  transform: translateZ(18px);
+}
+
+.guardian-core-stage {
+  width: min(56vw, 39vh, 350px);
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * 7px),
+      calc(var(--pointer-y) * 5px),
+      72px
+    )
+    rotateX(calc(var(--pointer-y) * -2.1deg))
+    rotateY(calc(var(--pointer-x) * 2.5deg));
+}
+
+.guardian-core-state-block {
+  transform: translateZ(28px);
+}
+
+.guardian-truth-strip {
+  transform: translateZ(18px);
+}
+
+.guardian-status-deck {
+  padding-inline: 3px;
+  perspective: 2400px;
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * 2px),
+      calc(var(--pointer-y) * 1.5px),
+      24px
+    )
+    rotateX(calc(var(--pointer-y) * -0.18deg));
+}
+
+.guardian-status-card {
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.guardian-status-card[data-position="left"] {
+  transform: translateZ(8px) rotateY(1.8deg) rotateX(0.25deg);
+}
+
+.guardian-status-card[data-position="center"] {
+  transform: translateZ(13px) rotateX(-0.35deg);
+}
+
+.guardian-status-card[data-position="right"] {
+  transform: translateZ(8px) rotateY(-1.8deg) rotateX(0.25deg);
+}
+
+.guardian-status-card[data-position="left"]:hover {
+  transform: translateZ(25px) translateY(-3px) rotateY(0.8deg);
+}
+
+.guardian-status-card[data-position="center"]:hover {
+  transform: translateZ(30px) translateY(-3px) rotateX(-0.25deg);
+}
+
+.guardian-status-card[data-position="right"]:hover {
+  transform: translateZ(25px) translateY(-3px) rotateY(-0.8deg);
+}
+
+.guardian-status-icon,
+.guardian-status-label,
+.guardian-status-value,
+.guardian-status-detail,
+.guardian-status-pulse {
+  transform: translateZ(3px);
+}
+
+.guardian-status-depth-edge {
+  bottom: -7px;
+  height: 12px;
+  transform: translateZ(-8px) rotateX(-48deg);
+}
+
+.guardian-command-dock {
+  margin-inline: 2px;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * 2.5px),
+      calc(var(--pointer-y) * 1.5px),
+      34px
+    )
+    rotateX(calc(0.55deg + var(--pointer-y) * -0.18deg))
+    rotateY(calc(var(--pointer-x) * 0.16deg));
+}
+
+.guardian-command-dock-depth {
+  bottom: -8px;
+  height: 15px;
+  transform: translateZ(-10px) rotateX(-48deg);
+}
+
+.guardian-response-panel,
+.guardian-command-input-shell,
+.guardian-execute-button,
+.guardian-auth-panel,
+.guardian-command-footer {
+  transform: translateZ(4px);
+}
+
+.guardian-command-input-shell:focus-within {
+  transform: translateZ(9px) translateY(-1px);
+}
+
+.guardian-execute-button:hover:not(:disabled) {
+  transform: translateZ(12px) translateY(-2px);
+}
+
+.guardian-execute-button:active:not(:disabled) {
+  transform: translateZ(6px) translateY(1px);
+}
+
+.guardian-auth-button:hover:not(:disabled),
+.guardian-command-actions button:hover,
+.guardian-command-actions a:hover {
+  transform: translateZ(5px) translateY(-1px);
+}
+
+/* Keep the environmental architecture deep, but reduce pointer travel. */
+.guardian-control-grid {
+  transform: translate3d(
+    calc(var(--pointer-x) * -2px),
+    calc(var(--pointer-y) * -1px),
+    -220px
+  ) scale(1.05);
+}
+
+.guardian-frame-light-left {
+  transform: translate3d(calc(var(--pointer-x) * -5px), 0, -90px) skewX(-18deg);
+}
+
+.guardian-frame-light-right {
+  transform: translate3d(calc(var(--pointer-x) * 4px), 0, -80px) skewX(18deg);
+}
+
+.guardian-chamber-pillar-left {
+  transform: translate3d(
+    calc(var(--pointer-x) * -3px),
+    calc(var(--pointer-y) * -2px),
+    -60px
+  ) rotateY(12deg);
+}
+
+.guardian-chamber-pillar-right {
+  transform: translate3d(
+    calc(var(--pointer-x) * 3px),
+    calc(var(--pointer-y) * -2px),
+    -60px
+  ) rotateY(-12deg);
+}
+
+.guardian-hero-chamber {
+  transform:
+    translate3d(
+      calc(var(--pointer-x) * -2px),
+      calc(var(--pointer-y) * -1.5px),
+      -150px
+    )
+    rotateX(calc(var(--pointer-y) * 0.25deg))
+    rotateY(calc(var(--pointer-x) * -0.25deg));
+}
+
+@keyframes guardian-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateZ(60px) translateY(-8px) rotateY(-1.5deg) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(85px) rotateY(-1deg) rotateX(0.35deg) scale(1);
+  }
+}
+
+@keyframes guardian-response-enter {
+  from {
+    opacity: 0;
+    transform: translateZ(0) translateY(6px) rotateX(-1deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(4px);
+  }
+}
+
+@media (max-height: 820px) and (min-width: 901px) {
+  .guardian-core-stage {
+    width: min(48vw, 34vh, 300px);
+  }
+
+  .guardian-status-card {
+    min-height: 72px;
+    padding-block: 10px;
+  }
+
+  .guardian-command-dock {
+    padding-block: 10px 7px;
+  }
+}
+
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+  .guardian-control-frame,
+  .guardian-header,
+  .guardian-hero-content,
+  .guardian-core-stage,
+  .guardian-status-deck,
+  .guardian-status-card,
+  .guardian-command-dock,
+  .guardian-layers-panel {
+    transform: none !important;
+  }
+}
