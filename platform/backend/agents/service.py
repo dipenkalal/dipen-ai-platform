@@ -3,9 +3,11 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
-from agents.executor import agent_executor
 from agents.registry import agent_registry
 from agents.router import AgentRoute, agent_router
+from agents.runtime_instrumentation import (
+    instrumented_agent_executor,
+)
 from agents.schemas import (
     AgentDefinition,
     AgentRoutingMetadata,
@@ -86,7 +88,9 @@ class AgentService:
         try:
             resolved_request, _ = self.resolve_request(request)
 
-            response = await agent_executor.run(resolved_request)
+            response = await instrumented_agent_executor.run(
+                resolved_request
+            )
 
             agent_run_history_service.save(
                 request=resolved_request,
@@ -156,7 +160,9 @@ class AgentService:
                 + "\n"
             )
 
-            response = await agent_executor.run(resolved_request)
+            response = await instrumented_agent_executor.run(
+                resolved_request
+            )
 
             for step in response.steps:
                 yield (
