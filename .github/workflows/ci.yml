@@ -46,12 +46,19 @@ jobs:
         run: |
           python -m ruff check \
             agents/orchestration/validator.py \
+            agents/truth_repository.py \
+            agents/truth_routes.py \
+            agents/truth_schemas.py \
+            agents/truth_service.py \
+            tests/test_agent_truth_foundation.py \
             tests/test_orchestration_validator.py
 
       - name: Mypy
         run: |
           python -m mypy \
             agents/orchestration/validator.py \
+            agents/truth_repository.py \
+            agents/truth_service.py \
             --follow-imports=skip
 
       - name: Compile Python
@@ -59,12 +66,18 @@ jobs:
           python -m compileall \
             -q \
             agents/orchestration/validator.py \
+            agents/truth_repository.py \
+            agents/truth_routes.py \
+            agents/truth_schemas.py \
+            agents/truth_service.py \
+            tests/test_agent_truth_foundation.py \
             tests/test_orchestration_validator.py
 
       - name: Backend tests
         run: |
           python -m pytest \
             -q \
+            tests/test_agent_truth_foundation.py \
             tests/test_orchestration_validator.py
 
   guardian:
@@ -193,7 +206,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses:
+          actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
