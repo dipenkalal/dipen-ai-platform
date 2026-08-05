@@ -51,6 +51,7 @@ TaskType = Literal[
 
 EvidenceSource = Literal[
     "agent-registry",
+    "backend-runtime",
     "runtime-heartbeat",
     "task-ledger",
 ]
