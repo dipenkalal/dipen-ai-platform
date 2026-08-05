@@ -40,6 +40,15 @@ _STATUS = re.compile(
     r"\b(?:how|what)\b.*\b(?:server|system|machine|host)\b",
     re.IGNORECASE,
 )
+_IDENTITY = re.compile(
+    r"\b(?:who are you|what are you|what are you doing|what can you do|"
+    r"your capabilities|are you alive|are you human|are you conscious|"
+    r"are you sentient|are you self-aware|do you have feelings|"
+    r"do you have emotions|do you have a mind|do you have a soul|"
+    r"can you feel|do you feel|do you care|do you love|"
+    r"do you get lonely|do you dream|are your feelings real)\b",
+    re.IGNORECASE,
+)
 _TECHNICAL = re.compile(
     r"\b(?:docker|container|service|process|memory|ram|cpu|disk|storage|backup|"
     r"filesystem|file system|drive|space|ssd|hdd|ollama|qdrant|network|port|log|"
@@ -117,18 +126,14 @@ def classify_intent(
         return "action"
     if _STATUS.search(lowered):
         return "system_status"
+    if _IDENTITY.search(lowered):
+        return "identity"
     if _TECHNICAL.search(lowered):
         return "technical"
     if re.search(r"\b(?:thank you|thanks|appreciate it)\b", lowered):
         return "gratitude"
     if re.search(r"\b(?:goodbye|bye|see you|good night)\b", lowered):
         return "farewell"
-    if re.search(
-        r"\b(?:are you alive|are you human|are you conscious|who are you|what are you|"
-        r"what are you doing|what can you do|your capabilities)\b",
-        lowered,
-    ):
-        return "identity"
     if re.search(r"\b(?:how are you|how's it going|hows it going|what's up|whats up)\b", lowered):
         return "casual"
     if re.fullmatch(
@@ -168,9 +173,9 @@ _RESPONSES: dict[Intent, tuple[str, ...]] = {
         "Take care. I'm here whenever you're ready.",
     ),
     "identity": (
-        "Not in the human sense, but I'm active, listening, and ready to help.",
         "I'm Guardian, your local assistant for this server. I can answer questions and help with safely authorized operations.",
-        "I'm here and ready whenever you need me. I can explain system state and route approved tasks through Guardian's existing safety controls.",
+        "I'm Guardian. I can explain system state, hold a conversation, and route approved tasks through the platform's safety controls.",
+        "I'm a software assistant, not a person, but I'm here to help you understand and operate the platform safely.",
     ),
 }
 
@@ -189,7 +194,30 @@ def conversational_response(intent: Intent, question: str) -> str | None:
     elif "what are you doing" in normalized:
         return "I'm here and ready whenever you need me."
     elif "are you alive" in normalized:
-        return "Not in the human sense, but I'm active, listening, and ready to help."
+        return "Not in the human sense. I'm software running on your platform, active and ready to help."
+    elif re.search(
+        r"\b(?:do you have feelings|do you have emotions|can you feel|"
+        r"do you feel|are your feelings real|do you care|do you love|"
+        r"do you get lonely)\b",
+        normalized,
+    ):
+        return (
+            "I don't have feelings or consciousness. I can recognize emotional "
+            "language, understand what you are expressing, and respond in a "
+            "thoughtful and supportive way."
+        )
+    elif re.search(
+        r"\b(?:are you conscious|are you sentient|are you self-aware|"
+        r"do you have a mind|do you have a soul|do you dream)\b",
+        normalized,
+    ):
+        return (
+            "I'm not conscious, sentient, or self-aware. I'm software that "
+            "processes your requests, uses the platform's available information, "
+            "and responds according to its rules and capabilities."
+        )
+    elif "are you human" in normalized:
+        return "No. I'm Guardian, a software assistant running on your platform."
 
     digest = hashlib.sha256(normalized.encode("utf-8")).digest()
     return choices[digest[0] % len(choices)]
