@@ -9,9 +9,7 @@ from agents.orchestration.schemas import (
     OrchestrationPlanRequest,
     OrchestrationRunResponse,
 )
-from agents.runtime_instrumentation import (
-    runtime_instrumentation,
-)
+from agents.runtime import runtime_instrumentation
 from history.orchestration_service import (
     orchestration_history_service,
 )
