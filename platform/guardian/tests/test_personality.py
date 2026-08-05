@@ -46,6 +46,28 @@ class PersonalityTestCase(unittest.TestCase):
             "identity",
         )
 
+    def test_agent_activity_question_uses_truth_intent(self) -> None:
+        self.assertEqual(
+            personality.classify_intent(
+                "What is the coding agent doing?"
+            ),
+            "agent_status",
+        )
+        self.assertEqual(
+            personality.classify_intent(
+                "Which agents are busy right now?"
+            ),
+            "agent_status",
+        )
+
+    def test_task_question_uses_task_truth_intent(self) -> None:
+        self.assertEqual(
+            personality.classify_intent(
+                "Show me the latest agent tasks."
+            ),
+            "task_status",
+        )
+
     def test_server_question_is_system_status(self) -> None:
         self.assertEqual(
             personality.classify_intent("How is the server?"),
@@ -81,6 +103,32 @@ class PersonalityTestCase(unittest.TestCase):
             r"\b(?:PID|MB|GB|%|Docker|memory|disk)\b",
         )
 
+    def test_agent_status_response_bypasses_machine_snapshot(self) -> None:
+        with (
+            patch.object(app, "build_state") as build_state,
+            patch(
+                "truth_client.answer_truth_question",
+                return_value=(
+                    "Coding Agent is ready. Source: task ledger."
+                ),
+            ) as truth_answer,
+        ):
+            result = app.ask_guardian(
+                "What is the coding agent doing?"
+            )
+
+        build_state.assert_not_called()
+        truth_answer.assert_called_once_with(
+            "What is the coding agent doing?",
+            "agent_status",
+        )
+        self.assertEqual(result["intent"], "agent_status")
+        self.assertIn("Coding Agent is ready", result["answer"])
+        self.assertNotRegex(
+            result["answer"],
+            r"\b(?:memory|disk|Docker|load average)\b",
+        )
+
     def test_identity_routing_precedes_technical_keywords(self) -> None:
         with patch.object(app, "build_state") as build_state:
             result = app.ask_guardian("Do you have feelings about Docker?")
@@ -98,6 +146,17 @@ class PersonalityTestCase(unittest.TestCase):
         self.assertEqual(
             personality.classify_intent("And the server?", context),
             "system_status",
+        )
+
+    def test_agent_follow_up_preserves_truth_intent(self) -> None:
+        context = personality.ConversationContext(
+            previous_user="What is the coding agent doing?",
+            previous_assistant="It is ready.",
+            previous_intent="agent_status",
+        )
+        self.assertEqual(
+            personality.classify_intent("What about that?", context),
+            "agent_status",
         )
 
     def test_storage_correction_resolves_to_storage(self) -> None:
@@ -221,11 +280,11 @@ class PersonalityTestCase(unittest.TestCase):
         context = personality.parse_context({
             "previous_user": "x" * 800,
             "previous_assistant": "y" * 2_000,
-            "previous_intent": "casual",
+            "previous_intent": "agent_status",
         })
         self.assertEqual(len(context.previous_user), 500)
         self.assertEqual(len(context.previous_assistant), 1_200)
-        self.assertEqual(context.previous_intent, "casual")
+        self.assertEqual(context.previous_intent, "agent_status")
 
 
 if __name__ == "__main__":
