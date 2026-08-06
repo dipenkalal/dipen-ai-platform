@@ -1,12 +1,15 @@
 import unittest
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app import app
 from company.catalog import DEPARTMENTS, ROLES, company_registry
 from company.registry import (
     OrganizationRegistry,
     OrganizationRegistryError,
+)
+from company.routes import (
+    router as company_router,
 )
 
 
@@ -142,7 +145,9 @@ class CompanyRegistryTestCase(unittest.TestCase):
 class CompanyRegistryRouteTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.client = TestClient(app)
+        test_app = FastAPI()
+        test_app.include_router(company_router)
+        cls.client = TestClient(test_app)
 
     @classmethod
     def tearDownClass(cls) -> None:
