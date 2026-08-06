@@ -7,6 +7,10 @@ const BACKEND_BASE_URL =
   process.env.DAP_BACKEND_BASE_URL ??
   "http://host.docker.internal:8002";
 
+const COMPANY_BACKEND_BASE_URL =
+  process.env.DAP_COMPANY_BACKEND_BASE_URL ??
+  BACKEND_BASE_URL;
+
 
 type SourceEnvelope<T> = {
   ok: boolean;
@@ -19,12 +23,16 @@ type SourceEnvelope<T> = {
 async function fetchBackendSource<T>(
   path: string,
   options?: {
+    baseUrl?: string;
     notFoundMessage?: string;
   },
 ): Promise<SourceEnvelope<T>> {
   try {
     const response = await fetch(
-      new URL(path, BACKEND_BASE_URL),
+      new URL(
+        path,
+        options?.baseUrl ?? BACKEND_BASE_URL,
+      ),
       {
         method: "GET",
         cache: "no-store",
@@ -80,6 +88,7 @@ export async function GET(): Promise<Response> {
     fetchBackendSource(
       "/api/v1/company/organization",
       {
+        baseUrl: COMPANY_BACKEND_BASE_URL,
         notFoundMessage: (
           "The connected backend does not include the company registry. " +
           "Run the dashboard with a matching preview backend or deploy " +
