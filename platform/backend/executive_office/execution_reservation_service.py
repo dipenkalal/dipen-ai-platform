@@ -126,7 +126,15 @@ class ExecutiveReservationService(ExecutiveExecutionService):
         if replay is not None:
             return replay
 
-        validation_request = self._validation_request(request)
+        authorization_error = self._authorization_error(
+            request.owner_authorization,
+            request,
+        )
+        validation_request = (
+            request
+            if authorization_error is not None
+            else self._validation_request(request)
+        )
         validation_repository = _ValidationOnlyRepository(
             self.execution_repository
         )
