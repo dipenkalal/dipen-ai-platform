@@ -20,6 +20,9 @@ from collectors.ollama import (
 from collectors.system import (
     get_system_status,
 )
+from company.routes import (
+    router as company_router,
+)
 from gateway.routes import (
     router as gateway_router,
 )
@@ -43,7 +46,7 @@ from shared_http import (
 )
 
 
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.10.0"
 
 
 @asynccontextmanager
@@ -75,6 +78,7 @@ app.include_router(gateway_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)
 app.include_router(agent_truth_router)
+app.include_router(company_router)
 app.include_router(history_router)
 app.include_router(orchestration_history_router)
 app.include_router(analytics_router)
