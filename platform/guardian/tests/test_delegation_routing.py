@@ -89,7 +89,7 @@ class DelegationRoutingTestCase(unittest.TestCase):
 
         self.assertEqual(
             personality.classify_intent(
-                "Now add comments to it.",
+                "And add comments to it.",
                 context,
             ),
             "agent_task",
