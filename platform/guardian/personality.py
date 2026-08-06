@@ -14,6 +14,7 @@ Intent = Literal[
     "identity",
     "agent_status",
     "task_status",
+    "agent_task",
     "system_status",
     "technical",
     "action",
@@ -35,6 +36,17 @@ _WAKE_PREFIX = re.compile(
 _ACTION = re.compile(
     r"\b(?:restart|stop|start|remove|delete|install|update|upgrade|reboot|shutdown|"
     r"deploy|create|write|change|modify|run|execute)\b",
+    re.IGNORECASE,
+)
+_AGENT_TASK = re.compile(
+    r"\b(?:write|create|generate|implement|debug|fix|refactor|review|explain)\b"
+    r".*\b(?:code|program|script|function|class|api|algorithm|python|javascript|"
+    r"typescript|java|rust|golang|sql|html|css|react|next(?:\.js)?|c\+\+|c#|"
+    r"dockerfile|terraform|yaml|pipeline)\b|"
+    r"\b(?:write|create|generate|implement)\b.*\b(?:in|using)\s+c\b|"
+    r"\b(?:research|investigate|compare|summari[sz]e|analyse|analyze)\b|"
+    r"\b(?:write|create|draft|prepare|generate)\b.*\b(?:documentation|readme|"
+    r"runbook|guide|report|release notes)\b",
     re.IGNORECASE,
 )
 _STATUS = re.compile(
@@ -151,6 +163,8 @@ def classify_intent(
         and _AGENT_STATE.search(lowered)
     ):
         return "agent_status"
+    if _AGENT_TASK.search(lowered):
+        return "agent_task"
     if _ACTION.search(lowered):
         return "action"
     if _STATUS.search(lowered):
@@ -174,6 +188,8 @@ def classify_intent(
             return "agent_status"
         if context.previous_intent == "task_status":
             return "task_status"
+        if context.previous_intent == "agent_task":
+            return "agent_task"
 
     topic = resolve_topic(question, context)
     if topic == "system_status":
@@ -224,6 +240,11 @@ def conversational_response(intent: Intent, question: str) -> str | None:
             question,
             intent,
         )
+
+    if intent == "agent_task":
+        from delegation_client import delegate_agent_task
+
+        return delegate_agent_task(question)
 
     choices = _RESPONSES.get(intent)
     if not choices:
@@ -276,7 +297,8 @@ def parse_context(value: object) -> ConversationContext:
     previous_intent = value.get("previous_intent")
     allowed = {
         "greeting", "casual", "gratitude", "farewell", "identity",
-        "agent_status", "task_status", "system_status", "technical", "action",
+        "agent_status", "task_status", "agent_task", "system_status",
+        "technical", "action",
     }
     return ConversationContext(
         previous_user=(
