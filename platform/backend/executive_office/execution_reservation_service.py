@@ -172,6 +172,7 @@ class ExecutiveReservationService(ExecutiveExecutionService):
         if reserved_agent_ids:
             response = self._reservation_rejection(
                 validation=validation,
+                validation_only=request.validation_only,
                 detail=(
                     "Active execution reservations already exist for: "
                     + ", ".join(reserved_agent_ids)
@@ -251,6 +252,7 @@ class ExecutiveReservationService(ExecutiveExecutionService):
         except ReservationConflictError as error:
             rejected = self._reservation_rejection(
                 validation=validation,
+                validation_only=False,
                 detail=str(error),
             )
             return self.execution_repository.persist(
@@ -308,6 +310,7 @@ class ExecutiveReservationService(ExecutiveExecutionService):
     def _reservation_rejection(
         *,
         validation: ExecutiveExecutionResponse,
+        validation_only: bool,
         detail: str,
     ) -> ExecutiveExecutionResponse:
         return validation.model_copy(
@@ -315,7 +318,7 @@ class ExecutiveReservationService(ExecutiveExecutionService):
                 "disposition": "reservation_conflict",
                 "state": "rejected",
                 "reservation_ids": [],
-                "validation_only": False,
+                "validation_only": validation_only,
                 "admission_validated": False,
                 "task_ledger_mutated": False,
                 "reservation_acquired": False,
