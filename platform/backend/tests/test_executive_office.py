@@ -1,6 +1,14 @@
+import os
+import tempfile
 import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
+
+os.environ.setdefault(
+    "KNOWLEDGE_UPLOAD_DIRECTORY",
+    str(Path(tempfile.gettempdir()) / "dap-test-knowledge-uploads"),
+)
 
 from app import app
 from executive_office.schemas import ExecutivePlanRequest
