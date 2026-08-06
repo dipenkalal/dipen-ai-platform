@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import (
+    FastAPI,
+)
 from fastapi.middleware.cors import (
     CORSMiddleware,
 )
