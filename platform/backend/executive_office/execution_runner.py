@@ -49,12 +49,26 @@ class _ExistingTaskTruthWriter:
                 "Instrumented execution attempted to mutate a different task."
             )
 
-        if task.status in {"created", "assigned"}:
-            return self.truth_service.get_task(self.task_id)
+        existing = self.truth_service.get_task(self.task_id)
 
-        preserved = task.model_copy(
-            update={"source_run_id": self.delegation_id}
-        )
+        if task.status in {"created", "assigned"}:
+            return existing
+
+        if existing.source_run_id != self.delegation_id:
+            raise ExistingTaskExecutionError(
+                "The existing task lost its delegation identity during execution."
+            )
+
+        lifecycle_update = {
+            "status": task.status,
+            "current_step": task.current_step,
+            "progress_percent": task.progress_percent,
+            "error": task.error,
+            "updated_at": task.updated_at,
+            "started_at": task.started_at,
+            "completed_at": task.completed_at,
+        }
+        preserved = existing.model_copy(update=lifecycle_update)
         return self.truth_service.upsert_task(preserved)
 
     def record_heartbeat(
