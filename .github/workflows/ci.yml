@@ -79,6 +79,7 @@ jobs:
             tests/test_executive_execution.py \
             tests/test_executive_execution_runner.py \
             tests/test_executive_execution_start.py \
+            tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
@@ -135,6 +136,7 @@ jobs:
             tests/test_executive_execution.py \
             tests/test_executive_execution_runner.py \
             tests/test_executive_execution_start.py \
+            tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
@@ -151,6 +153,7 @@ jobs:
             tests/test_executive_execution.py \
             tests/test_executive_execution_runner.py \
             tests/test_executive_execution_start.py \
+            tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
