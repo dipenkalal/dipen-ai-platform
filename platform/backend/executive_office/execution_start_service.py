@@ -15,6 +15,7 @@ from executive_office.execution_reservation_service import (
 )
 from executive_office.execution_runner import (
     ExecutiveExistingTaskRunner,
+    ExistingTaskExecutionError,
 )
 from executive_office.execution_start_repository import (
     ExecutionStartClaim,
@@ -153,6 +154,28 @@ class ExecutiveExecutionStartService:
         if isinstance(claimed, ExecutiveExecutionStartResponse):
             return claimed
 
+        worker_error = self._worker_error(claimed.selected_agent_ids)
+
+        if worker_error is not None:
+            response = ExecutiveExecutionStartResponse(
+                execution_id=claimed.execution_id,
+                delegation_id=claimed.delegation_id,
+                child_task_ids=list(claimed.child_task_ids),
+                disposition="manual_review",
+                state="manual_review",
+                execution_started=False,
+                reservation_released=False,
+                broker_activated=False,
+                message=(
+                    "Execution entered manual review before agent invocation. "
+                    f"Active reservations were retained: {worker_error}"
+                ),
+            )
+            return self.start_repository.mark_manual_review(
+                idempotency_key=request.idempotency_key,
+                response=response,
+            )
+
         return await self._run_claimed_execution(
             claim=claimed,
             idempotency_key=request.idempotency_key,
@@ -208,6 +231,26 @@ class ExecutiveExecutionStartService:
                         completed_at=agent_response.completed_at,
                     )
                 )
+        except ExistingTaskExecutionError as error:
+            response = ExecutiveExecutionStartResponse(
+                execution_id=claim.execution_id,
+                delegation_id=claim.delegation_id,
+                child_task_ids=list(claim.child_task_ids),
+                disposition="manual_review",
+                state="manual_review",
+                task_results=results,
+                execution_started=bool(results),
+                reservation_released=False,
+                broker_activated=False,
+                message=(
+                    "Execution entered manual review after queued-task identity "
+                    f"validation failed. Active reservations were retained: {error}"
+                ),
+            )
+            return self.start_repository.mark_manual_review(
+                idempotency_key=idempotency_key,
+                response=response,
+            )
         except Exception as error:
             response = ExecutiveExecutionStartResponse(
                 execution_id=claim.execution_id,
@@ -229,7 +272,7 @@ class ExecutiveExecutionStartService:
                 response=response,
             )
 
-        terminal_state = (
+        terminal_state: ExecutionTaskResultStatus = (
             "completed"
             if all(result.status == "completed" for result in results)
             else "failed"
@@ -258,6 +301,28 @@ class ExecutiveExecutionStartService:
             idempotency_key=idempotency_key,
             response=response,
         )
+
+    def _worker_error(
+        self,
+        agent_ids: tuple[str, ...],
+    ) -> str | None:
+        for agent_id in agent_ids:
+            try:
+                state = self.truth_service.get_agent_state(agent_id)
+            except KeyError:
+                return f"Machine agent {agent_id} is not registered."
+
+            if not state.agent.enabled:
+                return f"Machine agent {agent_id} is disabled."
+            if not state.agent.safe:
+                return f"Machine agent {agent_id} is not marked safe."
+            if state.runtime_status != "available":
+                return (
+                    f"Machine agent {agent_id} is {state.runtime_status}, "
+                    "not available."
+                )
+
+        return None
 
     @staticmethod
     def _authorization_error(
