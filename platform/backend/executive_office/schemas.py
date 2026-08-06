@@ -22,16 +22,19 @@ DelegationDisposition = Literal[
 ]
 ExecutionDisposition = Literal[
     "validated",
+    "reserved",
     "authorization_required",
     "rejected",
     "task_state_conflict",
     "worker_unavailable",
+    "reservation_conflict",
     "execution_disabled",
     "idempotent_replay",
 ]
 ExecutionAdmissionState = Literal[
     "requested",
     "validated",
+    "reserved",
     "rejected",
 ]
 ExecutiveOfficeMode = Literal[
@@ -221,6 +224,7 @@ class ExecutiveExecutionResponse(BaseModel):
     disposition: ExecutionDisposition
     state: ExecutionAdmissionState
     selected_agent_ids: list[str] = Field(default_factory=list)
+    reservation_ids: list[str] = Field(default_factory=list)
     validation_evidence: list[ExecutionValidationEvidence] = Field(
         default_factory=list
     )
@@ -250,6 +254,7 @@ class ExecutiveOfficeStatusResponse(BaseModel):
     delegation_enabled: bool = True
     task_ledger_writes_enabled: bool = True
     execution_admission_enabled: bool = False
+    execution_reservation_enabled: bool = False
     execution_enabled: bool = False
     broker_activation_enabled: bool = False
     capabilities: list[ExecutiveOfficeCapability]
