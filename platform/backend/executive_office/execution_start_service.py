@@ -1,6 +1,6 @@
 import hashlib
 import json
-from typing import Any
+from typing import Any, cast
 
 from agents.runtime import instrumented_agent_executor
 from agents.schemas import AgentRunRequest
@@ -23,12 +23,12 @@ from executive_office.execution_start_repository import (
     executive_execution_start_repository,
 )
 from executive_office.execution_start_schemas import (
+    ExecutionTaskResultStatus,
     ExecutiveExecutionStartRequest,
     ExecutiveExecutionStartResponse,
     ExecutiveTaskExecutionResult,
     OwnerExecutionStartAuthorization,
 )
-from executive_office.repository import IdempotencyConflictError
 from executive_office.schemas import (
     ExecutiveOfficeCapability,
     ExecutiveOfficeStatusResponse,
@@ -186,12 +186,23 @@ class ExecutiveExecutionStartService:
                     task=task,
                     delegation_id=claim.delegation_id,
                 )
+
+                if agent_response.status not in {"completed", "failed"}:
+                    raise RuntimeError(
+                        "The bounded agent returned a non-terminal status: "
+                        f"{agent_response.status}."
+                    )
+
+                terminal_status = cast(
+                    ExecutionTaskResultStatus,
+                    agent_response.status,
+                )
                 results.append(
                     ExecutiveTaskExecutionResult(
                         task_id=task_id,
                         agent_id=agent_id,
                         run_id=agent_response.run_id,
-                        status=agent_response.status,
+                        status=terminal_status,
                         answer=agent_response.answer,
                         started_at=agent_response.started_at,
                         completed_at=agent_response.completed_at,
