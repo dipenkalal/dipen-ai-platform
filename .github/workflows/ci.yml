@@ -63,6 +63,7 @@ jobs:
             executive_office/delegation_service.py \
             executive_office/execution_repository.py \
             executive_office/execution_reservation_service.py \
+            executive_office/execution_runner.py \
             executive_office/execution_service.py \
             executive_office/repository.py \
             executive_office/routes.py \
@@ -73,6 +74,7 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_runner.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
@@ -93,6 +95,7 @@ jobs:
             executive_office/delegation_service.py \
             executive_office/execution_repository.py \
             executive_office/execution_reservation_service.py \
+            executive_office/execution_runner.py \
             executive_office/execution_service.py \
             executive_office/repository.py \
             executive_office/routes.py \
@@ -123,6 +126,7 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_runner.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
@@ -137,6 +141,7 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_runner.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
             tests/test_orchestration_validator.py \
