@@ -1,3 +1,4 @@
+import re
 import time
 from dataclasses import dataclass
 from typing import ClassVar
@@ -69,9 +70,18 @@ class AgentRouter:
         },
         "coding-agent": {
             "code": 4,
+            "program": 4,
+            "script": 4,
+            "algorithm": 4,
+            "c": 5,
+            "c++": 5,
+            "c#": 5,
             "python": 5,
             "javascript": 5,
             "typescript": 5,
+            "java": 5,
+            "rust": 5,
+            "golang": 5,
             "function": 3,
             "class": 2,
             "api": 3,
@@ -83,7 +93,6 @@ class AgentRouter:
             "error": 3,
             "refactor": 5,
             "implement": 4,
-            "program": 4,
         },
         "documentation-agent": {
             "documentation": 6,
@@ -108,24 +117,47 @@ class AgentRouter:
         "documentation-agent",
     )
 
+    @staticmethod
+    def _matches_keyword(
+        objective: str,
+        keyword: str,
+    ) -> bool:
+        pattern = (
+            rf"(?<![a-z0-9])"
+            rf"{re.escape(keyword)}"
+            rf"(?![a-z0-9])"
+        )
+        return re.search(pattern, objective) is not None
+
     def route(
         self,
         request: AgentRunRequest,
     ) -> AgentRoute:
         started = time.perf_counter()
 
-        objective = request.objective.lower().strip()
+        objective = " ".join(
+            request.objective.lower().split()
+        )
 
-        scores: dict[str, int] = {agent_id: 0 for agent_id in self._keyword_weights}
+        scores: dict[str, int] = {
+            agent_id: 0
+            for agent_id in self._keyword_weights
+        }
 
         matched_terms: dict[
             str,
             list[str],
-        ] = {agent_id: [] for agent_id in self._keyword_weights}
+        ] = {
+            agent_id: []
+            for agent_id in self._keyword_weights
+        }
 
         for agent_id, keywords in self._keyword_weights.items():
             for keyword, weight in keywords.items():
-                if keyword in objective:
+                if self._matches_keyword(
+                    objective,
+                    keyword,
+                ):
                     scores[agent_id] += weight
                     matched_terms[agent_id].append(keyword)
 
@@ -141,7 +173,9 @@ class AgentRouter:
 
         if selected_score == 0:
             selected_agent_id = (
-                "knowledge-agent" if request.document_id else "coding-agent"
+                "knowledge-agent"
+                if request.document_id
+                else "coding-agent"
             )
 
             reason = (
@@ -167,22 +201,38 @@ class AgentRouter:
                 ),
             )
 
-            terms = ", ".join(matched_terms[selected_agent_id][:4])
+            terms = ", ".join(
+                matched_terms[selected_agent_id][:4]
+            )
 
-            agent = agent_registry.get(selected_agent_id)
+            agent = agent_registry.get(
+                selected_agent_id
+            )
 
-            reason = f"{agent.name} matched the request based on: {terms}."
+            reason = (
+                f"{agent.name} matched the request "
+                f"based on: {terms}."
+            )
 
-        agent = agent_registry.get(selected_agent_id)
+        agent = agent_registry.get(
+            selected_agent_id
+        )
 
-        elapsed = (time.perf_counter() - started) * 1000
+        elapsed = (
+            time.perf_counter() - started
+        ) * 1000
 
         return AgentRoute(
             agent_id=selected_agent_id,
-            model=(request.model or agent.recommended_model),
+            model=(
+                request.model
+                or agent.recommended_model
+            ),
             confidence=round(confidence, 2),
             reason=reason,
-            matched_terms=matched_terms[selected_agent_id],
+            matched_terms=(
+                matched_terms[selected_agent_id]
+            ),
             candidate_scores=scores,
             routing_latency_ms=round(
                 elapsed,
