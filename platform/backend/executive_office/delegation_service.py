@@ -191,7 +191,7 @@ class ExecutiveDelegationService:
         idempotency_key: str,
     ) -> str:
         digest = hashlib.sha256(
-            f"{decision_id}|{idempotency_key}".encode("utf-8")
+            f"{decision_id}|{idempotency_key}".encode()
         ).hexdigest()[:20]
         return f"executive-delegation-{digest}"
 
