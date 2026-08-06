@@ -217,12 +217,44 @@ class ExecutiveExecutionReservationTests(unittest.TestCase):
 
         self.assertEqual(first.disposition, "reserved")
         self.assertEqual(second.disposition, "reservation_conflict")
+        self.assertTrue(second.validation_only)
         self.assertFalse(second.reservation_acquired)
         self.assertFalse(second.task_ledger_mutated)
         self.assertEqual(
             self.truth_service.get_task(second_child.task_id).status,
             "assigned",
         )
+
+    def test_execution_authorization_mode_mismatch_is_rejected(self) -> None:
+        delegation = self.create_delegation(
+            idempotency_key="reservation-mode-source-0001"
+        )
+        child = delegation.child_tasks[0]
+        request = self.build_request(
+            delegation,
+            idempotency_key="reservation-mode-mismatch-0001",
+            validation_only=False,
+        )
+        authorization = request.owner_authorization
+        assert authorization is not None
+        request = request.model_copy(
+            update={
+                "owner_authorization": authorization.model_copy(
+                    update={"validation_only": True}
+                )
+            }
+        )
+
+        response = self.service.admit(request)
+
+        self.assertEqual(response.disposition, "authorization_required")
+        self.assertFalse(response.reservation_acquired)
+        self.assertFalse(response.task_ledger_mutated)
+        self.assertEqual(
+            self.truth_service.get_task(child.task_id).status,
+            "assigned",
+        )
+        self.assertEqual(self.active_reservations(), [])
 
     def test_database_collision_rolls_back_second_task(self) -> None:
         first_delegation = self.create_delegation(
