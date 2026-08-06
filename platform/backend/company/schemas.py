@@ -8,7 +8,6 @@ from pydantic import (
     Field,
 )
 
-
 DepartmentStatus = Literal[
     "active",
     "planned",
