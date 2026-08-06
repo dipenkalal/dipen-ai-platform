@@ -396,14 +396,18 @@ Each user must have a distinct identity, permissions, private data boundary, and
 
 No agent may expose one user's private information to another without explicit permission.
 
-## 11. Decisions Still Requiring Owner Confirmation
+## 11. Ratified Owner Decisions
 
-The following points must be resolved before production role creation:
+The remaining governance decisions are ratified in `docs/dap-company-owner-ratification.md`.
 
-1. Whether trusted friends can create tasks directly or only request work through Guardian.
-2. Whether friends may approve actions affecting only their own data.
-3. Whether Dipen can view all friend activity and records by default.
-4. Whether external email sending, calendar changes, job submissions, purchases, and financial transactions begin disabled or approval-only.
-5. Whether expense and finance data will be entered manually first or connected to bank/email sources later.
-6. The maximum number of temporary agents Guardian may create without owner approval.
-7. Whether Guardian may permanently hire a new role or must obtain Dipen's approval for permanent headcount.
+The approved model is:
+
+- trusted friends access Guardian directly through individual authenticated accounts;
+- trusted users may approve actions affecting only their own authorized data and workflows;
+- Dipen receives audit metadata but private user content remains hidden by default;
+- external actions require a preview and explicit approval;
+- expense management begins with manual entries and uploaded records, expands later to authorized email receipt extraction, and considers read-only financial integrations only in a separate security phase;
+- Guardian may create temporary teams dynamically according to deterministic system-capacity and safety policy rather than a fixed headcount limit;
+- permanent roles require Dipen's explicit approval.
+
+The organization design is governance-complete and may proceed to role-charter and runtime implementation. No unrestricted broker activation is authorized.
