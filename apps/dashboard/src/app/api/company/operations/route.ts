@@ -18,6 +18,9 @@ type SourceEnvelope<T> = {
 
 async function fetchBackendSource<T>(
   path: string,
+  options?: {
+    notFoundMessage?: string;
+  },
 ): Promise<SourceEnvelope<T>> {
   try {
     const response = await fetch(
@@ -39,8 +42,11 @@ async function fetchBackendSource<T>(
         status: response.status,
         data: null,
         error:
-          body ||
-          `Backend returned HTTP ${response.status}`,
+          response.status === 404 &&
+          options?.notFoundMessage
+            ? options.notFoundMessage
+            : body ||
+              `Backend returned HTTP ${response.status}`,
       };
     }
 
@@ -73,6 +79,13 @@ export async function GET(): Promise<Response> {
   ] = await Promise.all([
     fetchBackendSource(
       "/api/v1/company/organization",
+      {
+        notFoundMessage: (
+          "The connected backend does not include the company registry. " +
+          "Run the dashboard with a matching preview backend or deploy " +
+          "the merged registry backend."
+        ),
+      },
     ),
     fetchBackendSource(
       "/api/v1/truth/agents",
