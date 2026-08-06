@@ -18,6 +18,9 @@ export type GuardianIntent =
   | "gratitude"
   | "farewell"
   | "identity"
+  | "agent_status"
+  | "task_status"
+  | "agent_task"
   | "system_status"
   | "technical"
   | "action";
