@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from agents.truth_schemas import TaskLedgerRecord
+
 RiskLevel = Literal["low", "medium", "high", "blocked"]
 DecisionDisposition = Literal[
     "advisory",
@@ -11,6 +13,27 @@ DecisionDisposition = Literal[
     "blocked",
 ]
 WorkStatus = Literal["planned", "approval_required", "blocked"]
+DelegationDisposition = Literal[
+    "delegated",
+    "approval_required",
+    "blocked",
+    "capacity_unavailable",
+    "idempotent_replay",
+]
+ExecutiveOfficeMode = Literal[
+    "deterministic_advisory",
+    "controlled_delegation",
+]
+WorkerAdmissionStatus = Literal[
+    "available",
+    "busy",
+    "degraded",
+    "offline",
+    "unreported",
+    "disabled",
+    "unmapped",
+    "capacity_exhausted",
+]
 
 
 def utc_now() -> datetime:
@@ -102,11 +125,51 @@ class ExecutivePlanResponse(BaseModel):
     message: str
 
 
+class OwnerApprovalRecord(BaseModel):
+    approval_id: str = Field(min_length=4, max_length=160)
+    decision_id: str = Field(min_length=4, max_length=160)
+    approved_by: Literal["dipen-owner"] = "dipen-owner"
+    approved: bool = True
+    statement: str = Field(min_length=4, max_length=2000)
+    approved_at: datetime = Field(default_factory=utc_now)
+
+
+class ExecutiveDelegationRequest(BaseModel):
+    plan: ExecutivePlanRequest
+    idempotency_key: str = Field(min_length=8, max_length=160)
+    owner_approval: OwnerApprovalRecord | None = None
+
+
+class WorkerAdmissionDecision(BaseModel):
+    task_id: str
+    role_id: str
+    machine_agent_id: str | None = None
+    runtime_status: WorkerAdmissionStatus
+    admitted: bool
+    evidence: list[str] = Field(default_factory=list)
+
+
+class ExecutiveDelegationResponse(BaseModel):
+    delegation_id: str
+    decision_id: str
+    generated_at: datetime = Field(default_factory=utc_now)
+    disposition: DelegationDisposition
+    parent_task: TaskLedgerRecord | None = None
+    child_tasks: list[TaskLedgerRecord] = Field(default_factory=list)
+    worker_admission: list[WorkerAdmissionDecision] = Field(default_factory=list)
+    approval_recorded: bool = False
+    task_ledger_written: bool = False
+    execution_started: bool = False
+    broker_activated: bool = False
+    idempotent_replay: bool = False
+    message: str
+
+
 class ExecutiveOfficeCapability(BaseModel):
     service_id: str
     acting_role_id: str
     registry_employment_status: str
-    mode: Literal["deterministic_advisory"] = "deterministic_advisory"
+    mode: ExecutiveOfficeMode = "deterministic_advisory"
     active_runtime_employee: bool = False
     description: str
 
@@ -114,6 +177,9 @@ class ExecutiveOfficeCapability(BaseModel):
 class ExecutiveOfficeStatusResponse(BaseModel):
     version: str
     generated_at: datetime = Field(default_factory=utc_now)
-    read_only: bool = True
+    read_only: bool = False
+    delegation_enabled: bool = True
+    task_ledger_writes_enabled: bool = True
     execution_enabled: bool = False
+    broker_activation_enabled: bool = False
     capabilities: list[ExecutiveOfficeCapability]
