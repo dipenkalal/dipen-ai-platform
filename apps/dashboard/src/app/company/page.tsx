@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -49,7 +48,7 @@ const OPEN_TASK_STATUSES = new Set([
 ]);
 
 
-function statusLabel(
+function runtimeLabel(
   status: DisplayRuntimeStatus,
 ): string {
   const labels: Record<
@@ -72,7 +71,7 @@ function statusLabel(
 }
 
 
-function statusClasses(
+function runtimeClasses(
   status: DisplayRuntimeStatus,
 ): string {
   const classes: Record<
@@ -105,7 +104,7 @@ function statusClasses(
 }
 
 
-function StatusBadge({
+function RuntimeBadge({
   status,
 }: {
   status: DisplayRuntimeStatus;
@@ -114,10 +113,10 @@ function StatusBadge({
     <span
       className={[
         "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-        statusClasses(status),
+        runtimeClasses(status),
       ].join(" ")}
     >
-      {statusLabel(status)}
+      {runtimeLabel(status)}
     </span>
   );
 }
@@ -146,7 +145,7 @@ function formatTimestamp(
 }
 
 
-function deriveDisplayStatus(
+function deriveRuntimeStatus(
   role: RoleDefinition,
   runtimeByAgentId: Map<
     string,
@@ -219,7 +218,7 @@ function SummaryCard({
   icon: React.ReactNode;
 }) {
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-lg shadow-black/10">
+    <article className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
@@ -272,7 +271,7 @@ function SourceIndicator({
 }
 
 
-function RoleButton({
+function RoleCard({
   employee,
   selected,
   onSelect,
@@ -301,7 +300,7 @@ function RoleButton({
             {employee.role.career_level} · {employee.role.role_kind}
           </p>
         </div>
-        <StatusBadge
+        <RuntimeBadge
           status={employee.display_status}
         />
       </div>
@@ -336,7 +335,7 @@ function FlowNode({
         <div className="text-cyan-300">
           {icon}
         </div>
-        <StatusBadge status={status} />
+        <RuntimeBadge status={status} />
       </div>
       <p className="mt-3 text-sm font-semibold text-white">
         {label}
@@ -356,6 +355,8 @@ export default function CompanyOperationsPage() {
     );
   const [loading, setLoading] =
     useState(true);
+  const [refreshing, setRefreshing] =
+    useState(false);
   const [error, setError] =
     useState<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] =
@@ -367,37 +368,70 @@ export default function CompanyOperationsPage() {
   const [statusFilter, setStatusFilter] =
     useState("all");
 
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const nextPayload =
-        await fetchCompanyOperations();
-      setPayload(nextPayload);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load company operations",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void load();
+    let cancelled = false;
 
+    async function refreshFromLocalSources() {
+      try {
+        const nextPayload =
+          await fetchCompanyOperations();
+
+        if (!cancelled) {
+          setPayload(nextPayload);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load company operations",
+          );
+          setLoading(false);
+        }
+      }
+    }
+
+    const initialTimer = window.setTimeout(
+      () => {
+        void refreshFromLocalSources();
+      },
+      0,
+    );
     const intervalId = window.setInterval(
       () => {
-        void load();
+        void refreshFromLocalSources();
       },
       15000,
     );
 
     return () => {
+      cancelled = true;
+      window.clearTimeout(initialTimer);
       window.clearInterval(intervalId);
     };
-  }, [load]);
+  }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+
+    try {
+      const nextPayload =
+        await fetchCompanyOperations();
+      setPayload(nextPayload);
+      setError(null);
+    } catch (refreshError) {
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Unable to refresh company operations",
+      );
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }
 
   const organization =
     payload?.organization.data ?? null;
@@ -414,17 +448,6 @@ export default function CompanyOperationsPage() {
     );
   }, [organization]);
 
-  const runtimeByAgentId = useMemo(() => {
-    return new Map(
-      (fleet?.agents ?? []).map(
-        (runtime) => [
-          runtime.agent.id,
-          runtime,
-        ],
-      ),
-    );
-  }, [fleet]);
-
   const departmentById = useMemo(() => {
     return new Map(
       (organization?.departments ?? []).map(
@@ -435,6 +458,17 @@ export default function CompanyOperationsPage() {
       ),
     );
   }, [organization]);
+
+  const runtimeByAgentId = useMemo(() => {
+    return new Map(
+      (fleet?.agents ?? []).map(
+        (runtime) => [
+          runtime.agent.id,
+          runtime,
+        ],
+      ),
+    );
+  }, [fleet]);
 
   const employees = useMemo<EmployeeView[]>(() => {
     return (organization?.roles ?? []).map(
@@ -455,7 +489,7 @@ export default function CompanyOperationsPage() {
               role.machine_agent_id,
             ) ?? null
           : null,
-        display_status: deriveDisplayStatus(
+        display_status: deriveRuntimeStatus(
           role,
           runtimeByAgentId,
           monitoring,
@@ -470,17 +504,6 @@ export default function CompanyOperationsPage() {
     runtimeByAgentId,
   ]);
 
-  useEffect(() => {
-    if (
-      !selectedRoleId &&
-      organization?.ceo_role_id
-    ) {
-      setSelectedRoleId(
-        organization.ceo_role_id,
-      );
-    }
-  }, [organization, selectedRoleId]);
-
   const employeeByRoleId = useMemo(() => {
     return new Map(
       employees.map((employee) => [
@@ -490,10 +513,16 @@ export default function CompanyOperationsPage() {
     );
   }, [employees]);
 
-  const selectedEmployee = selectedRoleId
-    ? employeeByRoleId.get(selectedRoleId) ??
-      null
-    : null;
+  const effectiveSelectedRoleId =
+    selectedRoleId ??
+    organization?.ceo_role_id ??
+    null;
+  const selectedEmployee =
+    effectiveSelectedRoleId
+      ? employeeByRoleId.get(
+          effectiveSelectedRoleId,
+        ) ?? null
+      : null;
 
   const filteredEmployees = useMemo(() => {
     const normalizedSearch = search
@@ -512,12 +541,10 @@ export default function CompanyOperationsPage() {
         employee.role.machine_agent_id
           ?.toLowerCase()
           .includes(normalizedSearch);
-
       const matchesDepartment =
         departmentFilter === "all" ||
         employee.role.department_id ===
           departmentFilter;
-
       const matchesStatus =
         statusFilter === "all" ||
         employee.display_status ===
@@ -536,6 +563,14 @@ export default function CompanyOperationsPage() {
     statusFilter,
   ]);
 
+  const sortedTasks = useMemo(() => {
+    return [...(tasks?.tasks ?? [])].sort(
+      (left, right) =>
+        new Date(right.updated_at).getTime() -
+        new Date(left.updated_at).getTime(),
+    );
+  }, [tasks]);
+
   const activeRoles = employees.filter(
     (employee) =>
       employee.role.employment_status ===
@@ -551,7 +586,7 @@ export default function CompanyOperationsPage() {
       employee.role.employment_status ===
       "disabled",
   ).length;
-  const availableWorkers = employees.filter(
+  const readyWorkers = employees.filter(
     (employee) =>
       employee.display_status ===
       "available",
@@ -586,15 +621,6 @@ export default function CompanyOperationsPage() {
         organization.ceo_role_id,
       ) ?? null
     : null;
-
-  const sortedTasks = useMemo(() => {
-    return [...(tasks?.tasks ?? [])].sort(
-      (left, right) =>
-        new Date(right.updated_at).getTime() -
-        new Date(left.updated_at).getTime(),
-    );
-  }, [tasks]);
-
   const modelServiceHealthy = Boolean(
     monitoring?.services.some(
       (service) =>
@@ -623,7 +649,7 @@ export default function CompanyOperationsPage() {
               Dipen AI Platform Company
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              A read-only view of the complete company hierarchy, employment state, live worker truth, active work, infrastructure, and data flow.
+              Read-only company hierarchy, employment state, worker truth, active work, infrastructure, and data flow.
             </p>
           </div>
 
@@ -636,16 +662,17 @@ export default function CompanyOperationsPage() {
             <button
               type="button"
               onClick={() => {
-                setLoading(true);
-                void load();
+                void handleRefresh();
               }}
-              disabled={loading}
+              disabled={refreshing}
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-wait disabled:opacity-60"
             >
               <RefreshCw
                 className={[
                   "h-4 w-4",
-                  loading ? "animate-spin" : "",
+                  refreshing
+                    ? "animate-spin"
+                    : "",
                 ].join(" ")}
               />
               Refresh
@@ -658,12 +685,18 @@ export default function CompanyOperationsPage() {
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
               <p className="font-semibold">
-                Company dashboard unavailable
+                Company dashboard warning
               </p>
               <p className="mt-1 text-rose-200/70">
                 {error}
               </p>
             </div>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-6 text-sm text-slate-400">
+            Loading local company truth…
           </div>
         ) : null}
 
@@ -708,19 +741,19 @@ export default function CompanyOperationsPage() {
           <SummaryCard
             label="Active employees"
             value={activeRoles}
-            detail="Employment state is active; runtime is tracked separately."
+            detail="Employment state is tracked separately from runtime state."
             icon={<ShieldCheck className="h-5 w-5" />}
           />
           <SummaryCard
             label="Ready workers"
-            value={availableWorkers}
-            detail="Live worker evidence shows available for assignment."
+            value={readyWorkers}
+            detail="Live worker evidence reports available for assignment."
             icon={<CheckCircle2 className="h-5 w-5" />}
           />
           <SummaryCard
             label="Busy workers"
             value={busyWorkers}
-            detail="Fresh runtime heartbeat reports an active task."
+            detail="Fresh runtime evidence reports an active task."
             icon={<Activity className="h-5 w-5" />}
           />
           <SummaryCard
@@ -732,13 +765,13 @@ export default function CompanyOperationsPage() {
           <SummaryCard
             label="Offline"
             value={offlineWorkers}
-            detail="Only runtime-backed active roles count as offline."
+            detail="Planned roles never count as offline."
             icon={<XCircle className="h-5 w-5" />}
           />
           <SummaryCard
             label="Planned hires"
             value={plannedRoles}
-            detail={`${disabledRoles} additional role${disabledRoles === 1 ? " is" : "s are"} intentionally disabled.`}
+            detail={`${disabledRoles} role${disabledRoles === 1 ? " is" : "s are"} intentionally disabled.`}
             icon={<Clock3 className="h-5 w-5" />}
           />
           <SummaryCard
@@ -757,7 +790,7 @@ export default function CompanyOperationsPage() {
                   Organization hierarchy
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Solid employment records with runtime truth layered on top.
+                  Owner, CEO, departments, managers, specialists, and control roles.
                 </p>
               </div>
               <Network className="h-6 w-6 text-cyan-300" />
@@ -771,10 +804,10 @@ export default function CompanyOperationsPage() {
               <div className="mt-6">
                 <div className="mx-auto max-w-md">
                   {ownerEmployee ? (
-                    <RoleButton
+                    <RoleCard
                       employee={ownerEmployee}
                       selected={
-                        selectedRoleId ===
+                        effectiveSelectedRoleId ===
                         ownerEmployee.role.id
                       }
                       onSelect={() =>
@@ -786,10 +819,10 @@ export default function CompanyOperationsPage() {
                   ) : null}
                   <div className="mx-auto h-7 w-px bg-gradient-to-b from-fuchsia-300/60 to-cyan-300/60" />
                   {ceoEmployee ? (
-                    <RoleButton
+                    <RoleCard
                       employee={ceoEmployee}
                       selected={
-                        selectedRoleId ===
+                        effectiveSelectedRoleId ===
                         ceoEmployee.role.id
                       }
                       onSelect={() =>
@@ -843,10 +876,10 @@ export default function CompanyOperationsPage() {
 
                           <div className="mt-4 space-y-2">
                             {head ? (
-                              <RoleButton
+                              <RoleCard
                                 employee={head}
                                 selected={
-                                  selectedRoleId ===
+                                  effectiveSelectedRoleId ===
                                   head.role.id
                                 }
                                 onSelect={() =>
@@ -864,11 +897,11 @@ export default function CompanyOperationsPage() {
                                   department.head_role_id,
                               )
                               .map((employee) => (
-                                <RoleButton
+                                <RoleCard
                                   key={employee.role.id}
                                   employee={employee}
                                   selected={
-                                    selectedRoleId ===
+                                    effectiveSelectedRoleId ===
                                     employee.role.id
                                   }
                                   onSelect={() =>
@@ -904,7 +937,7 @@ export default function CompanyOperationsPage() {
                         "Executive authority"}
                     </p>
                   </div>
-                  <StatusBadge
+                  <RuntimeBadge
                     status={
                       selectedEmployee.display_status
                     }
@@ -977,29 +1010,24 @@ export default function CompanyOperationsPage() {
                   </p>
                 </div>
 
-                <div className="mt-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Evidence
-                  </p>
-                  <div className="mt-2 space-y-2">
-                    {selectedEmployee.runtime?.evidence
-                      .slice(0, 4)
-                      .map((evidence, index) => (
-                        <div
-                          key={`${evidence.source}-${index}`}
-                          className="rounded-xl border border-white/10 bg-slate-950/30 p-3 text-xs leading-5 text-slate-400"
-                        >
-                          <span className="font-medium text-slate-200">
-                            {evidence.source}
-                          </span>{" "}
-                          · {evidence.detail}
-                        </div>
-                      )) ?? (
-                      <p className="text-xs text-slate-500">
-                        No runtime evidence is expected for this role.
-                      </p>
-                    )}
-                  </div>
+                <div className="mt-4 space-y-2">
+                  {selectedEmployee.runtime?.evidence
+                    .slice(0, 4)
+                    .map((evidence, index) => (
+                      <div
+                        key={`${evidence.source}-${index}`}
+                        className="rounded-xl border border-white/10 bg-slate-950/30 p-3 text-xs leading-5 text-slate-400"
+                      >
+                        <span className="font-medium text-slate-200">
+                          {evidence.source}
+                        </span>{" "}
+                        · {evidence.detail}
+                      </div>
+                    )) ?? (
+                    <p className="text-xs text-slate-500">
+                      No runtime evidence is expected for this role.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1017,7 +1045,7 @@ export default function CompanyOperationsPage() {
                 Data flow
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Live implemented path first; planned management path stays visually separate.
+                Implemented runtime path and planned management path remain distinct.
               </p>
             </div>
             <Workflow className="h-6 w-6 text-cyan-300" />
@@ -1059,7 +1087,7 @@ export default function CompanyOperationsPage() {
                 status={
                   busyWorkers > 0
                     ? "busy"
-                    : availableWorkers > 0
+                    : readyWorkers > 0
                       ? "available"
                       : "unreported"
                 }
@@ -1087,19 +1115,12 @@ export default function CompanyOperationsPage() {
                 }
                 icon={<Database className="h-5 w-5" />}
               />
-              <ArrowRight className="h-5 w-5 text-slate-600" />
-              <FlowNode
-                label="User response"
-                detail="Guardian reports the verified outcome"
-                status="management"
-                icon={<CheckCircle2 className="h-5 w-5" />}
-              />
             </div>
           </div>
 
           <div className="mt-6 border-t border-white/10 pt-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Planned company management path
+              Planned management path
             </p>
             <div className="mt-4 overflow-x-auto pb-2">
               <div className="flex min-w-max items-center gap-3">
@@ -1119,7 +1140,7 @@ export default function CompanyOperationsPage() {
                     ) : null}
                     <FlowNode
                       label={label}
-                      detail="Defined in the company registry; runtime service not activated yet"
+                      detail="Defined in the registry; runtime service is not activated"
                       status="planned"
                       planned
                       icon={<Clock3 className="h-5 w-5" />}
@@ -1203,7 +1224,7 @@ export default function CompanyOperationsPage() {
                     key={status}
                     value={status}
                   >
-                    {statusLabel(
+                    {runtimeLabel(
                       status as DisplayRuntimeStatus,
                     )}
                   </option>
@@ -1241,21 +1262,26 @@ export default function CompanyOperationsPage() {
                   (employee) => (
                     <tr
                       key={employee.role.id}
-                      className="cursor-pointer bg-white/[0.015] transition hover:bg-white/[0.04]"
-                      onClick={() =>
-                        setSelectedRoleId(
-                          employee.role.id,
-                        )
-                      }
+                      className="bg-white/[0.015]"
                     >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-white">
-                          {employee.role.title}
-                        </p>
-                        <p className="mt-1 font-mono text-xs text-slate-600">
-                          {employee.role.machine_agent_id ??
-                            employee.role.id}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedRoleId(
+                              employee.role.id,
+                            )
+                          }
+                          className="text-left"
+                        >
+                          <span className="block font-medium text-white hover:text-cyan-200">
+                            {employee.role.title}
+                          </span>
+                          <span className="mt-1 block font-mono text-xs text-slate-600">
+                            {employee.role.machine_agent_id ??
+                              employee.role.id}
+                          </span>
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-slate-400">
                         {employee.department?.name ??
@@ -1265,7 +1291,7 @@ export default function CompanyOperationsPage() {
                         {employee.role.employment_status}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge
+                        <RuntimeBadge
                           status={
                             employee.display_status
                           }
@@ -1332,15 +1358,13 @@ export default function CompanyOperationsPage() {
                       </span>
                     </div>
                     {task.progress_percent !== null ? (
-                      <div className="mt-3">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-cyan-300"
-                            style={{
-                              width: `${task.progress_percent}%`,
-                            }}
-                          />
-                        </div>
+                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-cyan-300"
+                          style={{
+                            width: `${task.progress_percent}%`,
+                          }}
+                        />
                       </div>
                     ) : null}
                   </article>
@@ -1370,30 +1394,32 @@ export default function CompanyOperationsPage() {
             {monitoring ? (
               <div className="mt-5">
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-slate-950/35 p-3">
-                    <p className="text-xs text-slate-500">
-                      CPU
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {monitoring.system.cpu.usage_percent.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-950/35 p-3">
-                    <p className="text-xs text-slate-500">
-                      Memory
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {monitoring.system.memory.percent.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-slate-950/35 p-3">
-                    <p className="text-xs text-slate-500">
-                      Disk
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-white">
-                      {monitoring.system.disk.percent.toFixed(1)}%
-                    </p>
-                  </div>
+                  {[
+                    [
+                      "CPU",
+                      monitoring.system.cpu.usage_percent,
+                    ],
+                    [
+                      "Memory",
+                      monitoring.system.memory.percent,
+                    ],
+                    [
+                      "Disk",
+                      monitoring.system.disk.percent,
+                    ],
+                  ].map(([label, value]) => (
+                    <div
+                      key={String(label)}
+                      className="rounded-xl border border-white/10 bg-slate-950/35 p-3"
+                    >
+                      <p className="text-xs text-slate-500">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        {Number(value).toFixed(1)}%
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1413,7 +1439,7 @@ export default function CompanyOperationsPage() {
                                 "No service message"}
                             </p>
                           </div>
-                          <StatusBadge
+                          <RuntimeBadge
                             status={
                               service.status === "healthy"
                                 ? "available"
