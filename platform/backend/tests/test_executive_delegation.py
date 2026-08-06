@@ -111,8 +111,8 @@ class ExecutiveDelegationTests(unittest.TestCase):
 
         self.truth_service.record_heartbeat(
             AgentHeartbeat(
-                agent_id="research-agent",
-                worker_id="test-research-worker",
+                agent_id="system-agent",
+                worker_id="test-system-worker",
                 status="busy",
                 current_task_id="another-task",
             )
@@ -242,8 +242,8 @@ class ExecutiveDelegationTests(unittest.TestCase):
     def test_busy_worker_defers_delegation_without_writes(self) -> None:
         self.truth_service.record_heartbeat(
             AgentHeartbeat(
-                agent_id="research-agent",
-                worker_id="test-research-worker",
+                agent_id="system-agent",
+                worker_id="test-system-worker",
                 status="busy",
                 current_task_id="existing-research-task",
             )
@@ -287,7 +287,7 @@ class ExecutiveDelegationTests(unittest.TestCase):
                 objective="Existing collision task",
                 status="assigned",
                 requested_by="dipen-owner",
-                assigned_agent_ids=["research-agent"],
+                assigned_agent_ids=["system-agent"],
             )
         )
 
