@@ -12,6 +12,9 @@ Intent = Literal[
     "gratitude",
     "farewell",
     "identity",
+    "agent_status",
+    "task_status",
+    "agent_task",
     "system_status",
     "technical",
     "action",
@@ -35,6 +38,17 @@ _ACTION = re.compile(
     r"deploy|create|write|change|modify|run|execute)\b",
     re.IGNORECASE,
 )
+_AGENT_TASK = re.compile(
+    r"\b(?:write|create|generate|implement|debug|fix|refactor|review|explain)\b"
+    r".*\b(?:code|program|script|function|class|api|algorithm|python|javascript|"
+    r"typescript|java|rust|golang|sql|html|css|react|next(?:\.js)?|c\+\+|c#|"
+    r"dockerfile|terraform|yaml|pipeline)\b|"
+    r"\b(?:write|create|generate|implement)\b.*\b(?:in|using)\s+c\b|"
+    r"\b(?:research|investigate|compare|summari[sz]e|analyse|analyze)\b|"
+    r"\b(?:write|create|draft|prepare|generate)\b.*\b(?:documentation|readme|"
+    r"runbook|guide|report|release notes)\b",
+    re.IGNORECASE,
+)
 _STATUS = re.compile(
     r"\b(?:server|system|machine|host)\b.*\b(?:status|health|healthy|doing|running|ok|okay)\b|"
     r"\b(?:how|what)\b.*\b(?:server|system|machine|host)\b",
@@ -47,6 +61,24 @@ _IDENTITY = re.compile(
     r"do you have emotions|do you have a mind|do you have a soul|"
     r"can you feel|do you feel|do you care|do you love|"
     r"do you get lonely|do you dream|are your feelings real)\b",
+    re.IGNORECASE,
+)
+_AGENT_REFERENCE = re.compile(
+    r"\b(?:agent|agents|agent fleet|coding agent|devops agent|documentation agent|"
+    r"knowledge agent|research agent|system agent|sql agent)\b",
+    re.IGNORECASE,
+)
+_AGENT_STATE = re.compile(
+    r"\b(?:doing|working|status|state|running|busy|available|ready|offline|"
+    r"unreported|active|idle|current task|assigned task|what task)\b",
+    re.IGNORECASE,
+)
+_TASK_STATUS = re.compile(
+    r"\b(?:task|tasks|task ledger|ledger task|agent run|agent runs|recent run|"
+    r"recent runs|latest run|latest runs)\b.*\b(?:status|state|running|busy|"
+    r"active|completed|failed|cancelled|recent|latest|doing|happened)\b|"
+    r"\b(?:what|which|show|list|tell me)\b.*\b(?:task|tasks|task ledger|"
+    r"agent run|agent runs)\b",
     re.IGNORECASE,
 )
 _TECHNICAL = re.compile(
@@ -122,12 +154,21 @@ def classify_intent(
     text = remove_wake_phrase(question)
     lowered = text.lower().strip()
 
+    if _IDENTITY.search(lowered):
+        return "identity"
+    if _TASK_STATUS.search(lowered):
+        return "task_status"
+    if (
+        _AGENT_REFERENCE.search(lowered)
+        and _AGENT_STATE.search(lowered)
+    ):
+        return "agent_status"
+    if _AGENT_TASK.search(lowered):
+        return "agent_task"
     if _ACTION.search(lowered):
         return "action"
     if _STATUS.search(lowered):
         return "system_status"
-    if _IDENTITY.search(lowered):
-        return "identity"
     if _TECHNICAL.search(lowered):
         return "technical"
     if re.search(r"\b(?:thank you|thanks|appreciate it)\b", lowered):
@@ -141,6 +182,14 @@ def classify_intent(
         lowered,
     ):
         return "greeting"
+
+    if context is not None and _FOLLOW_UP.search(lowered):
+        if context.previous_intent == "agent_status":
+            return "agent_status"
+        if context.previous_intent == "task_status":
+            return "task_status"
+        if context.previous_intent == "agent_task":
+            return "agent_task"
 
     topic = resolve_topic(question, context)
     if topic == "system_status":
@@ -181,6 +230,22 @@ _RESPONSES: dict[Intent, tuple[str, ...]] = {
 
 
 def conversational_response(intent: Intent, question: str) -> str | None:
+    if intent in {
+        "agent_status",
+        "task_status",
+    }:
+        from truth_client import answer_truth_question
+
+        return answer_truth_question(
+            question,
+            intent,
+        )
+
+    if intent == "agent_task":
+        from delegation_client import delegate_agent_task
+
+        return delegate_agent_task(question)
+
     choices = _RESPONSES.get(intent)
     if not choices:
         return None
@@ -232,7 +297,8 @@ def parse_context(value: object) -> ConversationContext:
     previous_intent = value.get("previous_intent")
     allowed = {
         "greeting", "casual", "gratitude", "farewell", "identity",
-        "system_status", "technical", "action",
+        "agent_status", "task_status", "agent_task", "system_status",
+        "technical", "action",
     }
     return ConversationContext(
         previous_user=(

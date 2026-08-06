@@ -1,3 +1,5 @@
+import os
+import socket
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -29,12 +31,27 @@ class AgentTruthService:
         *,
         heartbeat_ttl_seconds: int = 90,
         now_provider: Callable[[], datetime] | None = None,
+        backend_worker_id_provider: Callable[[], str] | None = None,
+        backend_process_id_provider: Callable[[], int] | None = None,
+        backend_container_id_provider: Callable[[], str | None] | None = None,
     ) -> None:
         self.registry = registry
         self.repository = repository
         self.heartbeat_ttl_seconds = heartbeat_ttl_seconds
         self.now_provider = now_provider or (
             lambda: datetime.now(timezone.utc)
+        )
+        self.backend_worker_id_provider = (
+            backend_worker_id_provider
+            or self._default_backend_worker_id
+        )
+        self.backend_process_id_provider = (
+            backend_process_id_provider
+            or os.getpid
+        )
+        self.backend_container_id_provider = (
+            backend_container_id_provider
+            or self._default_backend_container_id
         )
 
     def record_heartbeat(
@@ -194,10 +211,10 @@ class AgentTruthService:
             )
 
         if heartbeat is None:
-            return AgentRuntimeState(
-                agent=agent,
-                runtime_status="unreported",
-                evidence=evidence,
+            return self._build_backend_ready_state(
+                agent,
+                evidence,
+                now,
             )
 
         observed_at = self._as_utc(
@@ -207,10 +224,58 @@ class AgentTruthService:
             (now - observed_at).total_seconds(),
             0.0,
         )
-        runtime_status = heartbeat.status
 
         if age_seconds > self.heartbeat_ttl_seconds:
-            runtime_status = "offline"
+            evidence.append(
+                TruthEvidence(
+                    source="runtime-heartbeat",
+                    observed_at=observed_at,
+                    detail=(
+                        "The last task-specific heartbeat is stale."
+                    ),
+                )
+            )
+
+            if heartbeat.status in {
+                "busy",
+                "degraded",
+            }:
+                if heartbeat.current_task_id:
+                    evidence.append(
+                        TruthEvidence(
+                            source="task-ledger",
+                            detail=(
+                                "Stale heartbeat reports task "
+                                f"{heartbeat.current_task_id}."
+                            ),
+                        )
+                    )
+
+                return AgentRuntimeState(
+                    agent=agent,
+                    runtime_status="offline",
+                    worker_id=heartbeat.worker_id,
+                    current_task_id=(
+                        heartbeat.current_task_id
+                    ),
+                    model=heartbeat.model,
+                    process_id=heartbeat.process_id,
+                    container_id=heartbeat.container_id,
+                    last_heartbeat_at=observed_at,
+                    heartbeat_age_seconds=round(
+                        age_seconds,
+                        3,
+                    ),
+                    evidence=evidence,
+                )
+
+            return self._build_backend_ready_state(
+                agent,
+                evidence,
+                now,
+                last_heartbeat_at=observed_at,
+                heartbeat_age_seconds=age_seconds,
+            )
 
         evidence.append(
             TruthEvidence(
@@ -236,7 +301,7 @@ class AgentTruthService:
 
         return AgentRuntimeState(
             agent=agent,
-            runtime_status=runtime_status,
+            runtime_status=heartbeat.status,
             worker_id=heartbeat.worker_id,
             current_task_id=(
                 heartbeat.current_task_id
@@ -250,6 +315,55 @@ class AgentTruthService:
                 3,
             ),
             evidence=evidence,
+        )
+
+    def _build_backend_ready_state(
+        self,
+        agent: AgentDefinition,
+        evidence: list[TruthEvidence],
+        now: datetime,
+        *,
+        last_heartbeat_at: datetime | None = None,
+        heartbeat_age_seconds: float | None = None,
+    ) -> AgentRuntimeState:
+        evidence.append(
+            TruthEvidence(
+                source="backend-runtime",
+                observed_at=now,
+                detail=(
+                    "The active backend process can route this enabled "
+                    "on-demand agent and no fresh busy heartbeat exists."
+                ),
+            )
+        )
+
+        return AgentRuntimeState(
+            agent=agent,
+            runtime_status="available",
+            worker_id=self.backend_worker_id_provider(),
+            process_id=self.backend_process_id_provider(),
+            container_id=self.backend_container_id_provider(),
+            last_heartbeat_at=last_heartbeat_at,
+            heartbeat_age_seconds=(
+                round(heartbeat_age_seconds, 3)
+                if heartbeat_age_seconds is not None
+                else None
+            ),
+            evidence=evidence,
+        )
+
+    @staticmethod
+    def _default_backend_worker_id() -> str:
+        return (
+            "dap-backend:"
+            f"{socket.gethostname()}:"
+            f"{os.getpid()}"
+        )
+
+    @staticmethod
+    def _default_backend_container_id() -> str | None:
+        return os.getenv(
+            "DAP_RUNTIME_CONTAINER_ID"
         )
 
     @staticmethod
