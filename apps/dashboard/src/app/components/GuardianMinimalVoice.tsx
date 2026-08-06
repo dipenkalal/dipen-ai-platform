@@ -291,7 +291,9 @@ export default function GuardianMinimalVoice() {
           <article className={styles.answerPanel} aria-live="polite">
             <p>{answer.answer}</p>
             <span>
-              {answer.source}
+              {answer.intent === "agent_task"
+                ? "delegated agent"
+                : answer.source}
               {answer.model ? ` · ${answer.model}` : ""}
             </span>
           </article>
