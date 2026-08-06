@@ -16,7 +16,6 @@ from company.schemas import (
     RoleListResponse,
 )
 
-
 router = APIRouter(
     prefix="/api/v1/company",
     tags=["DAP Company Registry"],
