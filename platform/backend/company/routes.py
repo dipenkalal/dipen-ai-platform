@@ -1,4 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import (
+    APIRouter,
+    HTTPException,
+)
 
 from company.catalog import company_registry
 from company.schemas import (
