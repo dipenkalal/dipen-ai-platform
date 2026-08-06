@@ -45,6 +45,7 @@ jobs:
       - name: Ruff
         run: |
           python -m ruff check \
+            app.py \
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
@@ -56,8 +57,12 @@ jobs:
             agents/truth_routes.py \
             agents/truth_schemas.py \
             agents/truth_service.py \
+            company/registry.py \
+            company/routes.py \
+            company/schemas.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
+            tests/test_company_registry.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
@@ -70,12 +75,16 @@ jobs:
             agents/runtime_instrumentation.py \
             agents/truth_repository.py \
             agents/truth_service.py \
+            company/registry.py \
+            company/routes.py \
+            company/schemas.py \
             --follow-imports=skip
 
       - name: Compile Python
         run: |
           python -m compileall \
             -q \
+            app.py \
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
@@ -87,8 +96,10 @@ jobs:
             agents/truth_routes.py \
             agents/truth_schemas.py \
             agents/truth_service.py \
+            company \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
+            tests/test_company_registry.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
@@ -98,6 +109,7 @@ jobs:
             -q \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
+            tests/test_company_registry.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
