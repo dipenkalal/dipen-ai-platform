@@ -1,95 +1,150 @@
-# Guardian v3.0D — Multi-Task Supervisor
+# Guardian v3.0D — Multi-Task Company Supervisor Contract
 
-## Problem
+## Purpose
 
-Guardian v3.0C correctly delegates one cognitive objective to one agent, but it does not yet distinguish between:
+Guardian v3.0D introduces a company operating model before adding further multi-agent execution.
 
-1. a hypothetical planning question such as “What would Guardian do if I assigned two tasks?”; and
-2. a real multi-task command containing several independent objectives.
+The authoritative organization design is defined in:
 
-As a result, a hypothetical question can be executed, and multiple objectives can be sent as one prompt to a single worker.
+- `docs/dap-company-roles-and-hierarchy.md`
 
-## Required behaviour
+Guardian is the Chief Executive Supervisor. Guardian is not a general worker.
 
-### Hypothetical planning questions
+## Chain of command
 
-Questions framed as “what would Guardian do”, “how would Guardian handle”, “suppose I assigned”, or equivalent planning language must not execute any task.
+```text
+Dipen (Owner)
+  -> Guardian (Chief Executive Supervisor)
+    -> Department Head / Manager
+      -> Specialist Agent
+        -> Approved Tool or Executor
+```
 
-Guardian must answer with the proposed plan, including:
+## Problem exposed in production
 
-- detected child objectives;
-- intended agent or evidence path for each child;
-- whether each child can currently be completed;
-- required evidence and unavailable evidence;
-- safety or approval boundaries.
+Guardian received the hypothetical question:
 
-No backend agent run, task-ledger write, privileged action, or broker call is allowed for a planning-only question.
+> What would Guardian do if I assigned two tasks: write complex C code and report the entire Dipen AI Platform progress?
 
-### Real multi-task commands
+The platform incorrectly:
 
-A real command containing two or more explicit objectives must create one parent supervisor task and one child task per objective.
+1. executed a hypothetical question;
+2. treated two unrelated objectives as one task;
+3. assigned the combined objective to Coding Agent;
+4. allowed Coding Agent to answer a project-progress question without authoritative project evidence.
 
-Each child must be independently classified and routed:
+## Mandatory v3.0D behavior
 
-- code generation and debugging → Coding Agent;
-- research and comparisons → Research Agent;
-- documentation and reports → Documentation Agent;
-- infrastructure analysis → DevOps Agent;
-- current machine state → System Agent or direct truth path;
-- current agent/task state → Guardian truth path;
-- privileged operations → approval-controlled action path;
-- unsupported evidence requests → unavailable, never guessed.
+### Hypothetical planning
 
-Guardian must not send the entire mixed request to a single worker.
+Questions such as these must never execute work:
 
-### Project-progress requests
+- What would you do if…
+- How would Guardian handle…
+- Suppose I assigned…
+- What plan would you make…
 
-“Dipen AI Platform progress” must be evidence-backed. Agent runtime truth alone is insufficient to reconstruct the complete project history.
+Guardian must explain the proposed organization, departments, child assignments, dependencies, evidence requirements, approval gates, and expected result structure.
 
-The response must distinguish:
+No agent run, task-ledger mutation, tool call, or privileged action is permitted for a hypothetical plan.
 
-- deployed commit and service state;
-- fleet and task-ledger state;
-- repository milestones or project-status records;
-- unavailable historical evidence.
+### Real multi-task assignments
 
-A worker may format or summarize verified project evidence, but it may not invent project progress from model memory.
+A real multi-task request must create:
 
-## Result aggregation
+- one parent supervisor objective;
+- one child objective per independent deliverable;
+- one accountable department per child;
+- one independently routed specialist per child;
+- separate task, run, evidence, and status records;
+- one aggregated executive answer.
 
-Guardian must return a structured supervisor result containing:
+Unrelated objectives must never be sent to one worker merely because one keyword scores highest.
 
-- parent task identifier;
-- one section per child objective;
-- assigned agent or truth source;
-- child task/run identifiers when executed;
-- completed, failed, unavailable, or approval-required status;
-- verified output for each child;
-- partial-failure reporting without hiding successful children.
+### Company progress reporting
+
+A request for Dipen AI Platform progress must be owned by Product and Program Management, supported by the Repository and Project Evidence role.
+
+The report may use only approved evidence such as:
+
+- Git commits and merged pull requests;
+- deployed commit and image identifiers;
+- accepted phase milestones;
+- task-ledger and orchestration history;
+- runtime/service health;
+- rollback and deployment records.
+
+When repository or project-history evidence is unavailable, Guardian must say that the full progress report is unavailable. A Coding Agent, System Agent, or generic language model must not improvise it.
+
+## Initial implementation slice
+
+v3.0D will implement only:
+
+1. Guardian as executive supervisor;
+2. deterministic Chief of Staff planning;
+3. hypothetical-plan detection;
+4. explicit multi-task parsing;
+5. parent and child ledger relationships;
+6. separate routing and execution per child;
+7. evidence-backed project-progress reporting;
+8. partial-success, blocked, and failed child outcomes;
+9. executive result aggregation.
 
 ## Safety boundaries
 
-- Hypothetical questions are read-only.
-- Cognitive work uses bounded agent APIs.
-- Privileged operations remain separate and approval-controlled.
-- No arbitrary shell execution.
-- No broker activation.
-- A child failure must not trigger Guardian to perform that child itself.
-- Missing evidence must remain unavailable.
+- Privileged actions remain approval-controlled.
+- Guardian cannot approve its own privileged action.
+- Specialist agents cannot broaden their own role or tool access.
+- Tools remain fixed, bounded, and auditable.
+- The Guardian broker remains inactive by default.
+- No unrestricted shell execution is included.
+- Missing evidence is reported as unavailable, never inferred.
 
-## Acceptance scenario
+## Acceptance scenarios
+
+### Scenario A — hypothetical two-task question
 
 Input:
 
-> What would Guardian do if I assigned two tasks: 1. write complex code in C; 2. tell me the entire progress of the Dipen AI Platform?
+> What would Guardian do if I assigned two tasks: write complex C code and report the entire Dipen AI Platform progress?
 
 Expected:
 
-- classified as a planning-only question;
-- no task or agent run created;
-- proposed child 1 routes to Coding Agent;
-- proposed child 2 routes to the project-progress evidence path;
-- Guardian states that full project history requires repository/project-status evidence and must not be improvised;
-- no generic Coding Agent disclaimer is returned.
+- no execution;
+- no ledger mutation;
+- a two-child plan;
+- Engineering/Coding ownership for the code;
+- Product/Program plus Repository Evidence ownership for progress;
+- explicit evidence requirements and unavailable-source handling.
 
-A later imperative version of the same request must create one parent task and two separately tracked child outcomes.
+### Scenario B — real two-task assignment
+
+Input:
+
+> Perform two tasks: 1. Write a complex C program for X. 2. Report the current Dipen AI Platform progress.
+
+Expected:
+
+- one parent task;
+- separate child tasks;
+- Coding Agent receives only the coding objective;
+- project-progress path receives only the reporting objective;
+- separate statuses and evidence;
+- Guardian returns an executive summary with each child outcome.
+
+### Scenario C — partial evidence
+
+When coding succeeds but repository evidence is unavailable:
+
+- coding child is completed;
+- progress child is blocked or partial;
+- Guardian does not mark the parent fully completed;
+- Guardian explains exactly what evidence is missing.
+
+### Scenario D — privileged child mixed with cognitive work
+
+When one child requests code and another requests production deployment:
+
+- coding may proceed through normal delegation;
+- deployment remains pending approval;
+- Guardian must not treat owner approval for one child as approval for all children.
