@@ -60,7 +60,49 @@ class AgentRouterTestCase(unittest.TestCase):
             route.matched_terms,
         )
 
-    def test_phrase_and_punctuation_keywords_still_match(self) -> None:
+    def test_next_js_keyword_matches_coding_agent(self) -> None:
+        route = self.router.route(
+            AgentRunRequest(
+                mode="smart",
+                objective="Create a Next.js API.",
+            )
+        )
+
+        self.assertEqual(
+            route.agent_id,
+            "coding-agent",
+        )
+        self.assertIn(
+            "next.js",
+            route.matched_terms,
+        )
+        self.assertIn(
+            "api",
+            route.matched_terms,
+        )
+
+    def test_ci_cd_keyword_matches_devops_agent(self) -> None:
+        route = self.router.route(
+            AgentRunRequest(
+                mode="smart",
+                objective="Review the CI/CD pipeline.",
+            )
+        )
+
+        self.assertEqual(
+            route.agent_id,
+            "devops-agent",
+        )
+        self.assertIn(
+            "ci/cd",
+            route.matched_terms,
+        )
+        self.assertIn(
+            "pipeline",
+            route.matched_terms,
+        )
+
+    def test_combined_request_scores_both_agents(self) -> None:
         route = self.router.route(
             AgentRunRequest(
                 mode="smart",
@@ -70,9 +112,9 @@ class AgentRouterTestCase(unittest.TestCase):
             )
         )
 
-        self.assertIn(
-            "next.js",
-            route.matched_terms,
+        self.assertEqual(
+            route.agent_id,
+            "devops-agent",
         )
         self.assertGreater(
             route.candidate_scores["coding-agent"],
@@ -80,7 +122,11 @@ class AgentRouterTestCase(unittest.TestCase):
         )
         self.assertGreater(
             route.candidate_scores["devops-agent"],
-            0,
+            route.candidate_scores["coding-agent"],
+        )
+        self.assertEqual(
+            route.matched_terms,
+            ["ci/cd", "pipeline"],
         )
 
 
