@@ -1,0 +1,32 @@
+name: Ruff Import Probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install Ruff
+        run: python -m pip install ruff==0.16.0
+
+      - name: Show exact Ruff import diff
+        run: |
+          python -m ruff check \
+            --fix \
+            --diff \
+            platform/backend/app.py \
+            platform/backend/company/routes.py \
+            platform/backend/company/schemas.py
