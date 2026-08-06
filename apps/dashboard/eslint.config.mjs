@@ -14,6 +14,15 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    files: ["src/app/company/flow/page.tsx"],
+    rules: {
+      // The live topology subscribes to external platform truth on mount
+      // and every 15 seconds. Its refresh state is intentionally updated
+      // as part of that external polling lifecycle.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
