@@ -3,6 +3,13 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi import (
+    FastAPI,
+)
+from fastapi.middleware.cors import (
+    CORSMiddleware,
+)
+
 from agents.routes import (
     router as agents_router,
 )
@@ -17,12 +24,6 @@ from collectors.system import (
 )
 from company.routes import (
     router as company_router,
-)
-from fastapi import (
-    FastAPI,
-)
-from fastapi.middleware.cors import (
-    CORSMiddleware,
 )
 from gateway.routes import (
     router as gateway_router,
