@@ -57,7 +57,6 @@ jobs:
             agents/truth_routes.py \
             agents/truth_schemas.py \
             agents/truth_service.py \
-            company/catalog.py \
             company/registry.py \
             company/routes.py \
             company/schemas.py \
