@@ -10,6 +10,7 @@ import {
   Building2,
   History,
   Mic,
+  Network,
   ServerCog,
   ShieldCheck,
 } from "lucide-react";
@@ -36,6 +37,12 @@ const navigationItems: NavigationItem[] = [
     label: "Company",
     href: "/company",
     icon: Building2,
+    exact: true,
+  },
+  {
+    label: "Flow",
+    href: "/company/flow",
+    icon: Network,
   },
   {
     label: "Voice",
