@@ -7,6 +7,7 @@ import {
   BarChart3,
   Bot,
   BrainCircuit,
+  Building2,
   History,
   Mic,
   ServerCog,
@@ -30,6 +31,11 @@ const navigationItems: NavigationItem[] = [
     href: "/",
     icon: ShieldCheck,
     exact: true,
+  },
+  {
+    label: "Company",
+    href: "/company",
+    icon: Building2,
   },
   {
     label: "Voice",
