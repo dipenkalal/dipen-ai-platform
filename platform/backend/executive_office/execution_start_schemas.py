@@ -3,6 +3,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from agents.truth_schemas import (
+    TaskLedgerRecord,
+    TaskLedgerStatus,
+)
 from executive_office.schemas import utc_now
 
 ExecutionStartDisposition = Literal[
@@ -16,6 +20,7 @@ ExecutionStartDisposition = Literal[
 ]
 ExecutionStartState = Literal[
     "claimed",
+    "reserved",
     "running",
     "completed",
     "failed",
@@ -23,6 +28,7 @@ ExecutionStartState = Literal[
     "rejected",
 ]
 ExecutionTaskResultStatus = Literal["completed", "failed"]
+AcceptanceEvidenceSource = Literal["agent-result"]
 
 
 class OwnerExecutionStartAuthorization(BaseModel):
@@ -54,6 +60,19 @@ class ExecutiveTaskExecutionResult(BaseModel):
     completed_at: datetime
 
 
+class ExecutiveTaskAcceptanceEvidence(BaseModel):
+    evidence_id: str
+    task_id: str
+    agent_id: str
+    run_id: str
+    source: AcceptanceEvidenceSource = "agent-result"
+    terminal_status: ExecutionTaskResultStatus
+    output_sha256: str = Field(min_length=64, max_length=64)
+    accepted: bool = True
+    detail: str
+    recorded_at: datetime = Field(default_factory=utc_now)
+
+
 class ExecutiveExecutionStartResponse(BaseModel):
     execution_id: str
     delegation_id: str
@@ -64,8 +83,29 @@ class ExecutiveExecutionStartResponse(BaseModel):
     task_results: list[ExecutiveTaskExecutionResult] = Field(
         default_factory=list
     )
+    acceptance_evidence: list[ExecutiveTaskAcceptanceEvidence] = Field(
+        default_factory=list
+    )
+    parent_task_status: TaskLedgerStatus | None = None
     execution_started: bool = False
     reservation_released: bool = False
     broker_activated: bool = False
     idempotent_replay: bool = False
     message: str
+
+
+class ExecutiveExecutionStatusResponse(BaseModel):
+    execution_id: str
+    delegation_id: str
+    state: ExecutionStartState
+    generated_at: datetime = Field(default_factory=utc_now)
+    parent_task: TaskLedgerRecord
+    child_tasks: list[TaskLedgerRecord]
+    active_reservation_ids: list[str] = Field(default_factory=list)
+    task_results: list[ExecutiveTaskExecutionResult] = Field(
+        default_factory=list
+    )
+    acceptance_evidence: list[ExecutiveTaskAcceptanceEvidence] = Field(
+        default_factory=list
+    )
+    broker_activated: bool = False
