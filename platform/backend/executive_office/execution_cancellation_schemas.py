@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -23,7 +24,7 @@ class OwnerRunningCancellationAuthorization(BaseModel):
         "request_running_execution_cancellation"
     )
     statement: str = Field(min_length=4, max_length=2000)
-    authorized_at: object = Field(default_factory=utc_now)
+    authorized_at: datetime = Field(default_factory=utc_now)
 
 
 class ExecutiveRunningCancellationRequest(BaseModel):
@@ -40,8 +41,8 @@ class ExecutiveRunningCancellationRecord(BaseModel):
     authorization_id: str
     requested_by: Literal["dipen-owner"] = "dipen-owner"
     state: CancellationRequestState
-    requested_at: object = Field(default_factory=utc_now)
-    observed_at: object | None = None
-    resolved_at: object | None = None
+    requested_at: datetime = Field(default_factory=utc_now)
+    observed_at: datetime | None = None
+    resolved_at: datetime | None = None
     idempotent_replay: bool = False
     message: str
