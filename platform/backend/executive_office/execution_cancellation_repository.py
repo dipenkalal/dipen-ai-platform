@@ -1,6 +1,8 @@
 import hashlib
 import json
 import sqlite3
+from datetime import datetime
+from typing import cast
 
 from agents.truth_repository import (
     AgentTruthRepository,
@@ -261,9 +263,6 @@ class ExecutiveExecutionCancellationRepository:
                     ) from error
 
                 raise
-            except Exception:
-                connection.rollback()
-                raise
             else:
                 connection.commit()
 
@@ -358,9 +357,8 @@ class ExecutiveExecutionCancellationRepository:
                         current_state,
                     ),
                 )
-                connection.commit()
-            else:
-                connection.commit()
+
+            connection.commit()
 
         record = self.get_for_execution(execution_id)
 
@@ -405,15 +403,15 @@ class ExecutiveExecutionCancellationRepository:
             ],
             authorization_id=str(row["authorization_id"]),
             requested_by="dipen-owner",
-            state=str(row["state"]),
-            requested_at=utc_now().fromisoformat(str(row["requested_at"])),
+            state=cast(CancellationRequestState, str(row["state"])),
+            requested_at=datetime.fromisoformat(str(row["requested_at"])),
             observed_at=(
-                utc_now().fromisoformat(str(row["observed_at"]))
+                datetime.fromisoformat(str(row["observed_at"]))
                 if row["observed_at"] is not None
                 else None
             ),
             resolved_at=(
-                utc_now().fromisoformat(str(row["resolved_at"]))
+                datetime.fromisoformat(str(row["resolved_at"]))
                 if row["resolved_at"] is not None
                 else None
             ),
