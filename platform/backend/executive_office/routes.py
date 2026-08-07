@@ -3,6 +3,9 @@ from fastapi import APIRouter, HTTPException, status
 from executive_office.delegation_service import (
     executive_delegation_service,
 )
+from executive_office.execution_cancellation_recovery import (
+    executive_cancellation_aware_recovery_service,
+)
 from executive_office.execution_cancellation_repository import (
     CancellationStateConflictError,
 )
@@ -196,7 +199,7 @@ async def recover_executive_execution(
     request: ExecutiveExecutionControlRequest,
 ) -> ExecutiveExecutionControlResponse:
     try:
-        return executive_execution_recovery_service.recover(
+        return executive_cancellation_aware_recovery_service.recover(
             execution_id=execution_id,
             request=request,
         )
