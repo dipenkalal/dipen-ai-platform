@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 
 from agents.cancellation import (
     CooperativeCancellationRequested,
+    cancellation_scope,
     raise_if_cancellation_requested,
+    raise_if_current_cancellation_requested,
 )
 from agents.runtime_instrumentation import (
     AgentExecutionContext,
@@ -12,6 +14,13 @@ from agents.runtime_instrumentation import (
 )
 from agents.schemas import AgentRunRequest, AgentRunResponse
 from agents.truth_schemas import AgentHeartbeat, TaskLedgerRecord
+from gateway.schemas import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    UsageMetrics,
+)
+from gateway.service import GatewayService
 
 
 class AgentCancellationProbeTests(unittest.TestCase):
@@ -36,6 +45,17 @@ class AgentCancellationProbeTests(unittest.TestCase):
 
         self.assertEqual(context.exception.boundary, "before-tool-call")
         self.assertIn("before-tool-call", str(context.exception))
+
+    def test_cancellation_scope_resets_context(self) -> None:
+        with cancellation_scope(lambda: True):
+            with self.assertRaises(CooperativeCancellationRequested):
+                raise_if_current_cancellation_requested(
+                    boundary="inside-scope"
+                )
+
+        raise_if_current_cancellation_requested(
+            boundary="after-scope"
+        )
 
 
 class RecordingTruthWriter:
@@ -116,6 +136,46 @@ class AgentCancellationRuntimeTests(unittest.IsolatedAsyncioTestCase):
             [heartbeat.status for heartbeat in writer.heartbeats],
             ["busy", "available"],
         )
+
+
+class FakeOllama:
+    def __init__(self, cancellation_state: dict[str, bool]) -> None:
+        self.cancellation_state = cancellation_state
+        self.chat_calls = 0
+
+    async def health(self) -> bool:
+        return True
+
+    async def chat(self, request: ChatRequest) -> ChatResponse:
+        self.chat_calls += 1
+        self.cancellation_state["requested"] = True
+        return ChatResponse(
+            provider="ollama",
+            model=request.model or "test-model",
+            message=ChatMessage(role="assistant", content="finished model call"),
+            usage=UsageMetrics(latency_ms=1.0),
+        )
+
+
+class GatewayCancellationBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancellation_during_model_call_is_observed_after_return(self) -> None:
+        cancellation_state = {"requested": False}
+        service = GatewayService()
+        fake_ollama = FakeOllama(cancellation_state)
+        service.ollama = fake_ollama
+        request = ChatRequest(
+            messages=[ChatMessage(role="user", content="run bounded model work")],
+            model="test-model",
+        )
+
+        with cancellation_scope(
+            lambda: cancellation_state["requested"]
+        ):
+            with self.assertRaises(CooperativeCancellationRequested) as context:
+                await service.chat(request)
+
+        self.assertEqual(fake_ollama.chat_calls, 1)
+        self.assertEqual(context.exception.boundary, "after-model-call")
 
 
 if __name__ == "__main__":
