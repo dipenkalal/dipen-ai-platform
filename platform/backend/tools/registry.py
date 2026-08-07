@@ -1,12 +1,35 @@
+from typing import Any
+
+from agents.cancellation import raise_if_current_cancellation_requested
 from tools.base import (
     BaseTool,
     ToolDefinition,
+    ToolExecutionResult,
 )
 from tools.knowledge_tools import (
     KnowledgeAskTool,
     KnowledgeSearchTool,
 )
 from tools.system_tools import SystemStatusTool
+
+
+class CancellationAwareTool(BaseTool):
+    def __init__(self, tool: BaseTool) -> None:
+        self.tool = tool
+        self.definition = tool.definition
+
+    async def execute(
+        self,
+        arguments: dict[str, Any],
+    ) -> ToolExecutionResult:
+        raise_if_current_cancellation_requested(
+            boundary="before-tool-call"
+        )
+        result = await self.tool.execute(arguments)
+        raise_if_current_cancellation_requested(
+            boundary="after-tool-call"
+        )
+        return result
 
 
 class ToolRegistry:
@@ -24,7 +47,7 @@ class ToolRegistry:
                 f"Tool already registered: {tool_id}"
             )
 
-        self._tools[tool_id] = tool
+        self._tools[tool_id] = CancellationAwareTool(tool)
 
     def get(
         self,
