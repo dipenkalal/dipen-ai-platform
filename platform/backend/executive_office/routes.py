@@ -3,6 +3,13 @@ from fastapi import APIRouter, HTTPException, status
 from executive_office.delegation_service import (
     executive_delegation_service,
 )
+from executive_office.execution_recovery_schemas import (
+    ExecutiveExecutionControlRequest,
+    ExecutiveExecutionControlResponse,
+)
+from executive_office.execution_recovery_service import (
+    executive_execution_recovery_service,
+)
 from executive_office.execution_reservation_service import (
     executive_reservation_service,
 )
@@ -40,7 +47,7 @@ router = APIRouter(
     response_model=ExecutiveOfficeStatusResponse,
 )
 async def get_executive_office_status() -> ExecutiveOfficeStatusResponse:
-    return executive_execution_start_service.status()
+    return executive_execution_recovery_service.status()
 
 
 @router.post(
@@ -111,6 +118,46 @@ async def start_executive_execution(
 ) -> ExecutiveExecutionStartResponse:
     try:
         return await executive_execution_start_service.start(
+            execution_id=execution_id,
+            request=request,
+        )
+    except IdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+
+@router.post(
+    "/executions/{execution_id}/cancel",
+    response_model=ExecutiveExecutionControlResponse,
+)
+async def cancel_executive_execution(
+    execution_id: str,
+    request: ExecutiveExecutionControlRequest,
+) -> ExecutiveExecutionControlResponse:
+    try:
+        return executive_execution_recovery_service.cancel(
+            execution_id=execution_id,
+            request=request,
+        )
+    except IdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+
+@router.post(
+    "/executions/{execution_id}/recover",
+    response_model=ExecutiveExecutionControlResponse,
+)
+async def recover_executive_execution(
+    execution_id: str,
+    request: ExecutiveExecutionControlRequest,
+) -> ExecutiveExecutionControlResponse:
+    try:
+        return executive_execution_recovery_service.recover(
             execution_id=execution_id,
             request=request,
         )

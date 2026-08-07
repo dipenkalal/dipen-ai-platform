@@ -119,7 +119,11 @@ class ExecutiveOfficeApiTests(unittest.TestCase):
         self.assertFalse(payload["read_only"])
         self.assertTrue(payload["delegation_enabled"])
         self.assertTrue(payload["task_ledger_writes_enabled"])
-        self.assertFalse(payload["execution_enabled"])
+        self.assertTrue(payload["execution_admission_enabled"])
+        self.assertTrue(payload["execution_reservation_enabled"])
+        self.assertTrue(payload["execution_enabled"])
+        self.assertTrue(payload["execution_cancellation_enabled"])
+        self.assertTrue(payload["execution_recovery_enabled"])
         self.assertFalse(payload["broker_activation_enabled"])
 
     def test_plan_endpoint_is_advisory_only(self) -> None:

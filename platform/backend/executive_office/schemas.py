@@ -256,5 +256,7 @@ class ExecutiveOfficeStatusResponse(BaseModel):
     execution_admission_enabled: bool = False
     execution_reservation_enabled: bool = False
     execution_enabled: bool = False
+    execution_cancellation_enabled: bool = False
+    execution_recovery_enabled: bool = False
     broker_activation_enabled: bool = False
     capabilities: list[ExecutiveOfficeCapability]
