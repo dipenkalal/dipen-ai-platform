@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
+from agents.cancellation import raise_if_current_cancellation_requested
 from gateway.providers.ollama import OllamaProvider
 from gateway.schemas import (
     ChatRequest,
@@ -39,6 +40,10 @@ class GatewayService:
                 ),
             )
 
+        raise_if_current_cancellation_requested(
+            boundary="before-model-call"
+        )
+
         if not await self.ollama.health():
             raise HTTPException(
                 status_code=503,
@@ -46,7 +51,7 @@ class GatewayService:
             )
 
         try:
-            return await self.ollama.chat(request)
+            response = await self.ollama.chat(request)
         except HTTPException:
             raise
         except Exception as exc:
@@ -54,6 +59,11 @@ class GatewayService:
                 status_code=502,
                 detail=f"Ollama request failed: {exc}",
             ) from exc
+
+        raise_if_current_cancellation_requested(
+            boundary="after-model-call"
+        )
+        return response
 
     async def stream_chat(
         self,
@@ -68,6 +78,10 @@ class GatewayService:
                 ),
             )
 
+        raise_if_current_cancellation_requested(
+            boundary="before-model-stream"
+        )
+
         if not await self.ollama.health():
             raise HTTPException(
                 status_code=503,
@@ -75,7 +89,14 @@ class GatewayService:
             )
 
         async for event in self.ollama.stream_chat(request):
+            raise_if_current_cancellation_requested(
+                boundary="between-model-stream-events"
+            )
             yield event
+
+        raise_if_current_cancellation_requested(
+            boundary="after-model-stream"
+        )
 
 
 gateway_service = GatewayService()
