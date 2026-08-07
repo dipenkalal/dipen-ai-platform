@@ -762,8 +762,10 @@ class ExecutiveExecutionRecoveryService:
             ):
                 return (
                     None,
-                    f"Selected task {task_id} no longer matches its execution "
-                    "identity.",
+                    (
+                        f"Selected task {task_id} no longer matches its execution "
+                        "identity."
+                    ),
                 )
             tasks.append(task)
 
@@ -805,7 +807,7 @@ class ExecutiveExecutionRecoveryService:
             result = results[task_id]
             item = evidence[task_id]
             output_hash = hashlib.sha256(
-                result.answer.encode("utf-8")
+                result.answer.encode()
             ).hexdigest()
             valid = (
                 result.agent_id == agent_id
@@ -821,14 +823,18 @@ class ExecutiveExecutionRecoveryService:
             if not valid:
                 return (
                     False,
-                    f"Acceptance evidence for {task_id} does not match the "
-                    "completed agent result.",
+                    (
+                        f"Acceptance evidence for {task_id} does not match the "
+                        "completed agent result."
+                    ),
                 )
 
         return (
             True,
-            "Every selected task has completed output with matching agent, "
-            "run ID, acceptance flag, terminal status, and SHA-256 evidence.",
+            (
+                "Every selected task has completed output with matching agent, "
+                "run ID, acceptance flag, terminal status, and SHA-256 evidence."
+            ),
         )
 
     def _fresh_active_tasks(
