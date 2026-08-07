@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from agents.cancellation import CancellationCheck
 from agents.runtime_instrumentation import (
     AgentExecutionContext,
     InstrumentedAgentExecutor,
@@ -94,6 +95,7 @@ class ExecutiveExistingTaskRunner:
         request: AgentRunRequest,
         task: TaskLedgerRecord,
         delegation_id: str,
+        cancellation_check: CancellationCheck | None = None,
     ) -> AgentRunResponse:
         current_task = self.truth_service.get_task(task.task_id)
         self._validate_request(
@@ -122,6 +124,7 @@ class ExecutiveExistingTaskRunner:
                 requested_by=current_task.requested_by,
                 objective=current_task.objective,
             ),
+            cancellation_check=cancellation_check,
         )
 
     @staticmethod
