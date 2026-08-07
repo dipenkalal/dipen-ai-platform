@@ -9,6 +9,10 @@ from agents.truth_service import (
     agent_truth_service,
 )
 from company.catalog import company_registry
+from executive_office.execution_cancellation_repository import (
+    ExecutiveExecutionCancellationRepository,
+    executive_execution_cancellation_repository,
+)
 from executive_office.execution_completion_service import (
     ExecutiveExecutionCompletionService,
 )
@@ -40,7 +44,7 @@ from executive_office.schemas import (
 
 
 class ExecutiveExecutionStartService:
-    version = "0.6.0"
+    version = "0.8.0"
 
     def __init__(
         self,
@@ -54,10 +58,14 @@ class ExecutiveExecutionStartService:
         ),
         completion_service: ExecutiveExecutionCompletionService | None = None,
         runner: ExecutiveExistingTaskRunner | None = None,
+        cancellation_repository: ExecutiveExecutionCancellationRepository = (
+            executive_execution_cancellation_repository
+        ),
     ) -> None:
         self.reservation_service = reservation_service
         self.truth_service = truth_service
         self.start_repository = start_repository
+        self.cancellation_repository = cancellation_repository
         self.completion_service = (
             completion_service
             or ExecutiveExecutionCompletionService(
@@ -81,8 +89,8 @@ class ExecutiveExecutionStartService:
             description=(
                 "Start a separately authorized reserved execution through the "
                 "existing instrumented on-demand agent executor with exact task "
-                "and agent binding, sequential limits, acceptance evidence, "
-                "parent reconciliation, and broker isolation."
+                "and agent binding, sequential limits, cancellation checkpoints, "
+                "acceptance evidence, parent reconciliation, and broker isolation."
             ),
         )
         return reservation_status.model_copy(
@@ -211,6 +219,42 @@ class ExecutiveExecutionStartService:
                 claim.selected_agent_ids,
                 strict=True,
             ):
+                cancellation = self.cancellation_repository.get_for_execution(
+                    claim.execution_id
+                )
+
+                if cancellation is not None and cancellation.state in {
+                    "requested",
+                    "observed",
+                }:
+                    self.cancellation_repository.mark_observed(
+                        claim.execution_id
+                    )
+                    response = ExecutiveExecutionStartResponse(
+                        execution_id=claim.execution_id,
+                        delegation_id=claim.delegation_id,
+                        child_task_ids=list(claim.child_task_ids),
+                        disposition="manual_review",
+                        state="manual_review",
+                        task_results=results,
+                        execution_started=bool(results),
+                        reservation_released=False,
+                        broker_activated=False,
+                        message=(
+                            "Running cancellation was observed at a safe child-task "
+                            "checkpoint. No additional child task was started; "
+                            "active reservations are retained for reconciliation."
+                        ),
+                    )
+                    response = self.completion_service.reconcile_terminal(
+                        claim=claim,
+                        response=response,
+                    )
+                    return self.start_repository.mark_manual_review(
+                        idempotency_key=idempotency_key,
+                        response=response,
+                    )
+
                 task = self.truth_service.get_task(task_id)
                 agent_response = await self.runner.run(
                     request=AgentRunRequest(
