@@ -18,12 +18,12 @@ from executive_office.execution_repository import (
 )
 from executive_office.execution_service import ExecutiveExecutionService
 from executive_office.schemas import (
+    ExecutionValidationEvidence,
     ExecutiveDelegationResponse,
     ExecutiveExecutionRequest,
     ExecutiveExecutionResponse,
     ExecutiveOfficeCapability,
     ExecutiveOfficeStatusResponse,
-    ExecutionValidationEvidence,
 )
 from executive_office.service import (
     ExecutiveOfficeService,
@@ -45,7 +45,6 @@ class _ValidationOnlyRepository:
         request_hash: str,
     ) -> None:
         del idempotency_key, request_hash
-        return None
 
     def get_delegation(
         self,
