@@ -3,6 +3,16 @@ from fastapi import APIRouter, HTTPException, status
 from executive_office.delegation_service import (
     executive_delegation_service,
 )
+from executive_office.execution_cancellation_repository import (
+    CancellationStateConflictError,
+)
+from executive_office.execution_cancellation_schemas import (
+    ExecutiveRunningCancellationRecord,
+    ExecutiveRunningCancellationRequest,
+)
+from executive_office.execution_cancellation_service import (
+    executive_execution_cancellation_service,
+)
 from executive_office.execution_recovery_schemas import (
     ExecutiveExecutionControlRequest,
     ExecutiveExecutionControlResponse,
@@ -126,6 +136,31 @@ async def start_executive_execution(
             request=request,
         )
     except IdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
+
+@router.post(
+    "/executions/{execution_id}/request-cancellation",
+    response_model=ExecutiveRunningCancellationRecord,
+)
+async def request_running_execution_cancellation(
+    execution_id: str,
+    request: ExecutiveRunningCancellationRequest,
+) -> ExecutiveRunningCancellationRecord:
+    try:
+        return executive_execution_cancellation_service.request(
+            execution_id=execution_id,
+            request=request,
+        )
+    except IdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+    except CancellationStateConflictError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(error),
