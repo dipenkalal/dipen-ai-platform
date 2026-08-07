@@ -11,7 +11,6 @@ from agents.truth_service import (
 from company.catalog import company_registry
 from executive_office.execution_completion_service import (
     ExecutiveExecutionCompletionService,
-    executive_execution_completion_service,
 )
 from executive_office.execution_reservation_service import (
     ExecutiveReservationService,
@@ -53,15 +52,19 @@ class ExecutiveExecutionStartService:
         start_repository: ExecutiveExecutionStartRepository = (
             executive_execution_start_repository
         ),
-        completion_service: ExecutiveExecutionCompletionService = (
-            executive_execution_completion_service
-        ),
+        completion_service: ExecutiveExecutionCompletionService | None = None,
         runner: ExecutiveExistingTaskRunner | None = None,
     ) -> None:
         self.reservation_service = reservation_service
         self.truth_service = truth_service
         self.start_repository = start_repository
-        self.completion_service = completion_service
+        self.completion_service = (
+            completion_service
+            or ExecutiveExecutionCompletionService(
+                truth_service=truth_service,
+                truth_repository=truth_service.repository,
+            )
+        )
         self.runner = runner or ExecutiveExistingTaskRunner(
             instrumented_agent_executor,
             truth_service=truth_service,
@@ -268,6 +271,8 @@ class ExecutiveExecutionStartService:
                 idempotency_key=idempotency_key,
                 response=response,
             )
+        # Any exception after the durable start claim is an ambiguous boundary
+        # failure and must be quarantined so the execution cannot auto-replay.
         except Exception as error:
             response = ExecutiveExecutionStartResponse(
                 execution_id=claim.execution_id,

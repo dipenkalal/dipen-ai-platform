@@ -36,6 +36,10 @@ from executive_office.schemas import (
 )
 from executive_office.service import executive_office_service
 
+# Preserve the generic route dependency name while Phase 4 extends admission
+# from validation into durable reservation. Tests and integrations may patch it.
+executive_execution_service = executive_reservation_service
+
 router = APIRouter(
     prefix="/api/v1/executive-office",
     tags=["Executive Office"],
@@ -84,7 +88,7 @@ async def execute_executive_plan(
     request: ExecutiveExecutionRequest,
 ) -> ExecutiveExecutionResponse:
     try:
-        return executive_reservation_service.admit(request)
+        return executive_execution_service.admit(request)
     except IdempotencyConflictError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
