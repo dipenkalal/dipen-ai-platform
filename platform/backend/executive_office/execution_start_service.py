@@ -9,6 +9,10 @@ from agents.truth_service import (
     agent_truth_service,
 )
 from company.catalog import company_registry
+from executive_office.execution_completion_service import (
+    ExecutiveExecutionCompletionService,
+    executive_execution_completion_service,
+)
 from executive_office.execution_reservation_service import (
     ExecutiveReservationService,
     executive_reservation_service,
@@ -37,7 +41,7 @@ from executive_office.schemas import (
 
 
 class ExecutiveExecutionStartService:
-    version = "0.5.0"
+    version = "0.6.0"
 
     def __init__(
         self,
@@ -49,11 +53,15 @@ class ExecutiveExecutionStartService:
         start_repository: ExecutiveExecutionStartRepository = (
             executive_execution_start_repository
         ),
+        completion_service: ExecutiveExecutionCompletionService = (
+            executive_execution_completion_service
+        ),
         runner: ExecutiveExistingTaskRunner | None = None,
     ) -> None:
         self.reservation_service = reservation_service
         self.truth_service = truth_service
         self.start_repository = start_repository
+        self.completion_service = completion_service
         self.runner = runner or ExecutiveExistingTaskRunner(
             instrumented_agent_executor,
             truth_service=truth_service,
@@ -70,7 +78,8 @@ class ExecutiveExecutionStartService:
             description=(
                 "Start a separately authorized reserved execution through the "
                 "existing instrumented on-demand agent executor with exact task "
-                "and agent binding, sequential limits, and broker isolation."
+                "and agent binding, sequential limits, acceptance evidence, "
+                "parent reconciliation, and broker isolation."
             ),
         )
         return reservation_status.model_copy(
@@ -171,6 +180,10 @@ class ExecutiveExecutionStartService:
                     f"Active reservations were retained: {worker_error}"
                 ),
             )
+            response = self.completion_service.reconcile_terminal(
+                claim=claimed,
+                response=response,
+            )
             return self.start_repository.mark_manual_review(
                 idempotency_key=request.idempotency_key,
                 response=response,
@@ -247,6 +260,10 @@ class ExecutiveExecutionStartService:
                     f"validation failed. Active reservations were retained: {error}"
                 ),
             )
+            response = self.completion_service.reconcile_terminal(
+                claim=claim,
+                response=response,
+            )
             return self.start_repository.mark_manual_review(
                 idempotency_key=idempotency_key,
                 response=response,
@@ -266,6 +283,10 @@ class ExecutiveExecutionStartService:
                     "Execution entered manual review after an ambiguous runner "
                     f"failure. Active reservations were retained: {error}"
                 ),
+            )
+            response = self.completion_service.reconcile_terminal(
+                claim=claim,
+                response=response,
             )
             return self.start_repository.mark_manual_review(
                 idempotency_key=idempotency_key,
@@ -296,6 +317,10 @@ class ExecutiveExecutionStartService:
                     "reservations were released and the broker remained inactive."
                 )
             ),
+        )
+        response = self.completion_service.reconcile_terminal(
+            claim=claim,
+            response=response,
         )
         return self.start_repository.complete(
             idempotency_key=idempotency_key,
