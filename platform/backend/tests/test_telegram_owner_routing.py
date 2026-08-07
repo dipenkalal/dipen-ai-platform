@@ -1,9 +1,15 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from agents.truth_repository import AgentTruthRepository
+os.environ.setdefault(
+    "KNOWLEDGE_UPLOAD_DIRECTORY",
+    str(Path(tempfile.gettempdir()) / "dap-test-knowledge-uploads"),
+)
+
+from agents.truth_repository import AgentTruthRepository  # noqa: E402
 from owner_channels.telegram_command_service import TelegramOwnerCommandRouter
 from owner_channels.telegram_repository import TelegramCommandReceiptRepository
 from owner_channels.telegram_schemas import TelegramOwnerCommand
