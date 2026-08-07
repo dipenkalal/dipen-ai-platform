@@ -1,14 +1,28 @@
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from agents.truth_repository import AgentTruthRepository
 from executive_office.execution_cancellation_repository import (
     CancellationStateConflictError,
     ExecutiveExecutionCancellationRepository,
 )
+from executive_office.execution_cancellation_schemas import (
+    ExecutiveRunningCancellationRequest,
+    OwnerRunningCancellationAuthorization,
+)
+from executive_office.execution_cancellation_service import (
+    ExecutiveExecutionCancellationService,
+)
 from executive_office.execution_repository import ExecutiveExecutionRepository
+from executive_office.execution_start_repository import (
+    ExecutionStartClaim,
+    ExecutiveExecutionStartRepository,
+)
+from executive_office.execution_start_service import ExecutiveExecutionStartService
 from executive_office.repository import IdempotencyConflictError
 from executive_office.schemas import utc_now
 
@@ -22,8 +36,15 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
         )
         self.truth_repository = AgentTruthRepository(database_path)
         ExecutiveExecutionRepository(self.truth_repository)
+        self.start_repository = ExecutiveExecutionStartRepository(
+            self.truth_repository
+        )
         self.repository = ExecutiveExecutionCancellationRepository(
             self.truth_repository
+        )
+        self.service = ExecutiveExecutionCancellationService(
+            cancellation_repository=self.repository,
+            start_repository=self.start_repository,
         )
 
     def tearDown(self) -> None:
@@ -102,6 +123,24 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
             ),
         )
 
+    def service_request(
+        self,
+        *,
+        execution_id: str = "execution-001",
+        authorized_execution_id: str = "execution-001",
+    ) -> ExecutiveRunningCancellationRequest:
+        return ExecutiveRunningCancellationRequest(
+            idempotency_key="service-cancel-0001",
+            owner_authorization=OwnerRunningCancellationAuthorization(
+                authorization_id="service-cancel-authorization-001",
+                execution_id=authorized_execution_id,
+                delegation_id="delegation-001",
+                parent_task_id="parent-task-001",
+                child_task_ids=["child-task-001"],
+                statement="Stop this exact running execution cooperatively.",
+            ),
+        )
+
     def execution_state(self) -> str:
         with self.truth_repository.connection() as connection:
             row = connection.execute(
@@ -127,6 +166,25 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
         self.assertIsNone(record.observed_at)
         self.assertIsNone(record.resolved_at)
         self.assertEqual(self.execution_state(), "running")
+
+    def test_service_binds_authorization_to_exact_execution(self) -> None:
+        self.seed_execution()
+
+        record = self.service.request(
+            execution_id="execution-001",
+            request=self.service_request(),
+        )
+
+        self.assertEqual(record.execution_id, "execution-001")
+        self.assertEqual(record.state, "requested")
+
+        with self.assertRaises(CancellationStateConflictError):
+            self.service.request(
+                execution_id="execution-001",
+                request=self.service_request(
+                    authorized_execution_id="different-execution"
+                ),
+            )
 
     def test_same_request_replays_and_changed_hash_conflicts(self) -> None:
         self.seed_execution()
@@ -168,6 +226,103 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
         self.assertIsNotNone(resolved.observed_at)
         self.assertIsNotNone(resolved.resolved_at)
         self.assertEqual(self.execution_state(), "running")
+
+
+class FakeCancellationRepository:
+    def __init__(self) -> None:
+        self.calls = 0
+        self.observed: list[str] = []
+
+    def get_for_execution(self, execution_id: str):
+        del execution_id
+        self.calls += 1
+
+        if self.calls == 1:
+            return None
+
+        return SimpleNamespace(state="requested")
+
+    def mark_observed(self, execution_id: str):
+        self.observed.append(execution_id)
+        return SimpleNamespace(state="observed")
+
+
+class FakeTruthService:
+    def get_task(self, task_id: str):
+        return SimpleNamespace(
+            task_id=task_id,
+            objective=f"Execute {task_id}",
+        )
+
+
+class FakeRunner:
+    def __init__(self) -> None:
+        self.tasks: list[str] = []
+
+    async def run(self, *, request, task, delegation_id):
+        del request, delegation_id
+        self.tasks.append(task.task_id)
+        now = datetime.now(timezone.utc)
+        return SimpleNamespace(
+            status="completed",
+            run_id=f"run-{task.task_id}",
+            answer="completed",
+            started_at=now,
+            completed_at=now,
+        )
+
+
+class FakeCompletionService:
+    def reconcile_terminal(self, *, claim, response):
+        del claim
+        return response.model_copy(update={"parent_task_status": "manual_review"})
+
+
+class FakeStartRepository:
+    def __init__(self) -> None:
+        self.responses = []
+
+    def mark_manual_review(self, *, idempotency_key, response):
+        del idempotency_key
+        self.responses.append(response)
+        return response
+
+
+class ExecutiveExecutionCancellationCheckpointTests(
+    unittest.IsolatedAsyncioTestCase
+):
+    async def test_checkpoint_stops_before_next_child(self) -> None:
+        cancellation_repository = FakeCancellationRepository()
+        runner = FakeRunner()
+        start_repository = FakeStartRepository()
+        service = ExecutiveExecutionStartService(
+            truth_service=FakeTruthService(),
+            start_repository=start_repository,
+            completion_service=FakeCompletionService(),
+            runner=runner,
+            cancellation_repository=cancellation_repository,
+        )
+        claim = ExecutionStartClaim(
+            execution_id="execution-001",
+            delegation_id="delegation-001",
+            parent_task_id="parent-task-001",
+            child_task_ids=("child-task-001", "child-task-002"),
+            selected_agent_ids=("system-agent", "research-agent"),
+            reservation_ids=("reservation-001", "reservation-002"),
+        )
+
+        response = await service._run_claimed_execution(
+            claim=claim,
+            idempotency_key="start-request-0001",
+        )
+
+        self.assertEqual(runner.tasks, ["child-task-001"])
+        self.assertEqual(cancellation_repository.observed, ["execution-001"])
+        self.assertEqual(response.state, "manual_review")
+        self.assertEqual(response.disposition, "manual_review")
+        self.assertEqual(len(response.task_results), 1)
+        self.assertFalse(response.reservation_released)
+        self.assertFalse(response.broker_activated)
 
 
 if __name__ == "__main__":
