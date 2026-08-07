@@ -13,6 +13,7 @@ ExecutionStartDisposition = Literal[
     "started",
     "completed",
     "failed",
+    "cancelled",
     "manual_review",
     "authorization_required",
     "state_conflict",
@@ -24,6 +25,7 @@ ExecutionStartState = Literal[
     "running",
     "completed",
     "failed",
+    "cancelled",
     "manual_review",
     "rejected",
 ]
