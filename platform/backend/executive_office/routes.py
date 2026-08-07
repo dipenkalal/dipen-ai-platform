@@ -64,7 +64,7 @@ router = APIRouter(
     response_model=ExecutiveOfficeStatusResponse,
 )
 async def get_executive_office_status() -> ExecutiveOfficeStatusResponse:
-    return executive_execution_recovery_service.status()
+    return executive_cancellation_aware_recovery_service.status()
 
 
 @router.post(
