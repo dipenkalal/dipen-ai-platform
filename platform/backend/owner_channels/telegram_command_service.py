@@ -1,5 +1,8 @@
 import json
 
+from executive_office.execution_cancellation_repository import (
+    CancellationStateConflictError,
+)
 from executive_office.execution_cancellation_schemas import (
     ExecutiveRunningCancellationRequest,
     OwnerRunningCancellationAuthorization,
@@ -16,6 +19,7 @@ from executive_office.execution_status_service import (
     ExecutiveExecutionStatusService,
     executive_execution_status_service,
 )
+from executive_office.repository import IdempotencyConflictError
 from owner_channels.telegram_repository import (
     TelegramCommandReceiptRepository,
     TelegramReceiptConflictError,
@@ -84,7 +88,13 @@ class TelegramOwnerCommandRouter:
                     "command": command.command,
                     "message": "Unsupported Telegram owner command.",
                 }
-        except Exception as error:
+        except (
+            CancellationStateConflictError,
+            IdempotencyConflictError,
+            KeyError,
+            TelegramReceiptConflictError,
+            ValueError,
+        ) as error:
             self.receipt_repository.fail(
                 update_id=command.update_id,
                 error=str(error),
@@ -104,7 +114,9 @@ class TelegramOwnerCommandRouter:
             "command": "status",
             "version": status.version,
             "execution_enabled": status.execution_enabled,
-            "execution_cancellation_enabled": status.execution_cancellation_enabled,
+            "execution_cancellation_enabled": (
+                status.execution_cancellation_enabled
+            ),
             "execution_recovery_enabled": status.execution_recovery_enabled,
             "broker_activation_enabled": status.broker_activation_enabled,
             "capability_count": len(status.capabilities),
@@ -126,8 +138,8 @@ class TelegramOwnerCommandRouter:
                 parent_task_id=status.parent_task.task_id,
                 child_task_ids=[task.task_id for task in status.child_tasks],
                 statement=(
-                    "Dipen authorized cooperative cancellation from the authenticated "
-                    "Telegram owner command channel."
+                    "Dipen authorized cooperative cancellation from the "
+                    "authenticated Telegram owner command channel."
                 ),
             ),
         )
