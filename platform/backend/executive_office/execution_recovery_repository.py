@@ -312,8 +312,10 @@ class ExecutiveExecutionRecoveryRepository:
                             AND parent_task_id = ?
                         """,
                         (
-                            "Cancelled by explicit owner control before "
-                            "executor start.",
+                            (
+                                "Cancelled by explicit owner control before "
+                                "executor start."
+                            ),
                             now,
                             now,
                             task_id,
@@ -445,8 +447,10 @@ class ExecutiveExecutionRecoveryRepository:
                                 )
                             """,
                             (
-                                "Recovery found an ambiguous interrupted "
-                                "execution; owner review is required.",
+                                (
+                                    "Recovery found an ambiguous interrupted "
+                                    "execution; owner review is required."
+                                ),
                                 now,
                                 task_id,
                                 snapshot.delegation_id,
