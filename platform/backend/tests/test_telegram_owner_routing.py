@@ -59,6 +59,69 @@ class FakeCancellationService:
         )
 
 
+class FakeModel:
+    def __init__(self, **values) -> None:
+        self.values = values
+
+    def model_dump(self, *, mode: str):
+        return self.values
+
+
+class FakeTruthService:
+    def list_agent_states(self):
+        return SimpleNamespace(
+            summary=FakeModel(
+                registered=2,
+                enabled=2,
+                available=1,
+                busy=1,
+                degraded=0,
+                offline=0,
+                unreported=0,
+                disabled=0,
+            ),
+            agents=[
+                SimpleNamespace(
+                    agent=SimpleNamespace(id="guardian", name="Guardian"),
+                    runtime_status="available",
+                    current_task_id=None,
+                ),
+                SimpleNamespace(
+                    agent=SimpleNamespace(id="builder", name="Builder"),
+                    runtime_status="busy",
+                    current_task_id="task-001",
+                ),
+            ],
+        )
+
+    def list_tasks(self, *, limit: int):
+        return SimpleNamespace(
+            total=1,
+            tasks=[
+                SimpleNamespace(
+                    task_id="task-001",
+                    status="running",
+                    priority="normal",
+                    progress_percent=50.0,
+                )
+            ],
+        )
+
+
+class FakeOrganizationRegistry:
+    def snapshot(self):
+        return SimpleNamespace(
+            organization_name="Dipen AI Platform",
+            registry_version="1.0.0",
+            summary=FakeModel(
+                department_count=4,
+                role_count=12,
+                active_roles=8,
+                mapped_agent_roles=5,
+            ),
+        )
+
+
 class TelegramOwnerRoutingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -72,6 +135,8 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
             office_status_service=FakeOfficeStatusService(),
             execution_status_service=FakeExecutionStatusService(),
             cancellation_service=self.cancellation,
+            truth_service=FakeTruthService(),
+            organization_registry=FakeOrganizationRegistry(),
         )
 
     def tearDown(self) -> None:
@@ -128,6 +193,17 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
             ["child-task-001", "child-task-002"],
         )
         self.assertEqual(request.idempotency_key, "telegram-update-1002")
+
+    def test_read_only_company_views_route_without_execution(self) -> None:
+        agents = self.router.route(self.command("agents", update_id=1003))
+        tasks = self.router.route(self.command("tasks", update_id=1004))
+        company = self.router.route(self.command("company", update_id=1005))
+
+        self.assertEqual(agents["summary"]["available"], 1)
+        self.assertEqual(agents["agents"][1]["current_task_id"], "task-001")
+        self.assertEqual(tasks["tasks"][0]["status"], "running")
+        self.assertEqual(company["summary"]["department_count"], 4)
+        self.assertEqual(self.cancellation.calls, [])
 
 
 if __name__ == "__main__":

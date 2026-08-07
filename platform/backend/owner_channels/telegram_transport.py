@@ -313,9 +313,57 @@ def format_telegram_response(result: dict[str, object]) -> str:
                 f"Capabilities: {result.get('capability_count', 0)}",
             ]
         )
+    if command == "agents" and result.get("ok") is True:
+        summary = _as_dict(result.get("summary"))
+        agents = _as_dict_list(result.get("agents"))
+        lines = [
+            (
+                "Agents: "
+                f"{summary.get('available', 0)} available, "
+                f"{summary.get('busy', 0)} busy, "
+                f"{summary.get('offline', 0)} offline"
+            )
+        ]
+        lines.extend(
+            f"{agent.get('name', agent.get('id', 'unknown'))}: "
+            f"{agent.get('status', 'unknown')}"
+            for agent in agents
+        )
+        return "\n".join(lines)
+    if command == "tasks" and result.get("ok") is True:
+        tasks = _as_dict_list(result.get("tasks"))
+        if not tasks:
+            return "Tasks: none recorded."
+        lines = [f"Tasks: {result.get('total', len(tasks))} total (latest 5)"]
+        lines.extend(
+            f"{task.get('task_id', 'unknown')}: {task.get('status', 'unknown')}"
+            for task in tasks
+        )
+        return "\n".join(lines)
+    if command == "company" and result.get("ok") is True:
+        summary = _as_dict(result.get("summary"))
+        return "\n".join(
+            [
+                str(result.get("organization_name", "Dipen AI Platform")),
+                f"Departments: {summary.get('department_count', 0)}",
+                f"Roles: {summary.get('role_count', 0)}",
+                f"Active roles: {summary.get('active_roles', 0)}",
+                f"Mapped agents: {summary.get('mapped_agent_roles', 0)}",
+            ]
+        )
     if command == "cancel" and result.get("ok") is True:
         return str(result.get("message") or "Cancellation request accepted.")
     return str(result.get("message") or "Telegram command could not be completed.")
+
+
+def _as_dict(value: object) -> dict[str, object]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_dict_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
 
 
 def build_telegram_polling_worker(

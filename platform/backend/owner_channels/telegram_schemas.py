@@ -31,6 +31,9 @@ class TelegramUpdate(BaseModel):
 
 TelegramOwnerCommandName = Literal[
     "status",
+    "agents",
+    "tasks",
+    "company",
     "cancel",
     "help",
     "unsupported",

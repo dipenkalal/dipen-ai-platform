@@ -110,6 +110,15 @@ class TelegramOwnerIngressService:
         if text == "/help":
             return "help", None, True, "Owner help command accepted."
 
+        if text == "/agents":
+            return "agents", None, True, "Owner agents command accepted."
+
+        if text == "/tasks":
+            return "tasks", None, True, "Owner tasks command accepted."
+
+        if text == "/company":
+            return "company", None, True, "Owner company command accepted."
+
         if text.startswith("/cancel"):
             parts = text.split(maxsplit=1)
             if len(parts) == 2 and parts[1].strip():

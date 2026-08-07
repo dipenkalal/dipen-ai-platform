@@ -8,6 +8,9 @@ owner identity. The currently supported commands are:
 
 - `/help`
 - `/status`
+- `/agents`
+- `/tasks`
+- `/company`
 - `/cancel <execution_id>`
 
 The channel does not provide arbitrary shell access. Cancellation is routed

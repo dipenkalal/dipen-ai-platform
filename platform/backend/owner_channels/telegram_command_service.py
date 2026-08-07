@@ -1,5 +1,8 @@
 import json
 
+from agents.truth_service import AgentTruthService, agent_truth_service
+from company.catalog import company_registry
+from company.registry import OrganizationRegistry
 from executive_office.execution_cancellation_recovery import (
     ExecutiveCancellationAwareRecoveryService,
     executive_cancellation_aware_recovery_service,
@@ -44,11 +47,15 @@ class TelegramOwnerCommandRouter:
         cancellation_service: ExecutiveExecutionCancellationService = (
             executive_execution_cancellation_service
         ),
+        truth_service: AgentTruthService = agent_truth_service,
+        organization_registry: OrganizationRegistry = company_registry,
     ) -> None:
         self.receipt_repository = receipt_repository
         self.office_status_service = office_status_service
         self.execution_status_service = execution_status_service
         self.cancellation_service = cancellation_service
+        self.truth_service = truth_service
+        self.organization_registry = organization_registry
 
     def route(self, command: TelegramOwnerCommand) -> dict[str, object]:
         if not command.accepted:
@@ -78,6 +85,12 @@ class TelegramOwnerCommandRouter:
         try:
             if command.command == "status":
                 result = self._status()
+            elif command.command == "agents":
+                result = self._agents()
+            elif command.command == "tasks":
+                result = self._tasks()
+            elif command.command == "company":
+                result = self._company()
             elif command.command == "cancel":
                 result = self._cancel(command)
             elif command.command == "help":
@@ -157,6 +170,53 @@ class TelegramOwnerCommandRouter:
             "message": cancellation.message,
         }
 
+    def _agents(self) -> dict[str, object]:
+        fleet = self.truth_service.list_agent_states()
+        return {
+            "ok": True,
+            "command": "agents",
+            "summary": fleet.summary.model_dump(mode="json"),
+            "agents": [
+                {
+                    "id": state.agent.id,
+                    "name": state.agent.name,
+                    "status": state.runtime_status,
+                    "current_task_id": state.current_task_id,
+                }
+                for state in fleet.agents
+            ],
+            "idempotent_replay": False,
+        }
+
+    def _tasks(self) -> dict[str, object]:
+        ledger = self.truth_service.list_tasks(limit=5)
+        return {
+            "ok": True,
+            "command": "tasks",
+            "total": ledger.total,
+            "tasks": [
+                {
+                    "task_id": task.task_id,
+                    "status": task.status,
+                    "priority": task.priority,
+                    "progress_percent": task.progress_percent,
+                }
+                for task in ledger.tasks
+            ],
+            "idempotent_replay": False,
+        }
+
+    def _company(self) -> dict[str, object]:
+        organization = self.organization_registry.snapshot()
+        return {
+            "ok": True,
+            "command": "company",
+            "organization_name": organization.organization_name,
+            "registry_version": organization.registry_version,
+            "summary": organization.summary.model_dump(mode="json"),
+            "idempotent_replay": False,
+        }
+
     @staticmethod
     def _help() -> dict[str, object]:
         return {
@@ -164,6 +224,9 @@ class TelegramOwnerCommandRouter:
             "command": "help",
             "commands": [
                 "/status",
+                "/agents",
+                "/tasks",
+                "/company",
                 "/cancel <execution_id>",
                 "/help",
             ],

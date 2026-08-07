@@ -77,6 +77,20 @@ class TelegramOwnerIngressTests(unittest.TestCase):
         self.assertEqual(result.command, "unsupported")
         self.assertIsNone(result.execution_id)
 
+    def test_read_only_owner_commands_are_accepted(self) -> None:
+        for text, expected in (
+            ("/agents", "agents"),
+            ("/tasks", "tasks"),
+            ("/company", "company"),
+        ):
+            with self.subTest(text=text):
+                result = self.service.accept(
+                    update=self.update(text),
+                    webhook_secret_header="telegram-secret-001",
+                )
+                self.assertTrue(result.accepted)
+                self.assertEqual(result.command, expected)
+
     def test_wrong_webhook_secret_is_rejected(self) -> None:
         with self.assertRaises(PermissionError):
             self.service.accept(

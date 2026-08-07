@@ -217,6 +217,43 @@ class TelegramTransportConfigurationTests(unittest.TestCase):
             "DAP 0.17.0\nExecution: disabled\nCancellation: enabled\nCapabilities: 7",
         )
 
+    def test_read_only_responses_are_compact(self) -> None:
+        agents = format_telegram_response(
+            {
+                "ok": True,
+                "command": "agents",
+                "summary": {"available": 1, "busy": 1, "offline": 0},
+                "agents": [
+                    {"id": "guardian", "name": "Guardian", "status": "available"}
+                ],
+            }
+        )
+        tasks = format_telegram_response(
+            {
+                "ok": True,
+                "command": "tasks",
+                "total": 1,
+                "tasks": [{"task_id": "task-001", "status": "running"}],
+            }
+        )
+        company = format_telegram_response(
+            {
+                "ok": True,
+                "command": "company",
+                "organization_name": "Dipen AI Platform",
+                "summary": {
+                    "department_count": 4,
+                    "role_count": 12,
+                    "active_roles": 8,
+                    "mapped_agent_roles": 5,
+                },
+            }
+        )
+
+        self.assertIn("Guardian: available", agents)
+        self.assertIn("task-001: running", tasks)
+        self.assertIn("Departments: 4", company)
+
 
 if __name__ == "__main__":
     unittest.main()
