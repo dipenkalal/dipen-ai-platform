@@ -144,11 +144,11 @@ class ExecutiveExecutionCompletionService:
     def _evidence_for_result(
         result: ExecutiveTaskExecutionResult,
     ) -> ExecutiveTaskAcceptanceEvidence:
-        digest = hashlib.sha256(result.answer.encode("utf-8")).hexdigest()
+        digest = hashlib.sha256(result.answer.encode()).hexdigest()
         evidence_id = hashlib.sha256(
             (
                 f"{result.task_id}|{result.agent_id}|{result.run_id}|{digest}"
-            ).encode("utf-8")
+            ).encode()
         ).hexdigest()[:24]
         terminal_status = cast(ExecutionTaskResultStatus, result.status)
         accepted = terminal_status == "completed" and bool(result.answer.strip())
