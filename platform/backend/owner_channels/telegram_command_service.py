@@ -23,6 +23,11 @@ from executive_office.execution_status_service import (
     executive_execution_status_service,
 )
 from executive_office.repository import IdempotencyConflictError
+from executive_office.schemas import ExecutivePlanRequest
+from executive_office.service import (
+    ExecutiveOfficeService,
+    executive_office_service,
+)
 from owner_channels.telegram_repository import (
     TelegramCommandReceiptRepository,
     TelegramReceiptConflictError,
@@ -49,6 +54,7 @@ class TelegramOwnerCommandRouter:
         ),
         truth_service: AgentTruthService = agent_truth_service,
         organization_registry: OrganizationRegistry = company_registry,
+        planning_service: ExecutiveOfficeService = executive_office_service,
     ) -> None:
         self.receipt_repository = receipt_repository
         self.office_status_service = office_status_service
@@ -56,6 +62,7 @@ class TelegramOwnerCommandRouter:
         self.cancellation_service = cancellation_service
         self.truth_service = truth_service
         self.organization_registry = organization_registry
+        self.planning_service = planning_service
 
     def route(self, command: TelegramOwnerCommand) -> dict[str, object]:
         if not command.accepted:
@@ -91,6 +98,8 @@ class TelegramOwnerCommandRouter:
                 result = self._tasks()
             elif command.command == "company":
                 result = self._company()
+            elif command.command == "plan":
+                result = self._plan(command)
             elif command.command == "cancel":
                 result = self._cancel(command)
             elif command.command == "help":
@@ -217,6 +226,38 @@ class TelegramOwnerCommandRouter:
             "idempotent_replay": False,
         }
 
+    def _plan(self, command: TelegramOwnerCommand) -> dict[str, object]:
+        objective = command.objective
+        if objective is None:
+            raise ValueError("Telegram planning requires an objective.")
+        decision = self.planning_service.plan(
+            ExecutivePlanRequest(
+                objectives=[objective],
+                requested_by=command.authorized_by,
+                allow_external_actions=False,
+            )
+        )
+        return {
+            "ok": True,
+            "command": "plan",
+            "decision_id": decision.decision_id,
+            "disposition": decision.disposition,
+            "overall_risk": decision.risk_policy.overall_risk,
+            "owner_approval_required": (
+                decision.risk_policy.owner_approval_required
+            ),
+            "tasks": [
+                {
+                    "task_id": task.task_id,
+                    "role_id": task.suggested_role_id,
+                }
+                for task in decision.chief_of_staff.tasks
+            ],
+            "execution_started": decision.execution_started,
+            "message": decision.message,
+            "idempotent_replay": False,
+        }
+
     @staticmethod
     def _help() -> dict[str, object]:
         return {
@@ -227,6 +268,7 @@ class TelegramOwnerCommandRouter:
                 "/agents",
                 "/tasks",
                 "/company",
+                "/plan <objective>",
                 "/cancel <execution_id>",
                 "/help",
             ],

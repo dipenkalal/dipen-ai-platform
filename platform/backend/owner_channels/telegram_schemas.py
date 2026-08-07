@@ -34,6 +34,7 @@ TelegramOwnerCommandName = Literal[
     "agents",
     "tasks",
     "company",
+    "plan",
     "cancel",
     "help",
     "unsupported",
@@ -45,6 +46,7 @@ class TelegramOwnerCommand(BaseModel):
     message_id: int
     command: TelegramOwnerCommandName
     execution_id: str | None = None
+    objective: str | None = None
     idempotency_key: str
     authorized_by: Literal["dipen-owner"] = "dipen-owner"
     accepted: bool

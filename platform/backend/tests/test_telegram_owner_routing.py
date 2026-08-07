@@ -122,6 +122,32 @@ class FakeOrganizationRegistry:
         )
 
 
+class FakePlanningService:
+    def __init__(self) -> None:
+        self.requests = []
+
+    def plan(self, request):
+        self.requests.append(request)
+        return SimpleNamespace(
+            decision_id="executive-decision-001",
+            disposition="ready_for_delegation",
+            risk_policy=SimpleNamespace(
+                overall_risk="low",
+                owner_approval_required=False,
+            ),
+            chief_of_staff=SimpleNamespace(
+                tasks=[
+                    SimpleNamespace(
+                        task_id="decision-task-1",
+                        suggested_role_id="research-analyst",
+                    )
+                ]
+            ),
+            execution_started=False,
+            message="Plan created without execution.",
+        )
+
+
 class TelegramOwnerRoutingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -130,6 +156,7 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
         )
         self.receipts = TelegramCommandReceiptRepository(truth)
         self.cancellation = FakeCancellationService()
+        self.planning = FakePlanningService()
         self.router = TelegramOwnerCommandRouter(
             receipt_repository=self.receipts,
             office_status_service=FakeOfficeStatusService(),
@@ -137,6 +164,7 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
             cancellation_service=self.cancellation,
             truth_service=FakeTruthService(),
             organization_registry=FakeOrganizationRegistry(),
+            planning_service=self.planning,
         )
 
     def tearDown(self) -> None:
@@ -148,12 +176,14 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
         *,
         update_id: int,
         execution_id: str | None = None,
+        objective: str | None = None,
     ) -> TelegramOwnerCommand:
         return TelegramOwnerCommand(
             update_id=update_id,
             message_id=77,
             command=name,
             execution_id=execution_id,
+            objective=objective,
             idempotency_key=f"telegram-update-{update_id}",
             accepted=True,
             reason="accepted",
@@ -203,6 +233,23 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
         self.assertEqual(agents["agents"][1]["current_task_id"], "task-001")
         self.assertEqual(tasks["tasks"][0]["status"], "running")
         self.assertEqual(company["summary"]["department_count"], 4)
+        self.assertEqual(self.cancellation.calls, [])
+
+    def test_plan_is_advisory_and_never_allows_external_actions(self) -> None:
+        result = self.router.route(
+            self.command(
+                "plan",
+                update_id=1006,
+                objective="Research storage upgrade options",
+            )
+        )
+
+        self.assertEqual(result["disposition"], "ready_for_delegation")
+        self.assertFalse(result["execution_started"])
+        self.assertEqual(len(self.planning.requests), 1)
+        request = self.planning.requests[0]
+        self.assertEqual(request.requested_by, "dipen-owner")
+        self.assertFalse(request.allow_external_actions)
         self.assertEqual(self.cancellation.calls, [])
 
 

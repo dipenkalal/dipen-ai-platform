@@ -254,6 +254,24 @@ class TelegramTransportConfigurationTests(unittest.TestCase):
         self.assertIn("task-001: running", tasks)
         self.assertIn("Departments: 4", company)
 
+    def test_plan_response_explicitly_says_execution_did_not_start(self) -> None:
+        text = format_telegram_response(
+            {
+                "ok": True,
+                "command": "plan",
+                "decision_id": "executive-decision-001",
+                "disposition": "ready_for_delegation",
+                "overall_risk": "low",
+                "execution_started": False,
+                "tasks": [
+                    {"task_id": "decision-task-1", "role_id": "research-analyst"}
+                ],
+            }
+        )
+
+        self.assertIn("Execution started: no", text)
+        self.assertIn("Risk: low", text)
+
 
 if __name__ == "__main__":
     unittest.main()

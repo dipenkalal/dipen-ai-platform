@@ -351,6 +351,19 @@ def format_telegram_response(result: dict[str, object]) -> str:
                 f"Mapped agents: {summary.get('mapped_agent_roles', 0)}",
             ]
         )
+    if command == "plan" and result.get("ok") is True:
+        tasks = _as_dict_list(result.get("tasks"))
+        lines = [
+            f"Plan: {result.get('disposition', 'unknown')}",
+            f"Risk: {result.get('overall_risk', 'unknown')}",
+            f"Decision: {result.get('decision_id', 'unknown')}",
+            "Execution started: no",
+        ]
+        lines.extend(
+            f"{task.get('task_id', 'unknown')} -> {task.get('role_id', 'unknown')}"
+            for task in tasks
+        )
+        return "\n".join(lines)
     if command == "cancel" and result.get("ok") is True:
         return str(result.get("message") or "Cancellation request accepted.")
     return str(result.get("message") or "Telegram command could not be completed.")

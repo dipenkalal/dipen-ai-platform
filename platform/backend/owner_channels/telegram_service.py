@@ -90,34 +90,55 @@ class TelegramOwnerIngressService:
             raise PermissionError("Telegram chat is not the configured owner chat.")
 
         text = (message.text or "").strip()
-        command, execution_id, accepted, reason = self._parse(text)
+        command, execution_id, objective, accepted, reason = self._parse(text)
 
         return TelegramOwnerCommand(
             update_id=update.update_id,
             message_id=message.message_id,
             command=command,
             execution_id=execution_id,
+            objective=objective,
             idempotency_key=f"telegram-update-{update.update_id}",
             accepted=accepted,
             reason=reason,
         )
 
     @staticmethod
-    def _parse(text: str) -> tuple[str, str | None, bool, str]:
+    def _parse(
+        text: str,
+    ) -> tuple[str, str | None, str | None, bool, str]:
         if text == "/status":
-            return "status", None, True, "Owner status command accepted."
+            return "status", None, None, True, "Owner status command accepted."
 
         if text == "/help":
-            return "help", None, True, "Owner help command accepted."
+            return "help", None, None, True, "Owner help command accepted."
 
         if text == "/agents":
-            return "agents", None, True, "Owner agents command accepted."
+            return "agents", None, None, True, "Owner agents command accepted."
 
         if text == "/tasks":
-            return "tasks", None, True, "Owner tasks command accepted."
+            return "tasks", None, None, True, "Owner tasks command accepted."
 
         if text == "/company":
-            return "company", None, True, "Owner company command accepted."
+            return "company", None, None, True, "Owner company command accepted."
+
+        if text.startswith("/plan"):
+            parts = text.split(maxsplit=1)
+            if len(parts) == 2 and parts[1].strip():
+                return (
+                    "plan",
+                    None,
+                    parts[1].strip(),
+                    True,
+                    "Owner advisory plan command accepted.",
+                )
+            return (
+                "unsupported",
+                None,
+                None,
+                False,
+                "Planning requires an objective.",
+            )
 
         if text.startswith("/cancel"):
             parts = text.split(maxsplit=1)
@@ -125,6 +146,7 @@ class TelegramOwnerIngressService:
                 return (
                     "cancel",
                     parts[1].strip(),
+                    None,
                     True,
                     "Owner cancellation command accepted for routing.",
                 )
@@ -132,12 +154,14 @@ class TelegramOwnerIngressService:
             return (
                 "unsupported",
                 None,
+                None,
                 False,
                 "Cancellation requires an execution ID.",
             )
 
         return (
             "unsupported",
+            None,
             None,
             False,
             "Telegram command is not supported by the owner gateway.",

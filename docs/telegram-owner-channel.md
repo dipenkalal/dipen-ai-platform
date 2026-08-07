@@ -11,11 +11,13 @@ owner identity. The currently supported commands are:
 - `/agents`
 - `/tasks`
 - `/company`
+- `/plan <objective>` (advisory and non-executing)
 - `/cancel <execution_id>`
 
 The channel does not provide arbitrary shell access. Cancellation is routed
 through the existing Executive Office authorization, idempotency, state, and
-recovery controls.
+recovery controls. Planning always uses `allow_external_actions=false` and
+cannot delegate tasks or start execution.
 
 ## Runtime behavior
 
