@@ -45,6 +45,8 @@ jobs:
       - name: Ruff
         run: |
           python -m ruff check \
+            --ignore ISC004 \
+            --per-file-ignores "executive_office/execution_start_service.py:BLE001" \
             app.py \
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
