@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timezone
+from typing import Any
 
 from agents.cancellation import (
     CooperativeCancellationRequested,
@@ -21,6 +22,8 @@ from gateway.schemas import (
     UsageMetrics,
 )
 from gateway.service import GatewayService
+from tools.base import BaseTool, ToolDefinition, ToolExecutionResult
+from tools.registry import ToolRegistry
 
 
 class AgentCancellationProbeTests(unittest.TestCase):
@@ -178,6 +181,70 @@ class GatewayCancellationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(fake_ollama.chat_calls, 1)
         self.assertEqual(context.exception.boundary, "after-model-call")
+
+
+class FakeTool(BaseTool):
+    definition = ToolDefinition(
+        id="test.cancellable",
+        name="Cancellable test tool",
+        description="Test cooperative cancellation around a tool call.",
+        category="test",
+    )
+
+    def __init__(
+        self,
+        cancellation_state: dict[str, bool],
+        *,
+        request_during_call: bool,
+    ) -> None:
+        self.cancellation_state = cancellation_state
+        self.request_during_call = request_during_call
+        self.calls = 0
+
+    async def execute(
+        self,
+        arguments: dict[str, Any],
+    ) -> ToolExecutionResult:
+        self.calls += 1
+        if self.request_during_call:
+            self.cancellation_state["requested"] = True
+        return ToolExecutionResult(
+            tool_id=self.definition.id,
+            success=True,
+            output=arguments,
+        )
+
+
+class ToolCancellationBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_requested_cancellation_prevents_tool_start(self) -> None:
+        cancellation_state = {"requested": True}
+        registry = ToolRegistry()
+        tool = FakeTool(cancellation_state, request_during_call=False)
+        registry.register(tool)
+
+        with (
+            cancellation_scope(lambda: cancellation_state["requested"]),
+            self.assertRaises(CooperativeCancellationRequested) as context,
+        ):
+            await registry.get(tool.definition.id).execute({"value": 1})
+
+        self.assertEqual(tool.calls, 0)
+        self.assertEqual(context.exception.boundary, "before-tool-call")
+
+    async def test_cancellation_during_tool_is_observed_after_return(self) -> None:
+        cancellation_state = {"requested": False}
+        registry = ToolRegistry()
+        tool = FakeTool(cancellation_state, request_during_call=True)
+        registry.register(tool)
+
+        with (
+            cancellation_scope(lambda: cancellation_state["requested"]),
+            self.assertRaises(CooperativeCancellationRequested) as context,
+        ):
+            await registry.get(tool.definition.id).execute({"value": 1})
+
+        self.assertEqual(tool.calls, 1)
+        self.assertEqual(context.exception.boundary, "after-tool-call")
 
 
 if __name__ == "__main__":
