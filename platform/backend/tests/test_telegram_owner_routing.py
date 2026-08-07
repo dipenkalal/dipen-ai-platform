@@ -4,9 +4,14 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+TEST_DATA_DIRECTORY = Path(tempfile.gettempdir()) / "dap-telegram-routing-tests"
 os.environ.setdefault(
     "KNOWLEDGE_UPLOAD_DIRECTORY",
-    str(Path(tempfile.gettempdir()) / "dap-test-knowledge-uploads"),
+    str(TEST_DATA_DIRECTORY / "knowledge-uploads"),
+)
+os.environ.setdefault(
+    "DAP_AGENT_TRUTH_DB",
+    str(TEST_DATA_DIRECTORY / "agent-truth.db"),
 )
 
 from agents.truth_repository import AgentTruthRepository
