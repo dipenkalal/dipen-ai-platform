@@ -6,6 +6,10 @@ from agents.truth_repository import (
     agent_truth_repository,
 )
 from agents.truth_service import AgentTruthService, agent_truth_service
+from executive_office.execution_cancellation_repository import (
+    ExecutiveExecutionCancellationRepository,
+    executive_execution_cancellation_repository,
+)
 from executive_office.execution_start_schemas import (
     ExecutionStatusState,
     ExecutiveExecutionStartResponse,
@@ -19,9 +23,13 @@ class ExecutiveExecutionStatusService:
         *,
         truth_service: AgentTruthService = agent_truth_service,
         truth_repository: AgentTruthRepository = agent_truth_repository,
+        cancellation_repository: ExecutiveExecutionCancellationRepository = (
+            executive_execution_cancellation_repository
+        ),
     ) -> None:
         self.truth_service = truth_service
         self.truth_repository = truth_repository
+        self.cancellation_repository = cancellation_repository
 
     def get(self, execution_id: str) -> ExecutiveExecutionStatusResponse:
         with self.truth_repository.connection() as connection:
@@ -86,6 +94,7 @@ class ExecutiveExecutionStatusService:
             active_reservation_ids=[str(row["reservation_id"]) for row in reservations],
             task_results=task_results,
             acceptance_evidence=acceptance_evidence,
+            cancellation=self.cancellation_repository.get_for_execution(execution_id),
             broker_activated=False,
         )
 
