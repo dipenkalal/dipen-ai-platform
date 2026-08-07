@@ -126,11 +126,11 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
     def service_request(
         self,
         *,
-        execution_id: str = "execution-001",
+        idempotency_key: str = "service-cancel-0001",
         authorized_execution_id: str = "execution-001",
     ) -> ExecutiveRunningCancellationRequest:
         return ExecutiveRunningCancellationRequest(
-            idempotency_key="service-cancel-0001",
+            idempotency_key=idempotency_key,
             owner_authorization=OwnerRunningCancellationAuthorization(
                 authorization_id="service-cancel-authorization-001",
                 execution_id=authorized_execution_id,
@@ -182,7 +182,8 @@ class ExecutiveExecutionCancellationRepositoryTests(unittest.TestCase):
             self.service.request(
                 execution_id="execution-001",
                 request=self.service_request(
-                    authorized_execution_id="different-execution"
+                    idempotency_key="service-cancel-0002",
+                    authorized_execution_id="different-execution",
                 ),
             )
 
