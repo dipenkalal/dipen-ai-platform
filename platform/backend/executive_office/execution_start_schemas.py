@@ -27,6 +27,17 @@ ExecutionStartState = Literal[
     "manual_review",
     "rejected",
 ]
+ExecutionStatusState = Literal[
+    "requested",
+    "validated",
+    "reserved",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "manual_review",
+    "rejected",
+]
 ExecutionTaskResultStatus = Literal["completed", "failed"]
 AcceptanceEvidenceSource = Literal["agent-result"]
 
@@ -97,7 +108,7 @@ class ExecutiveExecutionStartResponse(BaseModel):
 class ExecutiveExecutionStatusResponse(BaseModel):
     execution_id: str
     delegation_id: str
-    state: ExecutionStartState
+    state: ExecutionStatusState
     generated_at: datetime = Field(default_factory=utc_now)
     parent_task: TaskLedgerRecord
     child_tasks: list[TaskLedgerRecord]
