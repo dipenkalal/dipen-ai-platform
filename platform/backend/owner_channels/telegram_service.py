@@ -14,17 +14,21 @@ class TelegramIngressConfigurationError(RuntimeError):
 
 @dataclass(frozen=True)
 class TelegramIngressConfig:
-    webhook_secret: str
+    webhook_secret: str | None
     owner_user_id: int
     owner_chat_id: int
 
     @classmethod
-    def from_env(cls) -> "TelegramIngressConfig":
+    def from_env(
+        cls,
+        *,
+        require_webhook_secret: bool = True,
+    ) -> "TelegramIngressConfig":
         webhook_secret = os.getenv("DAP_TELEGRAM_WEBHOOK_SECRET", "").strip()
         owner_user_id = os.getenv("DAP_TELEGRAM_OWNER_USER_ID", "").strip()
         owner_chat_id = os.getenv("DAP_TELEGRAM_OWNER_CHAT_ID", "").strip()
 
-        if not webhook_secret:
+        if require_webhook_secret and not webhook_secret:
             raise TelegramIngressConfigurationError(
                 "DAP_TELEGRAM_WEBHOOK_SECRET is required."
             )
@@ -38,7 +42,7 @@ class TelegramIngressConfig:
             ) from exc
 
         return cls(
-            webhook_secret=webhook_secret,
+            webhook_secret=webhook_secret or None,
             owner_user_id=parsed_user_id,
             owner_chat_id=parsed_chat_id,
         )
@@ -54,11 +58,24 @@ class TelegramOwnerIngressService:
         update: TelegramUpdate,
         webhook_secret_header: str | None,
     ) -> TelegramOwnerCommand:
+        if self.config.webhook_secret is None:
+            raise TelegramIngressConfigurationError(
+                "Telegram webhook ingress is not configured."
+            )
         if webhook_secret_header is None or not secrets.compare_digest(
             webhook_secret_header,
             self.config.webhook_secret,
         ):
             raise PermissionError("Telegram webhook secret validation failed.")
+
+        return self.accept_polled(update=update)
+
+    def accept_polled(
+        self,
+        *,
+        update: TelegramUpdate,
+    ) -> TelegramOwnerCommand:
+        """Authenticate an update already obtained from Telegram's Bot API."""
 
         message = update.message
         if message is None:

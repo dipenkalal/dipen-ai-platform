@@ -1,5 +1,6 @@
+import asyncio
 import inspect
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timezone
 from typing import Any
 
@@ -46,18 +47,47 @@ from knowledge.routes import (
 from monitoring.routes import (
     router as monitoring_router,
 )
+from owner_channels.telegram_transport import (
+    TelegramTransportConfig,
+    build_telegram_polling_worker,
+)
 from shared_http import (
     close_shared_http_client,
+    get_shared_http_client,
 )
 
 APP_VERSION = "0.17.0"
 
 
 @asynccontextmanager
-async def backend_lifespan(_: FastAPI):
+async def backend_lifespan(application: FastAPI):
+    telegram_config = TelegramTransportConfig.from_env()
+    telegram_task: asyncio.Task[None] | None = None
+    telegram_stop_event: asyncio.Event | None = None
+    if telegram_config.enabled:
+        telegram_stop_event = asyncio.Event()
+        telegram_worker = build_telegram_polling_worker(
+            config=telegram_config,
+            client=get_shared_http_client(),
+        )
+        telegram_task = asyncio.create_task(
+            telegram_worker.run(
+                stop_event=telegram_stop_event,
+                retry_initial_seconds=telegram_config.retry_initial_seconds,
+                retry_max_seconds=telegram_config.retry_max_seconds,
+            ),
+            name="telegram-owner-long-polling",
+        )
+        application.state.telegram_polling_task = telegram_task
     try:
         yield
     finally:
+        if telegram_stop_event is not None:
+            telegram_stop_event.set()
+        if telegram_task is not None:
+            telegram_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await telegram_task
         await close_shared_http_client()
 
 

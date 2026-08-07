@@ -5,6 +5,10 @@ on:
     paths:
       - "platform/backend/owner_channels/**"
       - "platform/backend/tests/test_telegram_owner_*.py"
+      - "platform/backend/app.py"
+      - "deploy/systemd/dap-backend.service"
+      - "deploy/systemd/dap-backend.env.example"
+      - "docs/telegram-owner-channel.md"
       - ".github/workflows/phase7-owner-channel.yml"
 
 permissions:
@@ -45,8 +49,10 @@ jobs:
         run: |
           python -m ruff check \
             owner_channels \
+            app.py \
             tests/test_telegram_owner_ingress.py \
-            tests/test_telegram_owner_routing.py
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py
 
       - name: Mypy
         run: |
@@ -55,17 +61,21 @@ jobs:
             owner_channels/telegram_service.py \
             owner_channels/telegram_repository.py \
             owner_channels/telegram_command_service.py \
+            owner_channels/telegram_transport.py \
             --follow-imports=skip
 
       - name: Compile
         run: |
           python -m compileall -q \
             owner_channels \
+            app.py \
             tests/test_telegram_owner_ingress.py \
-            tests/test_telegram_owner_routing.py
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py
 
       - name: Tests
         run: |
           python -m pytest -q \
             tests/test_telegram_owner_ingress.py \
-            tests/test_telegram_owner_routing.py
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py
