@@ -12,6 +12,7 @@ from uuid import uuid4
 from agents.cancellation import (
     CancellationCheck,
     CooperativeCancellationRequested,
+    cancellation_scope,
     raise_if_cancellation_requested,
 )
 from agents.schemas import AgentRunRequest, AgentRunResponse
@@ -327,11 +328,12 @@ class InstrumentedAgentExecutor:
         agent_id = request.agent_id
 
         if agent_id is None:
-            raise_if_cancellation_requested(
-                cancellation_check,
-                boundary="before-uninstrumented-dispatch",
-            )
-            return await self.executor.run(request)
+            with cancellation_scope(cancellation_check):
+                raise_if_cancellation_requested(
+                    cancellation_check,
+                    boundary="before-uninstrumented-dispatch",
+                )
+                return await self.executor.run(request)
 
         execution_context = (
             context
@@ -368,13 +370,14 @@ class InstrumentedAgentExecutor:
         )
 
         try:
-            raise_if_cancellation_requested(
-                cancellation_check,
-                boundary="before-agent-dispatch",
-            )
-            response = await self.executor.run(
-                request
-            )
+            with cancellation_scope(cancellation_check):
+                raise_if_cancellation_requested(
+                    cancellation_check,
+                    boundary="before-agent-dispatch",
+                )
+                response = await self.executor.run(
+                    request
+                )
 
             if response.status == "completed":
                 self.runtime.finish_task(
