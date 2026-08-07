@@ -1,5 +1,6 @@
 import hashlib
 from datetime import datetime
+from typing import cast
 
 from agents.truth_repository import (
     AgentTruthRepository,
@@ -9,8 +10,10 @@ from agents.truth_schemas import TaskLedgerRecord, TaskLedgerStatus
 from agents.truth_service import AgentTruthService, agent_truth_service
 from executive_office.execution_start_repository import ExecutionStartClaim
 from executive_office.execution_start_schemas import (
+    ExecutionTaskResultStatus,
     ExecutiveExecutionStartResponse,
     ExecutiveTaskAcceptanceEvidence,
+    ExecutiveTaskExecutionResult,
 )
 from executive_office.schemas import utc_now
 
@@ -138,27 +141,28 @@ class ExecutiveExecutionCompletionService:
         return "Waiting for remaining delegated child tasks"
 
     @staticmethod
-    def _evidence_for_result(result: object) -> ExecutiveTaskAcceptanceEvidence:
-        task_id = str(getattr(result, "task_id"))
-        agent_id = str(getattr(result, "agent_id"))
-        run_id = str(getattr(result, "run_id"))
-        status = str(getattr(result, "status"))
-        answer = str(getattr(result, "answer"))
-        digest = hashlib.sha256(answer.encode("utf-8")).hexdigest()
+    def _evidence_for_result(
+        result: ExecutiveTaskExecutionResult,
+    ) -> ExecutiveTaskAcceptanceEvidence:
+        digest = hashlib.sha256(result.answer.encode("utf-8")).hexdigest()
         evidence_id = hashlib.sha256(
-            f"{task_id}|{agent_id}|{run_id}|{digest}".encode("utf-8")
+            (
+                f"{result.task_id}|{result.agent_id}|{result.run_id}|{digest}"
+            ).encode("utf-8")
         ).hexdigest()[:24]
+        terminal_status = cast(ExecutionTaskResultStatus, result.status)
+        accepted = terminal_status == "completed" and bool(result.answer.strip())
         return ExecutiveTaskAcceptanceEvidence(
             evidence_id=f"execution-evidence-{evidence_id}",
-            task_id=task_id,
-            agent_id=agent_id,
-            run_id=run_id,
-            terminal_status=status,
+            task_id=result.task_id,
+            agent_id=result.agent_id,
+            run_id=result.run_id,
+            terminal_status=terminal_status,
             output_sha256=digest,
-            accepted=(status == "completed" and bool(answer.strip())),
+            accepted=accepted,
             detail=(
                 "Structured agent result completed and produced non-empty output."
-                if status == "completed" and bool(answer.strip())
+                if accepted
                 else "Terminal agent result recorded but acceptance was not satisfied."
             ),
         )
