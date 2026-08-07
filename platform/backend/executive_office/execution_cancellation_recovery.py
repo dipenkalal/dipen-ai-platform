@@ -1,3 +1,4 @@
+from company.catalog import company_registry
 from executive_office.execution_cancellation_reconciliation import (
     ExecutiveExecutionCancellationReconciler,
     executive_execution_cancellation_reconciler,
@@ -19,10 +20,16 @@ from executive_office.execution_start_repository import ExecutionStartClaim
 from executive_office.execution_start_schemas import (
     ExecutiveExecutionStartResponse,
 )
+from executive_office.schemas import (
+    ExecutiveOfficeCapability,
+    ExecutiveOfficeStatusResponse,
+)
 
 
 class ExecutiveCancellationAwareRecoveryService:
     """Finish an interrupted cooperative cancellation without replaying work."""
+
+    version = "0.10.0"
 
     def __init__(
         self,
@@ -40,6 +47,34 @@ class ExecutiveCancellationAwareRecoveryService:
         self.recovery_service = recovery_service
         self.cancellation_repository = cancellation_repository
         self.cancellation_reconciler = cancellation_reconciler
+
+    def status(self) -> ExecutiveOfficeStatusResponse:
+        recovery_status = self.recovery_service.status()
+        guardian_role = company_registry.get_role("guardian-ceo")
+        capability = ExecutiveOfficeCapability(
+            service_id="cooperative-running-execution-cancellation",
+            acting_role_id="guardian-ceo",
+            registry_employment_status=guardian_role.employment_status,
+            mode="execution_admission",
+            description=(
+                "Persist owner-requested cancellation for running bounded work, "
+                "observe it at safe child-task checkpoints, stop launching "
+                "additional children, and recover interrupted cancellation from "
+                "durable state without replay or broker activation."
+            ),
+        )
+        return recovery_status.model_copy(
+            update={
+                "version": self.version,
+                "execution_cancellation_enabled": True,
+                "execution_recovery_enabled": True,
+                "broker_activation_enabled": False,
+                "capabilities": [
+                    *recovery_status.capabilities,
+                    capability,
+                ],
+            }
+        )
 
     def recover(
         self,
