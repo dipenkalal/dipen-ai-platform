@@ -47,11 +47,13 @@ class AgentCancellationProbeTests(unittest.TestCase):
         self.assertIn("before-tool-call", str(context.exception))
 
     def test_cancellation_scope_resets_context(self) -> None:
-        with cancellation_scope(lambda: True):
-            with self.assertRaises(CooperativeCancellationRequested):
-                raise_if_current_cancellation_requested(
-                    boundary="inside-scope"
-                )
+        with (
+            cancellation_scope(lambda: True),
+            self.assertRaises(CooperativeCancellationRequested),
+        ):
+            raise_if_current_cancellation_requested(
+                boundary="inside-scope"
+            )
 
         raise_if_current_cancellation_requested(
             boundary="after-scope"
@@ -168,11 +170,11 @@ class GatewayCancellationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             model="test-model",
         )
 
-        with cancellation_scope(
-            lambda: cancellation_state["requested"]
+        with (
+            cancellation_scope(lambda: cancellation_state["requested"]),
+            self.assertRaises(CooperativeCancellationRequested) as context,
         ):
-            with self.assertRaises(CooperativeCancellationRequested) as context:
-                await service.chat(request)
+            await service.chat(request)
 
         self.assertEqual(fake_ollama.chat_calls, 1)
         self.assertEqual(context.exception.boundary, "after-model-call")
