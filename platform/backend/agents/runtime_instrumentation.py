@@ -9,6 +9,11 @@ from datetime import datetime, timezone
 from typing import Protocol
 from uuid import uuid4
 
+from agents.cancellation import (
+    CancellationCheck,
+    CooperativeCancellationRequested,
+    raise_if_cancellation_requested,
+)
 from agents.schemas import AgentRunRequest, AgentRunResponse
 from agents.truth_schemas import (
     AgentHeartbeat,
@@ -317,10 +322,15 @@ class InstrumentedAgentExecutor:
         request: AgentRunRequest,
         *,
         context: AgentExecutionContext | None = None,
+        cancellation_check: CancellationCheck | None = None,
     ) -> AgentRunResponse:
         agent_id = request.agent_id
 
         if agent_id is None:
+            raise_if_cancellation_requested(
+                cancellation_check,
+                boundary="before-uninstrumented-dispatch",
+            )
             return await self.executor.run(request)
 
         execution_context = (
@@ -358,6 +368,10 @@ class InstrumentedAgentExecutor:
         )
 
         try:
+            raise_if_cancellation_requested(
+                cancellation_check,
+                boundary="before-agent-dispatch",
+            )
             response = await self.executor.run(
                 request
             )
@@ -383,6 +397,17 @@ class InstrumentedAgentExecutor:
                 )
 
             return response
+
+        except CooperativeCancellationRequested as exc:
+            self.runtime.finish_task(
+                task_handle,
+                status="cancelled",
+                current_step=(
+                    "Agent execution observed cooperative cancellation"
+                ),
+                error=str(exc),
+            )
+            raise
 
         except asyncio.CancelledError:
             self.runtime.finish_task(
