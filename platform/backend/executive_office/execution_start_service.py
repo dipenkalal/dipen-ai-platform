@@ -273,7 +273,7 @@ class ExecutiveExecutionStartService:
             )
         # Any exception after the durable start claim is an ambiguous boundary
         # failure and must be quarantined so the execution cannot auto-replay.
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             response = ExecutiveExecutionStartResponse(
                 execution_id=claim.execution_id,
                 delegation_id=claim.delegation_id,
