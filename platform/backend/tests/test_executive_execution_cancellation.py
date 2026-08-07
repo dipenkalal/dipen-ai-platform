@@ -248,6 +248,16 @@ class FakeCancellationRepository:
         return SimpleNamespace(state="observed")
 
 
+class FakeCancellationReconciler:
+    def __init__(self) -> None:
+        self.responses = []
+
+    def finalize_observed(self, *, claim, idempotency_key, response):
+        del claim, idempotency_key
+        self.responses.append(response)
+        return response
+
+
 class FakeTruthService:
     def get_task(self, task_id: str):
         return SimpleNamespace(
@@ -276,17 +286,11 @@ class FakeRunner:
 class FakeCompletionService:
     def reconcile_terminal(self, *, claim, response):
         del claim
-        return response.model_copy(update={"parent_task_status": "manual_review"})
+        return response
 
 
 class FakeStartRepository:
-    def __init__(self) -> None:
-        self.responses = []
-
-    def mark_manual_review(self, *, idempotency_key, response):
-        del idempotency_key
-        self.responses.append(response)
-        return response
+    pass
 
 
 class ExecutiveExecutionCancellationCheckpointTests(
@@ -294,14 +298,15 @@ class ExecutiveExecutionCancellationCheckpointTests(
 ):
     async def test_checkpoint_stops_before_next_child(self) -> None:
         cancellation_repository = FakeCancellationRepository()
+        cancellation_reconciler = FakeCancellationReconciler()
         runner = FakeRunner()
-        start_repository = FakeStartRepository()
         service = ExecutiveExecutionStartService(
             truth_service=FakeTruthService(),
-            start_repository=start_repository,
+            start_repository=FakeStartRepository(),
             completion_service=FakeCompletionService(),
             runner=runner,
             cancellation_repository=cancellation_repository,
+            cancellation_reconciler=cancellation_reconciler,
         )
         claim = ExecutionStartClaim(
             execution_id="execution-001",
@@ -319,10 +324,12 @@ class ExecutiveExecutionCancellationCheckpointTests(
 
         self.assertEqual(runner.tasks, ["child-task-001"])
         self.assertEqual(cancellation_repository.observed, ["execution-001"])
-        self.assertEqual(response.state, "manual_review")
-        self.assertEqual(response.disposition, "manual_review")
+        self.assertEqual(len(cancellation_reconciler.responses), 1)
+        self.assertEqual(response.state, "cancelled")
+        self.assertEqual(response.disposition, "cancelled")
+        self.assertEqual(response.parent_task_status, "manual_review")
         self.assertEqual(len(response.task_results), 1)
-        self.assertFalse(response.reservation_released)
+        self.assertTrue(response.reservation_released)
         self.assertFalse(response.broker_activated)
 
 
