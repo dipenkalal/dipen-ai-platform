@@ -343,12 +343,16 @@ class TelegramApprovalService:
 
         revalidated = self.planning_service.plan(proposal.request)
         if revalidated.decision_id != proposal.decision_id:
-            result = self._terminal(
+            revalidation_result = self._terminal(
                 "revalidation_failed",
                 "Plan changed during revalidation. No task was changed.",
             )
-            self.repository.finish(token=token, state="failed", result=result)
-            return result
+            self.repository.finish(
+                token=token,
+                state="failed",
+                result=revalidation_result,
+            )
+            return revalidation_result
 
         delegation = self.delegation_service.delegate(
             ExecutiveDelegationRequest(
