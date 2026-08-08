@@ -96,6 +96,14 @@ class TelegramApprovalTests(unittest.TestCase):
         approval = self.delegation.requests[0].owner_approval
         self.assertEqual(approval.decision_id, "decision-exact-001")
         self.assertTrue(approval.approved)
+        self.assertIn(
+            "this approval did not start runtime execution",
+            approval.statement,
+        )
+        self.assertNotIn(
+            "runtime execution remains disabled",
+            approval.statement,
+        )
 
     def test_replay_does_not_delegate_twice(self) -> None:
         proposal = self._proposal()
@@ -135,6 +143,43 @@ class TelegramApprovalTests(unittest.TestCase):
         self.assertEqual(rejected["approval_state"], "rejected")
         self.assertFalse(rejected["task_ledger_written"])
         self.assertEqual(replay["approval_state"], "rejected")
+        self.assertEqual(self.delegation.requests, [])
+
+    def test_reject_after_initial_approval_is_terminal(self) -> None:
+        proposal = self._proposal()
+
+        first_step = self.service.decide(
+            token=proposal.token,
+            action="approve",
+            callback_update_id=5102,
+        )
+
+        self.assertEqual(
+            first_step["approval_state"],
+            "awaiting_confirmation",
+        )
+        self.assertEqual(self.delegation.requests, [])
+
+        rejected = self.service.decide(
+            token=proposal.token,
+            action="reject",
+            callback_update_id=5103,
+        )
+
+        self.assertEqual(rejected["approval_state"], "rejected")
+        self.assertFalse(rejected["task_ledger_written"])
+        self.assertFalse(rejected["execution_started"])
+        self.assertEqual(self.delegation.requests, [])
+
+        replay = self.service.decide(
+            token=proposal.token,
+            action="confirm",
+            callback_update_id=5104,
+        )
+
+        self.assertEqual(replay["approval_state"], "rejected")
+        self.assertFalse(replay["task_ledger_written"])
+        self.assertFalse(replay["execution_started"])
         self.assertEqual(self.delegation.requests, [])
 
     def test_changed_decision_fails_closed(self) -> None:
