@@ -47,14 +47,14 @@ from knowledge.routes import (
 from monitoring.routes import (
     router as monitoring_router,
 )
+from owner_channels.telegram_approvals import telegram_approval_service
 from owner_channels.telegram_notifications import (
     OwnerNotificationOutbox,
     TelegramNotificationConfig,
     TelegramNotificationWorker,
 )
-from owner_channels.telegram_service import TelegramIngressConfig
-from owner_channels.telegram_approvals import telegram_approval_service
 from owner_channels.telegram_security import TelegramSecurityConfig
+from owner_channels.telegram_service import TelegramIngressConfig
 from owner_channels.telegram_transport import (
     TelegramHttpBotClient,
     TelegramTransportConfig,
