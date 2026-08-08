@@ -82,7 +82,7 @@ class TelegramBotClient(Protocol):
         *,
         chat_id: int,
         text: str,
-        reply_to_message_id: int,
+        reply_to_message_id: int | None = None,
     ) -> None: ...
 
 
@@ -128,15 +128,17 @@ class TelegramHttpBotClient:
         *,
         chat_id: int,
         text: str,
-        reply_to_message_id: int,
+        reply_to_message_id: int | None = None,
     ) -> None:
+        payload: dict[str, object] = {
+            "chat_id": chat_id,
+            "text": text,
+        }
+        if reply_to_message_id is not None:
+            payload["reply_parameters"] = {"message_id": reply_to_message_id}
         await self._call(
             "sendMessage",
-            {
-                "chat_id": chat_id,
-                "text": text,
-                "reply_parameters": {"message_id": reply_to_message_id},
-            },
+            payload,
             timeout=10.0,
         )
 

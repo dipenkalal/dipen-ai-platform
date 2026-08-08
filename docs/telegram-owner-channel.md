@@ -60,15 +60,32 @@ After installing the updated systemd unit and environment file:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart dap-api
-sudo systemctl status dap-api --no-pager
+sudo systemctl restart dap-backend.service
+sudo systemctl status dap-backend.service --no-pager
 ```
 
 Never paste the bot token into an issue, pull request, shell history, or chat.
 Enter it only in the protected server environment file.
 
+## Owner notifications
+
+Notifications are separately disabled by default. After the command gateway is
+validated, enable owner-only lifecycle alerts with:
+
+```dotenv
+DAP_TELEGRAM_NOTIFICATIONS_ENABLED=true
+DAP_TELEGRAM_NOTIFICATION_CATEGORIES=task_started,task_completed,task_failed,task_cancelled,guardian_blocked
+DAP_TELEGRAM_NOTIFICATION_INTERVAL=2
+```
+
+Delivery receipts and lifecycle events are durable in the Agent Truth SQLite
+database. Restarting the backend does not replay notifications already delivered.
+Failed API sends are released for retry. Categories omitted from the configured
+list remain stored but are not sent.
+
 ## Safe disable and rollback
 
-Set `DAP_TELEGRAM_POLLING_ENABLED=false` and restart `dap-api`. The stored
-offset and command receipts remain intact, so re-enabling polling does not
-repeat completed command side effects.
+Set `DAP_TELEGRAM_POLLING_ENABLED=false` and restart `dap-backend.service`. The
+stored offset, command receipts, notification events, and delivery receipts remain
+intact, so re-enabling polling does not repeat completed command side effects or
+delivered notifications.

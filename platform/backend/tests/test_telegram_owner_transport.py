@@ -78,7 +78,7 @@ class FakeTelegramClient:
         *,
         chat_id: int,
         text: str,
-        reply_to_message_id: int,
+        reply_to_message_id: int | None = None,
     ) -> None:
         if self.fail_send:
             raise TelegramBotApiError("send failed")

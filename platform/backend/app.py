@@ -47,7 +47,14 @@ from knowledge.routes import (
 from monitoring.routes import (
     router as monitoring_router,
 )
+from owner_channels.telegram_notifications import (
+    OwnerNotificationOutbox,
+    TelegramNotificationConfig,
+    TelegramNotificationWorker,
+)
+from owner_channels.telegram_service import TelegramIngressConfig
 from owner_channels.telegram_transport import (
+    TelegramHttpBotClient,
     TelegramTransportConfig,
     build_telegram_polling_worker,
 )
@@ -62,8 +69,15 @@ APP_VERSION = "0.17.0"
 @asynccontextmanager
 async def backend_lifespan(application: FastAPI):
     telegram_config = TelegramTransportConfig.from_env()
+    notification_config = TelegramNotificationConfig.from_env()
+    if notification_config.enabled and not telegram_config.enabled:
+        raise RuntimeError(
+            "Telegram notifications require Telegram polling to be enabled."
+        )
     telegram_task: asyncio.Task[None] | None = None
     telegram_stop_event: asyncio.Event | None = None
+    notification_task: asyncio.Task[None] | None = None
+    notification_stop_event: asyncio.Event | None = None
     if telegram_config.enabled:
         telegram_stop_event = asyncio.Event()
         telegram_worker = build_telegram_polling_worker(
@@ -79,15 +93,45 @@ async def backend_lifespan(application: FastAPI):
             name="telegram-owner-long-polling",
         )
         application.state.telegram_polling_task = telegram_task
+        if notification_config.enabled:
+            if telegram_config.bot_token is None:
+                raise RuntimeError("Telegram bot token is unavailable.")
+            ingress_config = TelegramIngressConfig.from_env(
+                require_webhook_secret=False
+            )
+            notification_stop_event = asyncio.Event()
+            notification_worker = TelegramNotificationWorker(
+                client=TelegramHttpBotClient(
+                    token=telegram_config.bot_token,
+                    client=get_shared_http_client(),
+                ),
+                outbox=OwnerNotificationOutbox(),
+                owner_chat_id=ingress_config.owner_chat_id,
+                categories=notification_config.categories,
+            )
+            notification_task = asyncio.create_task(
+                notification_worker.run(
+                    stop_event=notification_stop_event,
+                    interval_seconds=notification_config.interval_seconds,
+                ),
+                name="telegram-owner-notifications",
+            )
+            application.state.telegram_notification_task = notification_task
     try:
         yield
     finally:
         if telegram_stop_event is not None:
             telegram_stop_event.set()
+        if notification_stop_event is not None:
+            notification_stop_event.set()
         if telegram_task is not None:
             telegram_task.cancel()
             with suppress(asyncio.CancelledError):
                 await telegram_task
+        if notification_task is not None:
+            notification_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await notification_task
         await close_shared_http_client()
 
 
