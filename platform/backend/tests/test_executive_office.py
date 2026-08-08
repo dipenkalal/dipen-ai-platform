@@ -5,12 +5,20 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+_TEST_DATA_DIRECTORY = Path(
+    tempfile.mkdtemp(prefix="dap-executive-office-tests-")
+)
 os.environ.setdefault(
     "KNOWLEDGE_UPLOAD_DIRECTORY",
-    str(Path(tempfile.gettempdir()) / "dap-test-knowledge-uploads"),
+    str(_TEST_DATA_DIRECTORY / "knowledge-uploads"),
+)
+os.environ.setdefault(
+    "DAP_AGENT_TRUTH_DB",
+    str(_TEST_DATA_DIRECTORY / "agent-truth.db"),
 )
 
 from app import app
+from executive_office.delegation_service import executive_delegation_service
 from executive_office.schemas import ExecutivePlanRequest
 from executive_office.service import executive_office_service
 
@@ -77,17 +85,24 @@ class ExecutiveOfficeServiceTests(unittest.TestCase):
 
         self.assertEqual(first.decision_id, second.decision_id)
 
-    def test_status_does_not_activate_planned_roles(self) -> None:
-        status = executive_office_service.status()
+    def test_status_exposes_controlled_non_executing_delegation(self) -> None:
+        status_response = executive_delegation_service.status()
 
-        self.assertTrue(status.read_only)
-        self.assertFalse(status.execution_enabled)
-        self.assertEqual(len(status.capabilities), 4)
+        self.assertFalse(status_response.read_only)
+        self.assertTrue(status_response.delegation_enabled)
+        self.assertTrue(status_response.task_ledger_writes_enabled)
+        self.assertFalse(status_response.execution_enabled)
+        self.assertFalse(status_response.broker_activation_enabled)
+        self.assertEqual(len(status_response.capabilities), 5)
         self.assertTrue(
             all(
                 capability.active_runtime_employee is False
-                for capability in status.capabilities
+                for capability in status_response.capabilities
             )
+        )
+        self.assertEqual(
+            status_response.capabilities[-1].mode,
+            "controlled_delegation",
         )
 
 
@@ -101,8 +116,11 @@ class ExecutiveOfficeApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertTrue(payload["read_only"])
+        self.assertFalse(payload["read_only"])
+        self.assertTrue(payload["delegation_enabled"])
+        self.assertTrue(payload["task_ledger_writes_enabled"])
         self.assertFalse(payload["execution_enabled"])
+        self.assertFalse(payload["broker_activation_enabled"])
 
     def test_plan_endpoint_is_advisory_only(self) -> None:
         response = self.client.post(
