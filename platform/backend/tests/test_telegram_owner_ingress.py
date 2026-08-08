@@ -79,6 +79,8 @@ class TelegramOwnerIngressTests(unittest.TestCase):
 
     def test_read_only_owner_commands_are_accepted(self) -> None:
         for text, expected in (
+            ("/start", "help"),
+            ("/health", "health"),
             ("/agents", "agents"),
             ("/tasks", "tasks"),
             ("/company", "company"),

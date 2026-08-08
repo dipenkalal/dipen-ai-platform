@@ -313,6 +313,15 @@ def format_telegram_response(result: dict[str, object]) -> str:
                 f"Capabilities: {result.get('capability_count', 0)}",
             ]
         )
+    if command == "health" and result.get("ok") is True:
+        return "\n".join(
+            [
+                "DAP health: healthy",
+                f"Backend: {result.get('backend', 'unknown')}",
+                f"Telegram polling: {result.get('telegram_polling', 'unknown')}",
+                f"Version: {result.get('version', 'unknown')}",
+            ]
+        )
     if command == "agents" and result.get("ok") is True:
         summary = _as_dict(result.get("summary"))
         agents = _as_dict_list(result.get("agents"))
@@ -336,7 +345,8 @@ def format_telegram_response(result: dict[str, object]) -> str:
             return "Tasks: none recorded."
         lines = [f"Tasks: {result.get('total', len(tasks))} total (latest 5)"]
         lines.extend(
-            f"{task.get('task_id', 'unknown')}: {task.get('status', 'unknown')}"
+            f"{_compact_identifier(task.get('task_id'))}: "
+            f"{_friendly_label(task.get('status'))}"
             for task in tasks
         )
         return "\n".join(lines)
@@ -354,13 +364,14 @@ def format_telegram_response(result: dict[str, object]) -> str:
     if command == "plan" and result.get("ok") is True:
         tasks = _as_dict_list(result.get("tasks"))
         lines = [
-            f"Plan: {result.get('disposition', 'unknown')}",
-            f"Risk: {result.get('overall_risk', 'unknown')}",
-            f"Decision: {result.get('decision_id', 'unknown')}",
+            f"Plan: {_friendly_label(result.get('disposition'))}",
+            f"Risk: {_friendly_label(result.get('overall_risk'))}",
+            f"Decision: {_compact_identifier(result.get('decision_id'))}",
             "Execution started: no",
         ]
         lines.extend(
-            f"{task.get('task_id', 'unknown')} -> {task.get('role_id', 'unknown')}"
+            f"{_compact_identifier(task.get('task_id'))} → "
+            f"{_friendly_label(task.get('role_id'))}"
             for task in tasks
         )
         return "\n".join(lines)
@@ -377,6 +388,17 @@ def _as_dict_list(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
+
+
+def _compact_identifier(value: object, *, limit: int = 20) -> str:
+    text = str(value or "unknown")
+    if len(text) <= limit:
+        return text
+    return f"{text[:12]}…{text[-7:]}"
+
+
+def _friendly_label(value: object) -> str:
+    return str(value or "unknown").replace("_", " ").replace("-", " ")
 
 
 def build_telegram_polling_worker(

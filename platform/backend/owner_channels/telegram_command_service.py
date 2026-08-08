@@ -92,6 +92,8 @@ class TelegramOwnerCommandRouter:
         try:
             if command.command == "status":
                 result = self._status()
+            elif command.command == "health":
+                result = self._health()
             elif command.command == "agents":
                 result = self._agents()
             elif command.command == "tasks":
@@ -150,7 +152,19 @@ class TelegramOwnerCommandRouter:
         if execution_id is None:
             raise ValueError("Telegram cancellation requires an execution ID.")
 
-        status = self.execution_status_service.get(execution_id)
+        try:
+            status = self.execution_status_service.get(execution_id)
+        except KeyError:
+            return {
+                "ok": False,
+                "command": "cancel",
+                "execution_id": execution_id,
+                "idempotent_replay": False,
+                "message": (
+                    f"Execution not found: {_compact_identifier(execution_id)}. "
+                    "No task was changed."
+                ),
+            }
         request = ExecutiveRunningCancellationRequest(
             idempotency_key=command.idempotency_key,
             owner_authorization=OwnerRunningCancellationAuthorization(
@@ -194,6 +208,17 @@ class TelegramOwnerCommandRouter:
                 }
                 for state in fleet.agents
             ],
+            "idempotent_replay": False,
+        }
+
+    def _health(self) -> dict[str, object]:
+        status = self.office_status_service.status()
+        return {
+            "ok": True,
+            "command": "health",
+            "backend": "online",
+            "telegram_polling": "online",
+            "version": status.version,
             "idempotent_replay": False,
         }
 
@@ -265,15 +290,23 @@ class TelegramOwnerCommandRouter:
             "command": "help",
             "commands": [
                 "/status",
+                "/health",
                 "/agents",
                 "/tasks",
                 "/company",
                 "/plan <objective>",
                 "/cancel <execution_id>",
                 "/help",
+                "/start",
             ],
             "idempotent_replay": False,
         }
 
 
 telegram_owner_command_router = TelegramOwnerCommandRouter()
+
+
+def _compact_identifier(value: str, *, limit: int = 20) -> str:
+    if len(value) <= limit:
+        return value
+    return f"{value[:12]}…{value[-7:]}"

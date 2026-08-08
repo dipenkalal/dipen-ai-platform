@@ -34,6 +34,8 @@ class FakeOfficeStatusService:
 
 class FakeExecutionStatusService:
     def get(self, execution_id: str):
+        if execution_id == "invalid-test-id":
+            raise KeyError(f"Unknown execution: {execution_id}")
         return SimpleNamespace(
             execution_id=execution_id,
             delegation_id="delegation-001",
@@ -223,6 +225,29 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
             ["child-task-001", "child-task-002"],
         )
         self.assertEqual(request.idempotency_key, "telegram-update-1002")
+
+    def test_unknown_cancel_is_safe_clear_and_durable(self) -> None:
+        command = self.command(
+            "cancel", update_id=1007, execution_id="invalid-test-id"
+        )
+
+        first = self.router.route(command)
+        replay = self.router.route(command)
+
+        self.assertFalse(first["ok"])
+        self.assertEqual(
+            first["message"],
+            "Execution not found: invalid-test-id. No task was changed.",
+        )
+        self.assertTrue(replay["idempotent_replay"])
+        self.assertEqual(self.cancellation.calls, [])
+
+    def test_health_reports_backend_and_live_polling_worker(self) -> None:
+        result = self.router.route(self.command("health", update_id=1008))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["backend"], "online")
+        self.assertEqual(result["telegram_polling"], "online")
 
     def test_read_only_company_views_route_without_execution(self) -> None:
         agents = self.router.route(self.command("agents", update_id=1003))

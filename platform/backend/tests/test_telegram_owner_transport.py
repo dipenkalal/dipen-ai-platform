@@ -272,6 +272,42 @@ class TelegramTransportConfigurationTests(unittest.TestCase):
         self.assertIn("Execution started: no", text)
         self.assertIn("Risk: low", text)
 
+    def test_mobile_formatting_compacts_ids_and_labels(self) -> None:
+        text = format_telegram_response(
+            {
+                "ok": True,
+                "command": "plan",
+                "decision_id": "executive-decision-956d5e745c74baa4a1dd",
+                "disposition": "ready_for_delegation",
+                "overall_risk": "low",
+                "tasks": [
+                    {
+                        "task_id": "executive-decision-956d5e745c74baa4a1dd-task-1",
+                        "role_id": "research-analyst",
+                    }
+                ],
+            }
+        )
+
+        self.assertIn("Plan: ready for delegation", text)
+        self.assertIn("Decision: executive-de…aa4a1dd", text)
+        self.assertIn("research analyst", text)
+        self.assertNotIn("executive-decision-956d5e745c74baa4a1dd-task-1", text)
+
+    def test_health_response_reports_transport_and_backend(self) -> None:
+        text = format_telegram_response(
+            {
+                "ok": True,
+                "command": "health",
+                "backend": "online",
+                "telegram_polling": "online",
+                "version": "0.10.0",
+            }
+        )
+
+        self.assertIn("DAP health: healthy", text)
+        self.assertIn("Telegram polling: online", text)
+
 
 if __name__ == "__main__":
     unittest.main()

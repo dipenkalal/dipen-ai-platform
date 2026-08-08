@@ -110,8 +110,11 @@ class TelegramOwnerIngressService:
         if text == "/status":
             return "status", None, None, True, "Owner status command accepted."
 
-        if text == "/help":
+        if text in {"/help", "/start"}:
             return "help", None, None, True, "Owner help command accepted."
+
+        if text == "/health":
+            return "health", None, None, True, "Owner health command accepted."
 
         if text == "/agents":
             return "agents", None, None, True, "Owner agents command accepted."
