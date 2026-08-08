@@ -1,5 +1,6 @@
 from tools.base import (
     BaseTool,
+    CancellationAwareTool,
     ToolDefinition,
 )
 from tools.knowledge_tools import (
@@ -24,7 +25,7 @@ class ToolRegistry:
                 f"Tool already registered: {tool_id}"
             )
 
-        self._tools[tool_id] = tool
+        self._tools[tool_id] = CancellationAwareTool(tool)
 
     def get(
         self,

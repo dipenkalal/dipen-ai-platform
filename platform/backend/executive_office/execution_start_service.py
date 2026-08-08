@@ -2,6 +2,7 @@ import hashlib
 import json
 from typing import Any, cast
 
+from agents.cancellation import CooperativeCancellationRequested
 from agents.runtime import instrumented_agent_executor
 from agents.schemas import AgentRunRequest
 from agents.truth_service import (
@@ -48,7 +49,7 @@ from executive_office.schemas import (
 
 
 class ExecutiveExecutionStartService:
-    version = "0.9.0"
+    version = "0.10.0"
 
     def __init__(
         self,
@@ -98,7 +99,7 @@ class ExecutiveExecutionStartService:
                 "Start a separately authorized reserved execution through the "
                 "existing instrumented on-demand agent executor with exact task "
                 "and agent binding, sequential limits, cooperative cancellation "
-                "checkpoints, acceptance evidence, parent reconciliation, and "
+                "probes, acceptance evidence, parent reconciliation, and "
                 "broker isolation."
             ),
         )
@@ -228,39 +229,20 @@ class ExecutiveExecutionStartService:
                 claim.selected_agent_ids,
                 strict=True,
             ):
-                cancellation = self.cancellation_repository.get_for_execution(
-                    claim.execution_id
-                )
-
-                if cancellation is not None and cancellation.state in {
-                    "requested",
-                    "observed",
-                }:
+                if self._cancellation_requested(claim.execution_id):
                     self.cancellation_repository.mark_observed(
                         claim.execution_id
                     )
-                    response = ExecutiveExecutionStartResponse(
-                        execution_id=claim.execution_id,
-                        delegation_id=claim.delegation_id,
-                        child_task_ids=list(claim.child_task_ids),
-                        disposition="cancelled",
-                        state="cancelled",
-                        task_results=results,
-                        parent_task_status="manual_review",
-                        execution_started=bool(results),
-                        reservation_released=True,
-                        broker_activated=False,
+                    return self._finalize_cooperative_cancellation(
+                        claim=claim,
+                        idempotency_key=idempotency_key,
+                        results=results,
                         message=(
                             "Running cancellation was observed at a safe child-task "
                             "checkpoint. No additional child task was started; "
                             "remaining queued work was cancelled and reservations "
                             "were released atomically."
                         ),
-                    )
-                    return self.cancellation_reconciler.finalize_observed(
-                        claim=claim,
-                        idempotency_key=idempotency_key,
-                        response=response,
                     )
 
                 task = self.truth_service.get_task(task_id)
@@ -276,6 +258,9 @@ class ExecutiveExecutionStartService:
                     ),
                     task=task,
                     delegation_id=claim.delegation_id,
+                    cancellation_check=lambda: self._cancellation_requested(
+                        claim.execution_id
+                    ),
                 )
 
                 if agent_response.status not in {"completed", "failed"}:
@@ -299,6 +284,21 @@ class ExecutiveExecutionStartService:
                         completed_at=agent_response.completed_at,
                     )
                 )
+        except CooperativeCancellationRequested as error:
+            self.cancellation_repository.mark_observed(
+                claim.execution_id
+            )
+            return self._finalize_cooperative_cancellation(
+                claim=claim,
+                idempotency_key=idempotency_key,
+                results=results,
+                message=(
+                    "Running cancellation was observed inside the instrumented "
+                    f"child runtime at {error.boundary}. The active child exited "
+                    "cooperatively, remaining work was cancelled, reservations "
+                    "were released atomically, and the broker remained inactive."
+                ),
+            )
         except ExistingTaskExecutionError as error:
             response = ExecutiveExecutionStartResponse(
                 execution_id=claim.execution_id,
@@ -380,6 +380,40 @@ class ExecutiveExecutionStartService:
             response=response,
         )
         return self.start_repository.complete(
+            idempotency_key=idempotency_key,
+            response=response,
+        )
+
+    def _cancellation_requested(self, execution_id: str) -> bool:
+        cancellation = self.cancellation_repository.get_for_execution(execution_id)
+        return cancellation is not None and cancellation.state in {
+            "requested",
+            "observed",
+        }
+
+    def _finalize_cooperative_cancellation(
+        self,
+        *,
+        claim: ExecutionStartClaim,
+        idempotency_key: str,
+        results: list[ExecutiveTaskExecutionResult],
+        message: str,
+    ) -> ExecutiveExecutionStartResponse:
+        response = ExecutiveExecutionStartResponse(
+            execution_id=claim.execution_id,
+            delegation_id=claim.delegation_id,
+            child_task_ids=list(claim.child_task_ids),
+            disposition="cancelled",
+            state="cancelled",
+            task_results=results,
+            parent_task_status="manual_review",
+            execution_started=True,
+            reservation_released=True,
+            broker_activated=False,
+            message=message,
+        )
+        return self.cancellation_reconciler.finalize_observed(
+            claim=claim,
             idempotency_key=idempotency_key,
             response=response,
         )

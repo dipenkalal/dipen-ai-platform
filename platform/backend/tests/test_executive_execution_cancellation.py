@@ -270,8 +270,15 @@ class FakeRunner:
     def __init__(self) -> None:
         self.tasks: list[str] = []
 
-    async def run(self, *, request, task, delegation_id):
-        del request, delegation_id
+    async def run(
+        self,
+        *,
+        request,
+        task,
+        delegation_id,
+        cancellation_check=None,
+    ):
+        del request, delegation_id, cancellation_check
         self.tasks.append(task.task_id)
         now = datetime.now(timezone.utc)
         return SimpleNamespace(

@@ -48,6 +48,7 @@ jobs:
             --ignore ISC004 \
             --per-file-ignores "executive_office/execution_start_service.py:BLE001" \
             app.py \
+            agents/cancellation.py \
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
@@ -84,6 +85,7 @@ jobs:
             executive_office/routes.py \
             executive_office/schemas.py \
             executive_office/service.py \
+            tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_company_registry.py \
@@ -104,6 +106,7 @@ jobs:
       - name: Mypy
         run: |
           python -m mypy \
+            agents/cancellation.py \
             agents/orchestration/validator.py \
             agents/router.py \
             agents/runtime.py \
@@ -142,6 +145,7 @@ jobs:
           python -m compileall \
             -q \
             app.py \
+            agents/cancellation.py \
             agents/orchestration/executor.py \
             agents/orchestration/service.py \
             agents/orchestration/validator.py \
@@ -155,6 +159,7 @@ jobs:
             agents/truth_service.py \
             company \
             executive_office \
+            tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_company_registry.py \
@@ -176,6 +181,7 @@ jobs:
         run: |
           python -m pytest \
             -q \
+            tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_company_registry.py \
