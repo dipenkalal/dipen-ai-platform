@@ -20,7 +20,7 @@ class TelegramSecurityConfig:
     rate_window_seconds: int = 60
 
     @classmethod
-    def from_env(cls) -> "TelegramSecurityConfig":
+    def from_env(cls) -> TelegramSecurityConfig:
         approvals_enabled = _enabled("DAP_TELEGRAM_APPROVALS_ENABLED", "false")
         approval_ttl = _bounded_int("DAP_TELEGRAM_APPROVAL_TTL", 300, 60, 600)
         command_limit = _bounded_int("DAP_TELEGRAM_COMMAND_RATE_LIMIT", 20, 1, 120)

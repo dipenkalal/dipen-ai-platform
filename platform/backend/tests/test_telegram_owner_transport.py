@@ -17,13 +17,13 @@ os.environ.setdefault(
 )
 
 from agents.truth_repository import AgentTruthRepository
-from owner_channels.telegram_service import (
-    TelegramIngressConfig,
-    TelegramOwnerIngressService,
-)
 from owner_channels.telegram_security import (
     TelegramSecurityConfig,
     TelegramSecurityRepository,
+)
+from owner_channels.telegram_service import (
+    TelegramIngressConfig,
+    TelegramOwnerIngressService,
 )
 from owner_channels.telegram_transport import (
     TelegramBotApiError,

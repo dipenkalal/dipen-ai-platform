@@ -15,14 +15,14 @@ from owner_channels.telegram_command_service import (
     telegram_owner_command_router,
 )
 from owner_channels.telegram_schemas import TelegramOwnerCommand, TelegramUpdate
-from owner_channels.telegram_service import (
-    TelegramIngressConfig,
-    TelegramOwnerIngressService,
-)
 from owner_channels.telegram_security import (
     TelegramSecurityConfig,
     TelegramSecurityRepository,
     telegram_security_repository,
+)
+from owner_channels.telegram_service import (
+    TelegramIngressConfig,
+    TelegramOwnerIngressService,
 )
 
 logger = logging.getLogger(__name__)
