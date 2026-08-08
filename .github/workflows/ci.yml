@@ -63,6 +63,11 @@ jobs:
             company/routes.py \
             company/schemas.py \
             executive_office/delegation_service.py \
+            executive_office/execution_cancellation_reconciliation.py \
+            executive_office/execution_cancellation_recovery.py \
+            executive_office/execution_cancellation_repository.py \
+            executive_office/execution_cancellation_schemas.py \
+            executive_office/execution_cancellation_service.py \
             executive_office/execution_completion_service.py \
             executive_office/execution_recovery_repository.py \
             executive_office/execution_recovery_schemas.py \
@@ -84,6 +89,8 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_cancellation.py \
+            tests/test_executive_execution_cancellation_recovery.py \
             tests/test_executive_execution_evidence.py \
             tests/test_executive_execution_recovery.py \
             tests/test_executive_execution_runner.py \
@@ -107,6 +114,11 @@ jobs:
             company/routes.py \
             company/schemas.py \
             executive_office/delegation_service.py \
+            executive_office/execution_cancellation_reconciliation.py \
+            executive_office/execution_cancellation_recovery.py \
+            executive_office/execution_cancellation_repository.py \
+            executive_office/execution_cancellation_schemas.py \
+            executive_office/execution_cancellation_service.py \
             executive_office/execution_completion_service.py \
             executive_office/execution_recovery_repository.py \
             executive_office/execution_recovery_schemas.py \
@@ -148,6 +160,8 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_cancellation.py \
+            tests/test_executive_execution_cancellation_recovery.py \
             tests/test_executive_execution_evidence.py \
             tests/test_executive_execution_recovery.py \
             tests/test_executive_execution_runner.py \
@@ -167,6 +181,8 @@ jobs:
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
+            tests/test_executive_execution_cancellation.py \
+            tests/test_executive_execution_cancellation_recovery.py \
             tests/test_executive_execution_evidence.py \
             tests/test_executive_execution_recovery.py \
             tests/test_executive_execution_runner.py \

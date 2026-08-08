@@ -7,12 +7,16 @@ from agents.truth_schemas import (
     TaskLedgerRecord,
     TaskLedgerStatus,
 )
+from executive_office.execution_cancellation_schemas import (
+    ExecutiveRunningCancellationRecord,
+)
 from executive_office.schemas import utc_now
 
 ExecutionStartDisposition = Literal[
     "started",
     "completed",
     "failed",
+    "cancelled",
     "manual_review",
     "authorization_required",
     "state_conflict",
@@ -24,6 +28,7 @@ ExecutionStartState = Literal[
     "running",
     "completed",
     "failed",
+    "cancelled",
     "manual_review",
     "rejected",
 ]
@@ -119,4 +124,5 @@ class ExecutiveExecutionStatusResponse(BaseModel):
     acceptance_evidence: list[ExecutiveTaskAcceptanceEvidence] = Field(
         default_factory=list
     )
+    cancellation: ExecutiveRunningCancellationRecord | None = None
     broker_activated: bool = False
