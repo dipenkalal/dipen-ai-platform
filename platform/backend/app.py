@@ -50,7 +50,7 @@ from shared_http import (
     close_shared_http_client,
 )
 
-APP_VERSION = "0.12.0"
+APP_VERSION = "0.17.0"
 
 
 @asynccontextmanager

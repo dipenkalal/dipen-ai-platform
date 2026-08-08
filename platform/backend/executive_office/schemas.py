@@ -20,9 +20,27 @@ DelegationDisposition = Literal[
     "capacity_unavailable",
     "idempotent_replay",
 ]
+ExecutionDisposition = Literal[
+    "validated",
+    "reserved",
+    "authorization_required",
+    "rejected",
+    "task_state_conflict",
+    "worker_unavailable",
+    "reservation_conflict",
+    "execution_disabled",
+    "idempotent_replay",
+]
+ExecutionAdmissionState = Literal[
+    "requested",
+    "validated",
+    "reserved",
+    "rejected",
+]
 ExecutiveOfficeMode = Literal[
     "deterministic_advisory",
     "controlled_delegation",
+    "execution_admission",
 ]
 WorkerAdmissionStatus = Literal[
     "available",
@@ -165,6 +183,61 @@ class ExecutiveDelegationResponse(BaseModel):
     message: str
 
 
+class OwnerExecutionAuthorization(BaseModel):
+    authorization_id: str = Field(min_length=4, max_length=160)
+    delegation_id: str = Field(min_length=4, max_length=160)
+    parent_task_id: str = Field(min_length=4, max_length=160)
+    child_task_ids: list[str] = Field(min_length=1, max_length=6)
+    authorized_by: str = Field(
+        default="dipen-owner", min_length=2, max_length=120
+    )
+    approved: bool = True
+    scope: str = Field(
+        default="execute_delegated_tasks", min_length=4, max_length=120
+    )
+    validation_only: bool = True
+    statement: str = Field(min_length=4, max_length=2000)
+    authorized_at: datetime = Field(default_factory=utc_now)
+
+
+class ExecutiveExecutionRequest(BaseModel):
+    delegation_id: str = Field(min_length=4, max_length=160)
+    parent_task_id: str = Field(min_length=4, max_length=160)
+    child_task_ids: list[str] = Field(min_length=1, max_length=6)
+    idempotency_key: str = Field(min_length=8, max_length=160)
+    validation_only: bool = True
+    owner_authorization: OwnerExecutionAuthorization | None = None
+
+
+class ExecutionValidationEvidence(BaseModel):
+    check_id: str = Field(min_length=2, max_length=120)
+    passed: bool
+    detail: str = Field(min_length=2, max_length=2000)
+
+
+class ExecutiveExecutionResponse(BaseModel):
+    execution_id: str
+    delegation_id: str
+    parent_task_id: str
+    child_task_ids: list[str]
+    generated_at: datetime = Field(default_factory=utc_now)
+    disposition: ExecutionDisposition
+    state: ExecutionAdmissionState
+    selected_agent_ids: list[str] = Field(default_factory=list)
+    reservation_ids: list[str] = Field(default_factory=list)
+    validation_evidence: list[ExecutionValidationEvidence] = Field(
+        default_factory=list
+    )
+    validation_only: bool = True
+    admission_validated: bool = False
+    task_ledger_mutated: bool = False
+    reservation_acquired: bool = False
+    execution_started: bool = False
+    broker_activated: bool = False
+    idempotent_replay: bool = False
+    message: str
+
+
 class ExecutiveOfficeCapability(BaseModel):
     service_id: str
     acting_role_id: str
@@ -180,6 +253,10 @@ class ExecutiveOfficeStatusResponse(BaseModel):
     read_only: bool = False
     delegation_enabled: bool = True
     task_ledger_writes_enabled: bool = True
+    execution_admission_enabled: bool = False
+    execution_reservation_enabled: bool = False
     execution_enabled: bool = False
+    execution_cancellation_enabled: bool = False
+    execution_recovery_enabled: bool = False
     broker_activation_enabled: bool = False
     capabilities: list[ExecutiveOfficeCapability]
