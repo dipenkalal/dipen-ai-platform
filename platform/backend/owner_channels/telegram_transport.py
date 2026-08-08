@@ -481,7 +481,7 @@ def format_telegram_response(result: dict[str, object]) -> str:
             "Execution started: no",
         ]
         if _as_dict(result.get("approval")):
-            lines.append("Approval scope: delegate planned tasks only (5 min)")
+            lines.append("Approval scope: delegate planned tasks only")
         lines.extend(
             f"{_compact_identifier(task.get('task_id'))} → "
             f"{_friendly_label(task.get('role_id'))}"

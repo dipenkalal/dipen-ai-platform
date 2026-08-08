@@ -189,6 +189,34 @@ class TelegramApprovalRepository:
                 return TelegramApprovalProposal(
                     **{**proposal.__dict__, "state": "processing"}
                 )
+            if proposal.state == "awaiting_confirmation" and action == "reject":
+                connection.execute(
+                    """
+                    UPDATE telegram_approval_proposals
+                    SET state = 'rejected', acted_at = ?, callback_update_id = ?
+                    WHERE token = ? AND state = 'awaiting_confirmation'
+                    """,
+                    (now.isoformat(), callback_update_id, token),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO telegram_approval_audit (
+                        token, decision_id, action, actor, callback_update_id,
+                        recorded_at, outcome
+                    ) VALUES (?, ?, 'reject', 'dipen-owner', ?, ?, 'rejected')
+                    """,
+                    (
+                        token,
+                        proposal.decision_id,
+                        callback_update_id,
+                        now.isoformat(),
+                    ),
+                )
+                connection.commit()
+                return TelegramApprovalProposal(
+                    **{**proposal.__dict__, "state": "rejected"}
+                )
+
             if proposal.state != "pending":
                 connection.commit()
                 return proposal
@@ -364,7 +392,7 @@ class TelegramApprovalService:
                     statement=(
                         "Dipen approved this exact bounded plan through the "
                         "authenticated Telegram owner channel. Delegation only; "
-                        "runtime execution remains disabled."
+                        "this approval did not start runtime execution."
                     ),
                 ),
             )

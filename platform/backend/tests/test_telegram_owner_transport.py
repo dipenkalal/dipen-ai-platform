@@ -396,6 +396,30 @@ class TelegramTransportConfigurationTests(unittest.TestCase):
         self.assertIn("Execution started: no", text)
         self.assertIn("Risk: low", text)
 
+    def test_plan_response_does_not_hardcode_approval_ttl(self) -> None:
+        text = format_telegram_response(
+            {
+                "ok": True,
+                "command": "plan",
+                "disposition": "ready_for_delegation",
+                "overall_risk": "low",
+                "decision_id": "decision-exact-001",
+                "tasks": [],
+                "approval": {
+                    "token": "approval-token-001",
+                    "expires_at": "2026-08-08T20:30:00+00:00",
+                    "scope": "delegate_planned_tasks_only",
+                },
+            }
+        )
+
+        self.assertIn(
+            "Approval scope: delegate planned tasks only",
+            text,
+        )
+        self.assertNotIn("(5 min)", text)
+
+
     def test_plan_markup_contains_only_scoped_approve_and_reject(self) -> None:
         markup = approval_reply_markup(
             {
