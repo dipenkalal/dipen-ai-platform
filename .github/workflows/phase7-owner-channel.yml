@@ -1,0 +1,89 @@
+name: Phase 7 Owner Channel
+
+on:
+  pull_request:
+    paths:
+      - "platform/backend/owner_channels/**"
+      - "platform/backend/tests/test_telegram_owner_*.py"
+      - "platform/backend/app.py"
+      - "deploy/systemd/dap-backend.service"
+      - "deploy/systemd/dap-backend.env.example"
+      - "docs/telegram-owner-channel.md"
+      - ".github/workflows/phase7-owner-channel.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase7-owner-channel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  telegram-owner-channel:
+    runs-on: ubuntu-latest
+    env:
+      KNOWLEDGE_UPLOAD_DIRECTORY: ${{ runner.temp }}/dap-knowledge/uploads
+    defaults:
+      run:
+        working-directory: platform/backend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Ruff
+        run: |
+          python -m ruff check \
+            owner_channels \
+            app.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py
+
+      - name: Mypy
+        run: |
+          python -m mypy \
+            owner_channels/telegram_schemas.py \
+            owner_channels/telegram_service.py \
+            owner_channels/telegram_approvals.py \
+            owner_channels/telegram_security.py \
+            owner_channels/telegram_repository.py \
+            owner_channels/telegram_command_service.py \
+            owner_channels/telegram_transport.py \
+            --follow-imports=skip
+
+      - name: Compile
+        run: |
+          python -m compileall -q \
+            owner_channels \
+            app.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py
+
+      - name: Tests
+        run: |
+          python -m pytest -q \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py

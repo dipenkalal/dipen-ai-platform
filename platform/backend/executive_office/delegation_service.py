@@ -27,6 +27,7 @@ from executive_office.service import (
     ExecutiveOfficeService,
     executive_office_service,
 )
+from owner_channels.telegram_notifications import owner_notification_outbox
 
 
 class ExecutiveDelegationService:
@@ -93,6 +94,16 @@ class ExecutiveDelegationService:
         )
 
         if plan.disposition == "blocked":
+            owner_notification_outbox.enqueue_guardian_block(
+                decision_id=plan.decision_id,
+                objectives=[task.objective for task in plan.chief_of_staff.tasks],
+                reasons=[
+                    reason
+                    for finding in plan.risk_policy.findings
+                    if finding.risk_level == "blocked"
+                    for reason in finding.reasons
+                ],
+            )
             return ExecutiveDelegationResponse(
                 delegation_id=delegation_id,
                 decision_id=plan.decision_id,

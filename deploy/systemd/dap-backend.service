@@ -14,6 +14,7 @@ Environment=OLLAMA_BASE_URL=http://127.0.0.1:11434
 Environment=QDRANT_URL=http://127.0.0.1:6333
 Environment=DAP_AGENT_HISTORY_DB=/home/dipen/dap/data/agent-history/agent-runs.db
 Environment=KNOWLEDGE_UPLOAD_DIRECTORY=/home/dipen/dap/data/knowledge/uploads
+EnvironmentFile=-/home/dipen/dap/config/dap-backend.env
 ExecStart=/home/dipen/dap/source/dipen-ai-platform/platform/backend/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8002
 Restart=on-failure
 RestartSec=5
