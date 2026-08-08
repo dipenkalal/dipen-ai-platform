@@ -1,3 +1,4 @@
+from backend_version import APP_VERSION
 from company.catalog import company_registry
 from executive_office.execution_cancellation_reconciliation import (
     ExecutiveExecutionCancellationReconciler,
@@ -29,7 +30,7 @@ from executive_office.schemas import (
 class ExecutiveCancellationAwareRecoveryService:
     """Finish an interrupted cooperative cancellation without replaying work."""
 
-    version = "0.10.0"
+    version = APP_VERSION
 
     def __init__(
         self,

@@ -9,6 +9,7 @@ from agents.truth_service import (
     AgentTruthService,
     agent_truth_service,
 )
+from backend_version import APP_VERSION
 from company.catalog import company_registry
 from executive_office.execution_cancellation_reconciliation import (
     ExecutiveExecutionCancellationReconciler,
@@ -49,7 +50,7 @@ from executive_office.schemas import (
 
 
 class ExecutiveExecutionStartService:
-    version = "0.10.0"
+    version = APP_VERSION
 
     def __init__(
         self,
@@ -230,9 +231,7 @@ class ExecutiveExecutionStartService:
                 strict=True,
             ):
                 if self._cancellation_requested(claim.execution_id):
-                    self.cancellation_repository.mark_observed(
-                        claim.execution_id
-                    )
+                    self.cancellation_repository.mark_observed(claim.execution_id)
                     return self._finalize_cooperative_cancellation(
                         claim=claim,
                         idempotency_key=idempotency_key,
@@ -285,9 +284,7 @@ class ExecutiveExecutionStartService:
                     )
                 )
         except CooperativeCancellationRequested as error:
-            self.cancellation_repository.mark_observed(
-                claim.execution_id
-            )
+            self.cancellation_repository.mark_observed(claim.execution_id)
             return self._finalize_cooperative_cancellation(
                 claim=claim,
                 idempotency_key=idempotency_key,

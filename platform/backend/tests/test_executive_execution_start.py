@@ -32,6 +32,7 @@ from agents.schemas import (
 from agents.truth_repository import AgentTruthRepository
 from agents.truth_service import AgentTruthService
 from app import app
+from backend_version import APP_VERSION
 from executive_office.delegation_service import ExecutiveDelegationService
 from executive_office.execution_repository import (
     ExecutiveExecutionRepository,
@@ -495,6 +496,7 @@ class ExecutiveExecutionStartTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(status.execution_admission_enabled)
         self.assertTrue(status.execution_reservation_enabled)
         self.assertTrue(status.execution_enabled)
+        self.assertEqual(status.version, APP_VERSION)
         self.assertFalse(status.broker_activation_enabled)
 
 
