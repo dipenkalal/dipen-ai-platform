@@ -17,6 +17,7 @@ from agents.routes import (
 from agents.truth_routes import (
     router as agent_truth_router,
 )
+from backend_version import APP_VERSION
 from collectors.ollama import (
     get_ollama_status,
 )
@@ -64,8 +65,6 @@ from shared_http import (
     close_shared_http_client,
     get_shared_http_client,
 )
-
-APP_VERSION = "0.18.0"
 
 
 @asynccontextmanager
