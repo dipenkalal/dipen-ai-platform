@@ -141,6 +141,72 @@ class TelegramOwnerIngressTests(unittest.TestCase):
         self.assertFalse(result.accepted)
         self.assertEqual(result.command, "unsupported")
 
+    def test_owner_private_callback_is_bound_to_approval_token(self) -> None:
+        update = TelegramUpdate.model_validate(
+            {
+                "update_id": 9100,
+                "callback_query": {
+                    "id": "callback-001",
+                    "from": {"id": 101, "is_bot": False},
+                    "message": {
+                        "message_id": 88,
+                        "date": 1786084800,
+                        "chat": {"id": 202, "type": "private"},
+                    },
+                    "data": "dap:a:Abcd_1234-xyz789",
+                },
+            }
+        )
+
+        result = self.service.accept_polled(update=update)
+
+        self.assertEqual(result.command, "approve")
+        self.assertEqual(result.approval_token, "Abcd_1234-xyz789")
+        self.assertEqual(result.callback_query_id, "callback-001")
+
+    def test_non_owner_callback_is_rejected(self) -> None:
+        update = TelegramUpdate.model_validate(
+            {
+                "update_id": 9101,
+                "callback_query": {
+                    "id": "callback-002",
+                    "from": {"id": 999, "is_bot": False},
+                    "message": {
+                        "message_id": 88,
+                        "date": 1786084800,
+                        "chat": {"id": 202, "type": "private"},
+                    },
+                    "data": "dap:r:Abcd_1234-xyz789",
+                },
+            }
+        )
+
+        with self.assertRaises(PermissionError):
+            self.service.accept_polled(update=update)
+
+    def test_oversized_callback_token_is_rejected_before_routing(self) -> None:
+        update = TelegramUpdate.model_validate(
+            {
+                "update_id": 9102,
+                "callback_query": {
+                    "id": "callback-003",
+                    "from": {"id": 101, "is_bot": False},
+                    "message": {
+                        "message_id": 88,
+                        "date": 1786084800,
+                        "chat": {"id": 202, "type": "private"},
+                    },
+                    "data": f"dap:a:{'x' * 200}",
+                },
+            }
+        )
+
+        result = self.service.accept_polled(update=update)
+
+        self.assertFalse(result.accepted)
+        self.assertEqual(result.command, "unsupported")
+        self.assertIsNone(result.approval_token)
+
 
 if __name__ == "__main__":
     unittest.main()

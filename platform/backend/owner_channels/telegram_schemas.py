@@ -24,9 +24,17 @@ class TelegramMessage(BaseModel):
     text: str | None = None
 
 
+class TelegramCallbackQuery(BaseModel):
+    id: str
+    from_user: TelegramUser = Field(alias="from")
+    message: TelegramMessage | None = None
+    data: str | None = None
+
+
 class TelegramUpdate(BaseModel):
     update_id: int
     message: TelegramMessage | None = None
+    callback_query: TelegramCallbackQuery | None = None
 
 
 TelegramOwnerCommandName = Literal[
@@ -38,6 +46,9 @@ TelegramOwnerCommandName = Literal[
     "plan",
     "cancel",
     "help",
+    "approve",
+    "confirm",
+    "reject",
     "unsupported",
 ]
 
@@ -48,6 +59,8 @@ class TelegramOwnerCommand(BaseModel):
     command: TelegramOwnerCommandName
     execution_id: str | None = None
     objective: str | None = None
+    approval_token: str | None = None
+    callback_query_id: str | None = None
     idempotency_key: str
     authorized_by: Literal["dipen-owner"] = "dipen-owner"
     accepted: bool

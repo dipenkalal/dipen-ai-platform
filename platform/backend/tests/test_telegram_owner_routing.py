@@ -150,6 +150,30 @@ class FakePlanningService:
         )
 
 
+class FakeApprovalService:
+    def __init__(self) -> None:
+        self.proposals = []
+        self.decisions = []
+
+    def propose(self, *, request, decision_id: str, source_update_id: int):
+        self.proposals.append((request, decision_id, source_update_id))
+        return SimpleNamespace(
+            token="approval-token-001",
+            expires_at=SimpleNamespace(isoformat=lambda: "2026-08-08T10:10:00+00:00"),
+        )
+
+    def decide(self, *, token: str, action: str, callback_update_id: int):
+        self.decisions.append((token, action, callback_update_id))
+        return {
+            "ok": True,
+            "command": action,
+            "approval_state": "approved",
+            "task_ledger_written": True,
+            "execution_started": False,
+            "message": "Tasks recorded without execution.",
+        }
+
+
 class TelegramOwnerRoutingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -159,6 +183,7 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
         self.receipts = TelegramCommandReceiptRepository(truth)
         self.cancellation = FakeCancellationService()
         self.planning = FakePlanningService()
+        self.approvals = FakeApprovalService()
         self.router = TelegramOwnerCommandRouter(
             receipt_repository=self.receipts,
             office_status_service=FakeOfficeStatusService(),
@@ -167,6 +192,7 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
             truth_service=FakeTruthService(),
             organization_registry=FakeOrganizationRegistry(),
             planning_service=self.planning,
+            approval_service=self.approvals,
         )
 
     def tearDown(self) -> None:
@@ -275,7 +301,24 @@ class TelegramOwnerRoutingTests(unittest.TestCase):
         request = self.planning.requests[0]
         self.assertEqual(request.requested_by, "dipen-owner")
         self.assertFalse(request.allow_external_actions)
+        self.assertEqual(result["approval"]["scope"], "delegate_planned_tasks_only")
+        self.assertEqual(len(self.approvals.proposals), 1)
         self.assertEqual(self.cancellation.calls, [])
+
+    def test_approval_callback_routes_once_without_execution(self) -> None:
+        command = self.command("approve", update_id=1010)
+        command.approval_token = "approval-token-001"
+
+        first = self.router.route(command)
+        replay = self.router.route(command)
+
+        self.assertTrue(first["task_ledger_written"])
+        self.assertFalse(first["execution_started"])
+        self.assertTrue(replay["idempotent_replay"])
+        self.assertEqual(
+            self.approvals.decisions,
+            [("approval-token-001", "approve", 1010)],
+        )
 
 
 if __name__ == "__main__":

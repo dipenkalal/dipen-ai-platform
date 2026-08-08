@@ -19,6 +19,11 @@ from owner_channels.telegram_service import (
     TelegramIngressConfig,
     TelegramOwnerIngressService,
 )
+from owner_channels.telegram_security import (
+    TelegramSecurityConfig,
+    TelegramSecurityRepository,
+    telegram_security_repository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +88,14 @@ class TelegramBotClient(Protocol):
         chat_id: int,
         text: str,
         reply_to_message_id: int | None = None,
+        reply_markup: dict[str, object] | None = None,
+    ) -> None: ...
+
+    async def answer_callback_query(
+        self,
+        *,
+        callback_query_id: str,
+        text: str,
     ) -> None: ...
 
 
@@ -110,7 +123,7 @@ class TelegramHttpBotClient:
     ) -> list[dict[str, object]]:
         payload: dict[str, object] = {
             "timeout": timeout,
-            "allowed_updates": ["message"],
+            "allowed_updates": ["message", "callback_query"],
         }
         if offset is not None:
             payload["offset"] = offset
@@ -129,6 +142,7 @@ class TelegramHttpBotClient:
         chat_id: int,
         text: str,
         reply_to_message_id: int | None = None,
+        reply_markup: dict[str, object] | None = None,
     ) -> None:
         payload: dict[str, object] = {
             "chat_id": chat_id,
@@ -136,9 +150,23 @@ class TelegramHttpBotClient:
         }
         if reply_to_message_id is not None:
             payload["reply_parameters"] = {"message_id": reply_to_message_id}
+        if reply_markup is not None:
+            payload["reply_markup"] = reply_markup
         await self._call(
             "sendMessage",
             payload,
+            timeout=10.0,
+        )
+
+    async def answer_callback_query(
+        self,
+        *,
+        callback_query_id: str,
+        text: str,
+    ) -> None:
+        await self._call(
+            "answerCallbackQuery",
+            {"callback_query_id": callback_query_id, "text": text},
             timeout=10.0,
         )
 
@@ -223,6 +251,8 @@ class TelegramLongPollingWorker:
         offsets: TelegramPollingOffsetRepository,
         owner_chat_id: int,
         poll_timeout_seconds: int = 25,
+        security: TelegramSecurityRepository = telegram_security_repository,
+        security_config: TelegramSecurityConfig | None = None,
     ) -> None:
         self.client = client
         self.ingress = ingress
@@ -230,6 +260,8 @@ class TelegramLongPollingWorker:
         self.offsets = offsets
         self.owner_chat_id = owner_chat_id
         self.poll_timeout_seconds = poll_timeout_seconds
+        self.security = security
+        self.security_config = security_config or TelegramSecurityConfig.from_env()
 
     async def poll_once(self) -> int:
         updates = await self.client.get_updates(
@@ -246,6 +278,7 @@ class TelegramLongPollingWorker:
                 update = TelegramUpdate.model_validate(raw_update)
                 command = self.ingress.accept_polled(update=update)
             except PermissionError as exc:
+                self._audit_rejection(raw_update, update_id, str(exc))
                 logger.warning(
                     "Rejected Telegram update %s: %s",
                     update_id,
@@ -255,20 +288,91 @@ class TelegramLongPollingWorker:
                 processed += 1
                 continue
             except ValidationError:
+                self._audit_rejection(raw_update, update_id, "Malformed update.")
                 logger.warning("Rejected malformed Telegram update %s.", update_id)
                 self.offsets.advance(update_id)
                 processed += 1
                 continue
 
-            result = await asyncio.to_thread(self.router.route, command)
-            await self.client.send_message(
-                chat_id=self.owner_chat_id,
-                text=format_telegram_response(result),
-                reply_to_message_id=command.message_id,
+            is_callback = command.callback_query_id is not None
+            allowed = self.security.allow(
+                bucket="owner-callback" if is_callback else "owner-command",
+                limit=(
+                    self.security_config.callback_rate_limit
+                    if is_callback
+                    else self.security_config.command_rate_limit
+                ),
+                window_seconds=self.security_config.rate_window_seconds,
             )
+            if not allowed:
+                self.security.record_rejection(
+                    update_id=update_id,
+                    event_kind=(
+                        "rate_limited_callback"
+                        if is_callback
+                        else "rate_limited_command"
+                    ),
+                    claimed_user_id=self.ingress.config.owner_user_id,
+                    claimed_chat_id=self.ingress.config.owner_chat_id,
+                    reason="Configured Telegram owner rate limit exceeded.",
+                )
+                self.offsets.advance(update_id)
+                processed += 1
+                continue
+
+            result = await asyncio.to_thread(self.router.route, command)
+            response_text = format_telegram_response(result)
+            reply_markup = approval_reply_markup(result)
+            if reply_markup is None:
+                await self.client.send_message(
+                    chat_id=self.owner_chat_id,
+                    text=response_text,
+                    reply_to_message_id=(
+                        None if command.callback_query_id else command.message_id
+                    ),
+                )
+            else:
+                await self.client.send_message(
+                    chat_id=self.owner_chat_id,
+                    text=response_text,
+                    reply_to_message_id=command.message_id,
+                    reply_markup=reply_markup,
+                )
+            if command.callback_query_id is not None:
+                await self.client.answer_callback_query(
+                    callback_query_id=command.callback_query_id,
+                    text="DAP recorded your decision.",
+                )
             self.offsets.advance(update_id)
             processed += 1
         return processed
+
+    def _audit_rejection(
+        self,
+        raw_update: dict[str, object],
+        update_id: int,
+        reason: str,
+    ) -> None:
+        message = raw_update.get("message")
+        callback = raw_update.get("callback_query")
+        source = callback if isinstance(callback, dict) else message
+        sender = source.get("from") if isinstance(source, dict) else None
+        callback_message = source.get("message") if isinstance(source, dict) else None
+        chat_source = callback_message if isinstance(callback_message, dict) else source
+        chat = chat_source.get("chat") if isinstance(chat_source, dict) else None
+        user_id = sender.get("id") if isinstance(sender, dict) else None
+        chat_id = chat.get("id") if isinstance(chat, dict) else None
+        self.security.record_rejection(
+            update_id=update_id,
+            event_kind=(
+                "unauthorized_callback"
+                if isinstance(callback, dict)
+                else "unauthorized_message"
+            ),
+            claimed_user_id=user_id if isinstance(user_id, int) else None,
+            claimed_chat_id=chat_id if isinstance(chat_id, int) else None,
+            reason=reason,
+        )
 
     async def run(
         self,
@@ -309,9 +413,14 @@ def format_telegram_response(result: dict[str, object]) -> str:
         return "\n".join(
             [
                 f"DAP {result.get('version', 'unknown')}",
-                f"Execution: {'enabled' if result.get('execution_enabled') else 'disabled'}",
+            "Execution: "
+            + ("enabled" if result.get("execution_enabled") else "disabled"),
                 "Cancellation: "
-                + ("enabled" if result.get("execution_cancellation_enabled") else "disabled"),
+                + (
+                    "enabled"
+                    if result.get("execution_cancellation_enabled")
+                    else "disabled"
+                ),
                 f"Capabilities: {result.get('capability_count', 0)}",
             ]
         )
@@ -371,12 +480,22 @@ def format_telegram_response(result: dict[str, object]) -> str:
             f"Decision: {_compact_identifier(result.get('decision_id'))}",
             "Execution started: no",
         ]
+        if _as_dict(result.get("approval")):
+            lines.append("Approval scope: delegate planned tasks only (5 min)")
         lines.extend(
             f"{_compact_identifier(task.get('task_id'))} → "
             f"{_friendly_label(task.get('role_id'))}"
             for task in tasks
         )
         return "\n".join(lines)
+    if command in {"approve", "confirm", "approval"}:
+        return "\n".join(
+            [
+                f"Approval: {_friendly_label(result.get('approval_state'))}",
+                str(result.get("message") or "Approval decision recorded."),
+                "Execution started: no",
+            ]
+        )
     if command == "cancel" and result.get("ok") is True:
         return str(result.get("message") or "Cancellation request accepted.")
     return str(result.get("message") or "Telegram command could not be completed.")
@@ -403,6 +522,36 @@ def _friendly_label(value: object) -> str:
     return str(value or "unknown").replace("_", " ").replace("-", " ")
 
 
+def approval_reply_markup(result: dict[str, object]) -> dict[str, object] | None:
+    confirmation_token = result.get("confirmation_token")
+    if isinstance(confirmation_token, str) and confirmation_token:
+        return {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "Confirm delegation",
+                        "callback_data": f"dap:c:{confirmation_token}",
+                    },
+                    {"text": "Reject", "callback_data": f"dap:r:{confirmation_token}"},
+                ]
+            ]
+        }
+    if result.get("command") != "plan" or result.get("ok") is not True:
+        return None
+    approval = _as_dict(result.get("approval"))
+    token = approval.get("token")
+    if not isinstance(token, str) or not token:
+        return None
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Approve delegation", "callback_data": f"dap:a:{token}"},
+                {"text": "Reject", "callback_data": f"dap:r:{token}"},
+            ]
+        ]
+    }
+
+
 def build_telegram_polling_worker(
     *,
     config: TelegramTransportConfig,
@@ -417,4 +566,5 @@ def build_telegram_polling_worker(
         offsets=TelegramPollingOffsetRepository(),
         owner_chat_id=ingress_config.owner_chat_id,
         poll_timeout_seconds=config.poll_timeout_seconds,
+        security_config=TelegramSecurityConfig.from_env(),
     )

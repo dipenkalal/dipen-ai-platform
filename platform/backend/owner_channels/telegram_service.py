@@ -1,4 +1,5 @@
 import os
+import re
 import secrets
 from dataclasses import dataclass
 
@@ -77,6 +78,9 @@ class TelegramOwnerIngressService:
     ) -> TelegramOwnerCommand:
         """Authenticate an update already obtained from Telegram's Bot API."""
 
+        if update.callback_query is not None:
+            return self._accept_callback(update)
+
         message = update.message
         if message is None:
             raise PermissionError("Telegram update does not contain a message.")
@@ -88,6 +92,8 @@ class TelegramOwnerIngressService:
             raise PermissionError("Telegram sender is not the configured owner.")
         if message.chat.id != self.config.owner_chat_id:
             raise PermissionError("Telegram chat is not the configured owner chat.")
+        if message.chat.type != "private":
+            raise PermissionError("Telegram owner commands require a private chat.")
 
         text = (message.text or "").strip()
         command, execution_id, objective, accepted, reason = self._parse(text)
@@ -98,6 +104,51 @@ class TelegramOwnerIngressService:
             command=command,
             execution_id=execution_id,
             objective=objective,
+            idempotency_key=f"telegram-update-{update.update_id}",
+            accepted=accepted,
+            reason=reason,
+        )
+
+    def _accept_callback(self, update: TelegramUpdate) -> TelegramOwnerCommand:
+        callback = update.callback_query
+        if callback is None or callback.message is None:
+            raise PermissionError("Telegram callback does not contain a message.")
+        if callback.from_user.is_bot:
+            raise PermissionError("Telegram callback sender is not an owner user.")
+        if callback.from_user.id != self.config.owner_user_id:
+            raise PermissionError(
+                "Telegram callback sender is not the configured owner."
+            )
+        if callback.message.chat.id != self.config.owner_chat_id:
+            raise PermissionError(
+                "Telegram callback chat is not the configured owner chat."
+            )
+        if callback.message.chat.type != "private":
+            raise PermissionError("Telegram approvals require a private chat.")
+
+        data = callback.data or ""
+        parts = data.split(":", maxsplit=2)
+        if len(parts) != 3 or parts[0] != "dap" or parts[1] not in {"a", "c", "r"}:
+            command = "unsupported"
+            token = None
+            accepted = False
+            reason = "Telegram approval callback is not supported."
+        else:
+            command = {"a": "approve", "c": "confirm", "r": "reject"}[parts[1]]
+            token = parts[2]
+            accepted = re.fullmatch(r"[A-Za-z0-9_-]{16}", token) is not None
+            reason = f"Owner {command} callback accepted."
+            if not accepted:
+                command = "unsupported"
+                token = None
+                reason = "Telegram approval callback token is invalid."
+
+        return TelegramOwnerCommand(
+            update_id=update.update_id,
+            message_id=callback.message.message_id,
+            command=command,
+            approval_token=token,
+            callback_query_id=callback.id,
             idempotency_key=f"telegram-update-{update.update_id}",
             accepted=accepted,
             reason=reason,

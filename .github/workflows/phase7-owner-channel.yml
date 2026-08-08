@@ -50,6 +50,8 @@ jobs:
           python -m ruff check \
             owner_channels \
             app.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
             tests/test_telegram_owner_ingress.py \
             tests/test_telegram_owner_routing.py \
             tests/test_telegram_owner_transport.py
@@ -59,6 +61,8 @@ jobs:
           python -m mypy \
             owner_channels/telegram_schemas.py \
             owner_channels/telegram_service.py \
+            owner_channels/telegram_approvals.py \
+            owner_channels/telegram_security.py \
             owner_channels/telegram_repository.py \
             owner_channels/telegram_command_service.py \
             owner_channels/telegram_transport.py \
@@ -69,6 +73,8 @@ jobs:
           python -m compileall -q \
             owner_channels \
             app.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
             tests/test_telegram_owner_ingress.py \
             tests/test_telegram_owner_routing.py \
             tests/test_telegram_owner_transport.py
@@ -76,6 +82,8 @@ jobs:
       - name: Tests
         run: |
           python -m pytest -q \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
             tests/test_telegram_owner_ingress.py \
             tests/test_telegram_owner_routing.py \
             tests/test_telegram_owner_transport.py

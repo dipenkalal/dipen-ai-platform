@@ -28,6 +28,10 @@ from executive_office.service import (
     ExecutiveOfficeService,
     executive_office_service,
 )
+from owner_channels.telegram_approvals import (
+    TelegramApprovalService,
+    telegram_approval_service,
+)
 from owner_channels.telegram_repository import (
     TelegramCommandReceiptRepository,
     TelegramReceiptConflictError,
@@ -55,6 +59,7 @@ class TelegramOwnerCommandRouter:
         truth_service: AgentTruthService = agent_truth_service,
         organization_registry: OrganizationRegistry = company_registry,
         planning_service: ExecutiveOfficeService = executive_office_service,
+        approval_service: TelegramApprovalService = telegram_approval_service,
     ) -> None:
         self.receipt_repository = receipt_repository
         self.office_status_service = office_status_service
@@ -63,6 +68,7 @@ class TelegramOwnerCommandRouter:
         self.truth_service = truth_service
         self.organization_registry = organization_registry
         self.planning_service = planning_service
+        self.approval_service = approval_service
 
     def route(self, command: TelegramOwnerCommand) -> dict[str, object]:
         if not command.accepted:
@@ -104,6 +110,8 @@ class TelegramOwnerCommandRouter:
                 result = self._plan(command)
             elif command.command == "cancel":
                 result = self._cancel(command)
+            elif command.command in {"approve", "confirm", "reject"}:
+                result = self._approval(command)
             elif command.command == "help":
                 result = self._help()
             else:
@@ -255,12 +263,21 @@ class TelegramOwnerCommandRouter:
         objective = command.objective
         if objective is None:
             raise ValueError("Telegram planning requires an objective.")
-        decision = self.planning_service.plan(
-            ExecutivePlanRequest(
-                objectives=[objective],
-                requested_by=command.authorized_by,
-                allow_external_actions=False,
+        request = ExecutivePlanRequest(
+            objectives=[objective],
+            requested_by=command.authorized_by,
+            allow_external_actions=False,
+        )
+        decision = self.planning_service.plan(request)
+        proposal = (
+            self.approval_service.propose(
+                request=request,
+                decision_id=decision.decision_id,
+                source_update_id=command.update_id,
             )
+            if decision.disposition != "blocked"
+            and getattr(self.approval_service, "enabled", True)
+            else None
         )
         return {
             "ok": True,
@@ -279,9 +296,27 @@ class TelegramOwnerCommandRouter:
                 for task in decision.chief_of_staff.tasks
             ],
             "execution_started": decision.execution_started,
+            "approval": (
+                {
+                    "token": proposal.token,
+                    "expires_at": proposal.expires_at.isoformat(),
+                    "scope": "delegate_planned_tasks_only",
+                }
+                if proposal is not None
+                else None
+            ),
             "message": decision.message,
             "idempotent_replay": False,
         }
+
+    def _approval(self, command: TelegramOwnerCommand) -> dict[str, object]:
+        if command.approval_token is None:
+            raise ValueError("Telegram approval token is required.")
+        return self.approval_service.decide(
+            token=command.approval_token,
+            action=command.command,
+            callback_update_id=command.update_id,
+        )
 
     @staticmethod
     def _help() -> dict[str, object]:

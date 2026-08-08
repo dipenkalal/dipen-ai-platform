@@ -21,6 +21,10 @@ from owner_channels.telegram_service import (
     TelegramIngressConfig,
     TelegramOwnerIngressService,
 )
+from owner_channels.telegram_security import (
+    TelegramSecurityConfig,
+    TelegramSecurityRepository,
+)
 from owner_channels.telegram_transport import (
     TelegramBotApiError,
     TelegramHttpBotClient,
@@ -28,6 +32,7 @@ from owner_channels.telegram_transport import (
     TelegramPollingOffsetRepository,
     TelegramTransportConfig,
     TelegramTransportConfigurationError,
+    approval_reply_markup,
     format_telegram_response,
 )
 
@@ -54,12 +59,29 @@ def telegram_update(
     }
 
 
+def telegram_callback_update(*, update_id: int, user_id: int = 101):
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": "callback-transport-001",
+            "from": {"id": user_id, "is_bot": False},
+            "message": {
+                "message_id": 88,
+                "date": 1786084800,
+                "chat": {"id": 202, "type": "private"},
+            },
+            "data": "dap:a:Abcd_1234-xyz789",
+        },
+    }
+
+
 class FakeTelegramClient:
     def __init__(self, updates: list[dict[str, object]]) -> None:
         self.updates = updates
         self.requested_offsets: list[int | None] = []
         self.sent_messages: list[tuple[int, str, int]] = []
         self.fail_send = False
+        self.answered_callbacks: list[tuple[str, str]] = []
 
     async def prepare_long_polling(self) -> None:
         return None
@@ -79,10 +101,16 @@ class FakeTelegramClient:
         chat_id: int,
         text: str,
         reply_to_message_id: int | None = None,
+        reply_markup: dict[str, object] | None = None,
     ) -> None:
         if self.fail_send:
             raise TelegramBotApiError("send failed")
         self.sent_messages.append((chat_id, text, reply_to_message_id))
+
+    async def answer_callback_query(
+        self, *, callback_query_id: str, text: str
+    ) -> None:
+        self.answered_callbacks.append((callback_query_id, text))
 
 
 class FakeRouter:
@@ -91,6 +119,14 @@ class FakeRouter:
 
     def route(self, command) -> dict[str, object]:
         self.calls += 1
+        if command.command == "approve":
+            return {
+                "ok": True,
+                "command": "approve",
+                "approval_state": "approved",
+                "execution_started": False,
+                "message": "Tasks recorded without execution.",
+            }
         return {
             "ok": True,
             "command": command.command,
@@ -105,6 +141,7 @@ class TelegramOwnerTransportTests(unittest.IsolatedAsyncioTestCase):
             Path(self.temporary_directory.name) / "telegram-transport.db"
         )
         self.offsets = TelegramPollingOffsetRepository(truth)
+        self.security = TelegramSecurityRepository(truth)
         self.client = FakeTelegramClient([telegram_update(update_id=3001)])
         self.router = FakeRouter()
         self.worker = TelegramLongPollingWorker(
@@ -120,6 +157,12 @@ class TelegramOwnerTransportTests(unittest.IsolatedAsyncioTestCase):
             offsets=self.offsets,
             owner_chat_id=202,
             poll_timeout_seconds=10,
+            security=self.security,
+            security_config=TelegramSecurityConfig(
+                command_rate_limit=20,
+                callback_rate_limit=6,
+                rate_window_seconds=60,
+            ),
         )
 
     def tearDown(self) -> None:
@@ -155,6 +198,47 @@ class TelegramOwnerTransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.router.calls, 0)
         self.assertEqual(self.client.sent_messages, [])
         self.assertEqual(self.offsets.get_next_update_id(), 3003)
+        with self.security.truth_repository.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM telegram_security_audit WHERE update_id = 3002"
+            ).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["event_kind"], "unauthorized_message")
+        self.assertEqual(row["claimed_user_id"], 999)
+
+    async def test_rate_limit_consumes_update_without_routing_or_reply(self) -> None:
+        self.worker.security_config = TelegramSecurityConfig(
+            command_rate_limit=1,
+            callback_rate_limit=1,
+            rate_window_seconds=60,
+        )
+        await self.worker.poll_once()
+        self.client.updates = [telegram_update(update_id=3002)]
+
+        processed = await self.worker.poll_once()
+
+        self.assertEqual(processed, 1)
+        self.assertEqual(self.router.calls, 1)
+        self.assertEqual(len(self.client.sent_messages), 1)
+        self.assertEqual(self.offsets.get_next_update_id(), 3003)
+        with self.security.truth_repository.connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM telegram_security_audit WHERE update_id = 3002"
+            ).fetchone()
+        self.assertEqual(row["event_kind"], "rate_limited_command")
+
+    async def test_owner_callback_is_answered_once_after_safe_routing(self) -> None:
+        self.client.updates = [telegram_callback_update(update_id=3003)]
+
+        processed = await self.worker.poll_once()
+
+        self.assertEqual(processed, 1)
+        self.assertEqual(self.offsets.get_next_update_id(), 3004)
+        self.assertIn("Execution started: no", self.client.sent_messages[0][1])
+        self.assertEqual(
+            self.client.answered_callbacks,
+            [("callback-transport-001", "DAP recorded your decision.")],
+        )
 
 
 class TelegramHttpBotClientTests(unittest.IsolatedAsyncioTestCase):
@@ -271,6 +355,61 @@ class TelegramTransportConfigurationTests(unittest.TestCase):
 
         self.assertIn("Execution started: no", text)
         self.assertIn("Risk: low", text)
+
+    def test_plan_markup_contains_only_scoped_approve_and_reject(self) -> None:
+        markup = approval_reply_markup(
+            {
+                "ok": True,
+                "command": "plan",
+                "approval": {"token": "approval-token-001"},
+            }
+        )
+
+        self.assertEqual(
+            markup,
+            {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Approve delegation",
+                            "callback_data": "dap:a:approval-token-001",
+                        },
+                        {
+                            "text": "Reject",
+                            "callback_data": "dap:r:approval-token-001",
+                        },
+                    ]
+                ]
+            },
+        )
+
+    def test_first_approval_requires_separate_confirmation(self) -> None:
+        markup = approval_reply_markup(
+            {
+                "ok": False,
+                "command": "approval",
+                "approval_state": "awaiting_confirmation",
+                "confirmation_token": "approval-token-001",
+            }
+        )
+
+        self.assertEqual(
+            markup,
+            {
+                "inline_keyboard": [
+                    [
+                        {
+                            "text": "Confirm delegation",
+                            "callback_data": "dap:c:approval-token-001",
+                        },
+                        {
+                            "text": "Reject",
+                            "callback_data": "dap:r:approval-token-001",
+                        },
+                    ]
+                ]
+            },
+        )
 
     def test_mobile_formatting_compacts_ids_and_labels(self) -> None:
         text = format_telegram_response(

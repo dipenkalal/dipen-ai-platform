@@ -53,6 +53,8 @@ from owner_channels.telegram_notifications import (
     TelegramNotificationWorker,
 )
 from owner_channels.telegram_service import TelegramIngressConfig
+from owner_channels.telegram_approvals import telegram_approval_service
+from owner_channels.telegram_security import TelegramSecurityConfig
 from owner_channels.telegram_transport import (
     TelegramHttpBotClient,
     TelegramTransportConfig,
@@ -63,12 +65,17 @@ from shared_http import (
     get_shared_http_client,
 )
 
-APP_VERSION = "0.17.0"
+APP_VERSION = "0.18.0"
 
 
 @asynccontextmanager
 async def backend_lifespan(application: FastAPI):
     telegram_config = TelegramTransportConfig.from_env()
+    telegram_security_config = TelegramSecurityConfig.from_env()
+    telegram_approval_service.enabled = telegram_security_config.approvals_enabled
+    telegram_approval_service.ttl_seconds = (
+        telegram_security_config.approval_ttl_seconds
+    )
     notification_config = TelegramNotificationConfig.from_env()
     if notification_config.enabled and not telegram_config.enabled:
         raise RuntimeError(
