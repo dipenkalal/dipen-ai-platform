@@ -85,6 +85,7 @@ jobs:
             executive_office/routes.py \
             executive_office/schemas.py \
             executive_office/service.py \
+            owner_channels \
             tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
@@ -100,6 +101,11 @@ jobs:
             tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
@@ -138,6 +144,13 @@ jobs:
             executive_office/routes.py \
             executive_office/schemas.py \
             executive_office/service.py \
+            owner_channels/telegram_schemas.py \
+            owner_channels/telegram_service.py \
+            owner_channels/telegram_approvals.py \
+            owner_channels/telegram_security.py \
+            owner_channels/telegram_repository.py \
+            owner_channels/telegram_command_service.py \
+            owner_channels/telegram_transport.py \
             --follow-imports=skip
 
       - name: Compile Python
@@ -159,6 +172,7 @@ jobs:
             agents/truth_service.py \
             company \
             executive_office \
+            owner_channels \
             tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
@@ -174,6 +188,11 @@ jobs:
             tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
@@ -196,6 +215,11 @@ jobs:
             tests/test_executive_execution_start_worker_gate.py \
             tests/test_executive_reservation.py \
             tests/test_executive_office.py \
+            tests/test_telegram_approvals.py \
+            tests/test_telegram_security.py \
+            tests/test_telegram_owner_ingress.py \
+            tests/test_telegram_owner_routing.py \
+            tests/test_telegram_owner_transport.py \
             tests/test_orchestration_validator.py \
             tests/test_runtime_instrumentation.py
 
