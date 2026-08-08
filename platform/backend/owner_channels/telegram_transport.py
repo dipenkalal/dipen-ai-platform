@@ -130,7 +130,7 @@ class TelegramHttpBotClient:
         result = await self._call(
             "getUpdates",
             payload,
-            timeout=timeout + 5.0,
+            timeout=timeout + 15.0,
         )
         if not isinstance(result, list):
             raise TelegramBotApiError("Telegram getUpdates returned an invalid result.")
@@ -185,9 +185,9 @@ class TelegramHttpBotClient:
             )
             response.raise_for_status()
             body = response.json()
-        except (httpx.HTTPError, json.JSONDecodeError):
+        except (httpx.HTTPError, json.JSONDecodeError) as exc:
             raise TelegramBotApiError(
-                f"Telegram Bot API {method} request failed."
+                f"Telegram Bot API {method} request failed ({type(exc).__name__})."
             ) from None
         if not isinstance(body, dict) or body.get("ok") is not True:
             raise TelegramBotApiError(

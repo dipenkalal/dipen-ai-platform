@@ -275,6 +275,46 @@ class TelegramHttpBotClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(captured.exception.__suppress_context__)
 
 
+    async def test_get_updates_uses_fifteen_second_timeout_margin(self) -> None:
+        requests: list[httpx.Request] = []
+
+        async def record_request(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(200, json={"ok": True, "result": []})
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(record_request)
+        ) as http_client:
+            client = TelegramHttpBotClient(token="test-token", client=http_client)
+            await client.get_updates(offset=None, timeout=25)
+
+        timeout = requests[0].extensions["timeout"]
+        self.assertEqual(timeout["read"], 40.0)
+
+    async def test_transport_error_reports_only_sanitized_exception_type(
+        self,
+    ) -> None:
+        token = "secret-token-123"
+        sensitive_detail = "sensitive-network-detail"
+
+        async def fail_request(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout(sensitive_detail, request=request)
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(fail_request)
+        ) as http_client:
+            client = TelegramHttpBotClient(token=token, client=http_client)
+            with self.assertRaises(TelegramBotApiError) as captured:
+                await client.get_updates(offset=None, timeout=25)
+
+        diagnostic = str(captured.exception)
+        self.assertIn("ReadTimeout", diagnostic)
+        self.assertNotIn(token, diagnostic)
+        self.assertNotIn(sensitive_detail, diagnostic)
+        self.assertNotIn("api.telegram.org", diagnostic)
+        self.assertTrue(captured.exception.__suppress_context__)
+
+
 class TelegramTransportConfigurationTests(unittest.TestCase):
     def test_enabled_polling_requires_token(self) -> None:
         with patch.dict(

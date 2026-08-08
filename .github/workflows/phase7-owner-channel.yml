@@ -22,7 +22,7 @@ jobs:
   telegram-owner-channel:
     runs-on: ubuntu-latest
     env:
-      KNOWLEDGE_UPLOAD_DIRECTORY: ${{ runner.temp }}/dap-knowledge/uploads
+      KNOWLEDGE_UPLOAD_DIRECTORY: /tmp/dap-knowledge/uploads
     defaults:
       run:
         working-directory: platform/backend
