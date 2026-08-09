@@ -94,6 +94,11 @@ class AgentRunRequest(BaseModel):
         max_length=8000,
     )
 
+    supplemental_context: str | None = Field(
+        default=None,
+        max_length=12000,
+    )
+
     model: str | None = None
 
     provider: Literal[

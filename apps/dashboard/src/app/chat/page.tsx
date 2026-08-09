@@ -555,6 +555,48 @@ async function createPersistedConversation(
   return (await response.json()) as PersistedConversationRecord;
 }
 
+type ChatAttachmentContextResponse = {
+  context: string;
+  sources: unknown[];
+  total: number;
+};
+
+async function retrieveAttachmentContext(
+  conversationId: string,
+  messageId: string,
+  query: string,
+  signal: AbortSignal,
+): Promise<ChatAttachmentContextResponse> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}/messages/${encodeURIComponent(messageId)}/attachment-context`,
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: query.slice(0, 4000),
+      }),
+      signal,
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to retrieve attachment context: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (await response.json()) as ChatAttachmentContextResponse;
+}
+
 async function createPersistedMessage(
   conversationId: string,
   message: {
@@ -2065,12 +2107,24 @@ export default function ChatPage() {
 
     let assistantMessageId: string;
 
+    let persistedUserMessageId: string | null = null;
+
     const attachmentIdsForMessage = attachments
       .filter(
         (attachment) =>
           attachment.status === "indexed" && attachment.message_id === null,
       )
       .map((attachment) => attachment.attachment_id);
+
+    if (routeToGuardian && attachmentIdsForMessage.length > 0) {
+      setError(
+        "Attachments are not yet supported with Guardian. Select Auto or another DAP employee for this message.",
+      );
+
+      setIsLoading(false);
+
+      return;
+    }
 
     try {
       if (!activeConversation.persisted) {
@@ -2159,6 +2213,8 @@ export default function ChatPage() {
           },
         },
       );
+
+      persistedUserMessageId = persistedUserMessage.message_id;
 
       userMessage = persistedMessageToChatMessage(persistedUserMessage);
 
@@ -2268,7 +2324,34 @@ export default function ChatPage() {
     let terminalAgentPatch:
       Parameters<typeof updatePersistedMessage>[2] | null = null;
 
+    let supplementalContext: string | undefined;
+
     try {
+      if (!routeToGuardian && attachmentIdsForMessage.length > 0) {
+        if (!persistedUserMessageId) {
+          throw new Error(
+            "Persisted user message identity is unavailable for attachment context.",
+          );
+        }
+
+        const attachmentContext = await retrieveAttachmentContext(
+          conversationId,
+          persistedUserMessageId,
+          trimmedInput,
+          controller.signal,
+        );
+
+        const contextText = attachmentContext.context.trim();
+
+        if (attachmentContext.total < 1 || !contextText) {
+          throw new Error(
+            "Attached files returned no usable indexed context for this message.",
+          );
+        }
+
+        supplementalContext = contextText;
+      }
+
       if (routeToGuardian) {
         const ownerToken = window.sessionStorage
           .getItem(GUARDIAN_OWNER_TOKEN_KEY)
@@ -2385,6 +2468,7 @@ export default function ChatPage() {
           mode: manualEmployee ? "manual" : "smart",
           agent_id: manualEmployee?.machine_agent_id ?? null,
           objective,
+          supplemental_context: supplementalContext,
           model: selectedModel,
           provider: "auto",
           temperature,

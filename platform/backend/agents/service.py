@@ -30,6 +30,19 @@ class AgentService:
             definition.model_dump() for definition in tool_registry.list_definitions()
         ]
 
+    @staticmethod
+    def _request_for_history(
+        request: AgentRunRequest,
+    ) -> AgentRunRequest:
+        if request.supplemental_context is None:
+            return request
+
+        return request.model_copy(
+            update={
+                "supplemental_context": None,
+            }
+        )
+
     def resolve_request(
         self,
         request: AgentRunRequest,
@@ -38,7 +51,13 @@ class AgentService:
         AgentRoute | None,
     ]:
         if request.mode == "smart":
-            route = agent_router.route(request)
+            routing_request = request.model_copy(
+                update={
+                    "supplemental_context": None,
+                }
+            )
+
+            route = agent_router.route(routing_request)
 
             routing = AgentRoutingMetadata(
                 mode="smart",
@@ -87,12 +106,10 @@ class AgentService:
         try:
             resolved_request, _ = self.resolve_request(request)
 
-            response = await instrumented_agent_executor.run(
-                resolved_request
-            )
+            response = await instrumented_agent_executor.run(resolved_request)
 
             agent_run_history_service.save(
-                request=resolved_request,
+                request=self._request_for_history(resolved_request),
                 response=response,
                 error=(response.answer if response.status == "failed" else None),
             )
@@ -182,14 +199,10 @@ class AgentService:
             )
 
             executor = (
-                instrumented_agent_executor
-                if instrument_runtime
-                else agent_executor
+                instrumented_agent_executor if instrument_runtime else agent_executor
             )
 
-            response = await executor.run(
-                resolved_request
-            )
+            response = await executor.run(resolved_request)
 
             for step in response.steps:
                 yield (
@@ -216,7 +229,7 @@ class AgentService:
             )
 
             agent_run_history_service.save(
-                request=resolved_request,
+                request=self._request_for_history(resolved_request),
                 response=response,
                 error=(response.answer if response.status == "failed" else None),
             )
