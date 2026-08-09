@@ -1182,6 +1182,13 @@ export default function ChatPage() {
           const conversation
           of conversations
         ) {
+          if (
+            !conversation.persisted &&
+            conversation.messages.length === 0
+          ) {
+            continue;
+          }
+
           const label =
             conversationHistoryLabel(
               conversation,
@@ -1757,8 +1764,25 @@ export default function ChatPage() {
   function startNewChat(): void {
     abortControllerRef.current?.abort();
 
+    setHistoryMenuConversationId(
+      null,
+    );
+
+    cancelConversationRename();
+
+    setGuardianUnlockRequired(
+      false,
+    );
+
+    setGuardianTokenInput("");
+
+    setSelectedEmployeeRoleId(
+      "auto",
+    );
+
     if (
       activeConversation &&
+      !activeConversation.persisted &&
       activeConversation
         .messages.length === 0
     ) {
@@ -1814,6 +1838,12 @@ export default function ChatPage() {
     if (!conversation) {
       return;
     }
+
+    setHistoryMenuConversationId(
+      null,
+    );
+
+    cancelConversationRename();
 
     setError(null);
     setUsage(null);
@@ -3523,7 +3553,15 @@ export default function ChatPage() {
               onClick={
                 startNewChat
               }
-              className="flex w-full items-center gap-3 rounded-xl border border-white/[0.08] px-3 py-2.5 text-left text-sm transition hover:bg-white/[0.06]"
+              disabled={
+                isLoading ||
+                historyLoading ||
+                loadingConversationId !==
+                  null ||
+                historyMutationConversationId !==
+                  null
+              }
+              className="flex w-full items-center gap-3 rounded-xl border border-white/[0.08] px-3 py-2.5 text-left text-sm transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             >
               <Plus className="h-4 w-4" />
 
@@ -3541,6 +3579,16 @@ export default function ChatPage() {
             </p>
 
             <div className="space-y-4">
+              {!historyLoading &&
+                groupedConversations.length ===
+                  0 && (
+                  <div className="px-3 py-4">
+                    <p className="text-xs leading-5 text-zinc-600">
+                      Saved conversations will appear here after you send a message.
+                    </p>
+                  </div>
+                )}
+
               {groupedConversations.map(
                 (group) => (
                   <div
