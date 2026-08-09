@@ -132,3 +132,16 @@ class AgentRouterTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_dap_system_health_routes_to_system_agent() -> None:
+    router = AgentRouter()
+
+    route = router.route(
+        AgentRunRequest(
+            mode="smart",
+            objective="Check the DAP system health.",
+        )
+    )
+
+    assert route.agent_id == "system-agent"
+    assert "system health" in route.matched_terms
