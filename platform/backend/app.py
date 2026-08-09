@@ -36,6 +36,9 @@ from gateway.routes import (
 from history.analytics_routes import (
     router as analytics_router,
 )
+from history.chat_routes import (
+    router as chat_history_router,
+)
 from history.orchestration_routes import (
     router as orchestration_history_router,
 )
@@ -165,6 +168,7 @@ app.include_router(agent_truth_router)
 app.include_router(company_router)
 app.include_router(executive_office_router)
 app.include_router(history_router)
+app.include_router(chat_history_router)
 app.include_router(orchestration_history_router)
 app.include_router(analytics_router)
 app.include_router(monitoring_router)

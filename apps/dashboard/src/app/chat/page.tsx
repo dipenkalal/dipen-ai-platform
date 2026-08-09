@@ -51,11 +51,19 @@ type ChatMessage = {
 
   machineAgentId?: string;
   runId?: string;
+  model?: string;
 
   routingConfidence?: number | null;
 
   status?: AssistantStatus;
   activity?: string;
+
+  sources?: unknown[];
+  usage?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 
@@ -63,6 +71,78 @@ type Conversation = {
   id: string;
   title: string;
   messages: ChatMessage[];
+
+  persisted: boolean;
+  hydrated: boolean;
+
+  preferredRoleId?: string | null;
+
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+
+type PersistedChatMessage = {
+  message_id: string;
+  conversation_id: string;
+  sequence: number;
+  role: MessageRole;
+  content: string;
+
+  employee_role_id: string | null;
+  employee_title: string | null;
+  department_name: string | null;
+  machine_agent_id: string | null;
+
+  run_id: string | null;
+  model: string | null;
+  routing_confidence: number | null;
+
+  status: AssistantStatus;
+
+  sources: unknown[];
+  usage: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+
+  created_at: string;
+  updated_at: string;
+};
+
+
+type PersistedConversationSummary = {
+  conversation_id: string;
+  title: string;
+  preferred_role_id: string | null;
+
+  message_count: number;
+  last_message_preview: string;
+
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
+
+
+type PersistedConversationRecord = {
+  conversation_id: string;
+  title: string;
+  preferred_role_id: string | null;
+
+  settings: Record<string, unknown>;
+  messages: PersistedChatMessage[];
+
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+};
+
+
+type PersistedConversationList = {
+  conversations:
+    PersistedConversationSummary[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 
@@ -225,6 +305,9 @@ const INITIAL_CONVERSATION: Conversation = {
   id: "initial",
   title: "New chat",
   messages: [],
+  persisted: false,
+  hydrated: true,
+  preferredRoleId: "auto",
 };
 
 
@@ -292,6 +375,9 @@ function createConversation(): Conversation {
     id: createId(),
     title: "New chat",
     messages: [],
+    persisted: false,
+    hydrated: true,
+    preferredRoleId: "auto",
   };
 }
 
@@ -310,6 +396,380 @@ function createConversationTitle(
   return `${normalized
     .slice(0, 42)
     .trim()}…`;
+}
+
+
+function persistedMessageToChatMessage(
+  message: PersistedChatMessage,
+): ChatMessage {
+  return {
+    id: message.message_id,
+    role: message.role,
+    content: message.content,
+
+    employeeRoleId:
+      message.employee_role_id ??
+      undefined,
+    employeeTitle:
+      message.employee_title ??
+      undefined,
+    departmentName:
+      message.department_name ??
+      undefined,
+
+    machineAgentId:
+      message.machine_agent_id ??
+      undefined,
+    runId:
+      message.run_id ??
+      undefined,
+    model:
+      message.model ??
+      undefined,
+
+    routingConfidence:
+      message.routing_confidence,
+
+    status: message.status,
+
+    activity:
+      message.status === "completed"
+        ? "Completed"
+        : message.status === "cancelled"
+          ? "Cancelled"
+          : message.status === "failed"
+            ? "Failed"
+            : undefined,
+
+    sources: message.sources,
+    usage: message.usage,
+    metadata: message.metadata,
+
+    createdAt: message.created_at,
+    updatedAt: message.updated_at,
+  };
+}
+
+
+function persistedConversationToConversation(
+  conversation: PersistedConversationRecord,
+): Conversation {
+  return {
+    id: conversation.conversation_id,
+    title: conversation.title,
+
+    messages:
+      conversation.messages.map(
+        persistedMessageToChatMessage,
+      ),
+
+    persisted: true,
+    hydrated: true,
+
+    preferredRoleId:
+      conversation.preferred_role_id,
+
+    createdAt:
+      conversation.created_at,
+    updatedAt:
+      conversation.updated_at,
+  };
+}
+
+
+function persistedSummaryToConversation(
+  conversation: PersistedConversationSummary,
+): Conversation {
+  return {
+    id: conversation.conversation_id,
+    title: conversation.title,
+    messages: [],
+
+    persisted: true,
+    hydrated: false,
+
+    preferredRoleId:
+      conversation.preferred_role_id,
+
+    createdAt:
+      conversation.created_at,
+    updatedAt:
+      conversation.updated_at,
+  };
+}
+
+
+async function readApiError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const payload =
+      (await response.json()) as {
+        detail?: string;
+        error?: string;
+      };
+
+    return (
+      payload.detail ??
+      payload.error ??
+      fallback
+    );
+  } catch {
+    return fallback;
+  }
+}
+
+
+async function createPersistedConversation(
+  title: string,
+  preferredRoleId: string,
+  settings: Record<string, unknown>,
+): Promise<PersistedConversationRecord> {
+  const response = await fetch(
+    "/api/chat/conversations",
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        title,
+        preferred_role_id:
+          preferredRoleId,
+        settings,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to create conversation: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedConversationRecord;
+}
+
+
+async function createPersistedMessage(
+  conversationId: string,
+  message: {
+    role: MessageRole;
+    content: string;
+
+    employee_role_id?: string | null;
+    employee_title?: string | null;
+    department_name?: string | null;
+    machine_agent_id?: string | null;
+
+    run_id?: string | null;
+    model?: string | null;
+    routing_confidence?:
+      number | null;
+
+    status?: AssistantStatus;
+
+    sources?: unknown[];
+    usage?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<PersistedChatMessage> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}/messages`,
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify(message),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to save chat message: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedChatMessage;
+}
+
+
+async function updatePersistedMessage(
+  conversationId: string,
+  messageId: string,
+  patch: {
+    content?: string;
+
+    employee_role_id?:
+      string | null;
+    employee_title?:
+      string | null;
+    department_name?:
+      string | null;
+    machine_agent_id?:
+      string | null;
+
+    run_id?: string | null;
+    model?: string | null;
+    routing_confidence?:
+      number | null;
+
+    status?: AssistantStatus;
+
+    sources?: unknown[];
+    usage?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<PersistedChatMessage> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}/messages/${encodeURIComponent(
+      messageId,
+    )}`,
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify(patch),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to update chat message: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedChatMessage;
+}
+
+
+async function updatePersistedConversation(
+  conversationId: string,
+  patch: {
+    title?: string;
+    preferred_role_id?:
+      string | null;
+    settings?:
+      Record<string, unknown>;
+  },
+): Promise<PersistedConversationRecord> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}`,
+    {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify(patch),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to update conversation: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedConversationRecord;
+}
+
+
+async function loadPersistedConversation(
+  conversationId: string,
+): Promise<PersistedConversationRecord> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to load conversation: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedConversationRecord;
+}
+
+
+async function listPersistedConversations(): Promise<
+  PersistedConversationList
+> {
+  const response = await fetch(
+    "/api/chat/conversations?limit=100&offset=0",
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to load conversation history: HTTP ${response.status}`,
+      ),
+    );
+  }
+
+  return (
+    await response.json()
+  ) as PersistedConversationList;
 }
 
 
@@ -499,6 +959,16 @@ export default function ChatPage() {
     registryLoading,
     setRegistryLoading,
   ] = useState(true);
+
+  const [
+    historyLoading,
+    setHistoryLoading,
+  ] = useState(true);
+
+  const [
+    loadingConversationId,
+    setLoadingConversationId,
+  ] = useState<string | null>(null);
 
   const [error, setError] =
     useState<string | null>(null);
@@ -842,6 +1312,105 @@ export default function ChatPage() {
 
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadConversationHistory(): Promise<void> {
+      setHistoryLoading(true);
+
+      try {
+        const history =
+          await listPersistedConversations();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          history.conversations.length === 0
+        ) {
+          setConversations([
+            INITIAL_CONVERSATION,
+          ]);
+
+          setActiveConversationId(
+            INITIAL_CONVERSATION.id,
+          );
+
+          return;
+        }
+
+        const summaries =
+          history.conversations.map(
+            persistedSummaryToConversation,
+          );
+
+        const firstConversation =
+          summaries[0];
+
+        setLoadingConversationId(
+          firstConversation.id,
+        );
+
+        const detail =
+          await loadPersistedConversation(
+            firstConversation.id,
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const loadedConversation =
+          persistedConversationToConversation(
+            detail,
+          );
+
+        setConversations(
+          summaries.map(
+            (conversation) =>
+              conversation.id ===
+              loadedConversation.id
+                ? loadedConversation
+                : conversation,
+          ),
+        );
+
+        setActiveConversationId(
+          loadedConversation.id,
+        );
+
+        setSelectedEmployeeRoleId(
+          loadedConversation
+            .preferredRoleId ??
+            "auto",
+        );
+      } catch (historyError) {
+        if (!cancelled) {
+          setError(
+            historyError instanceof Error
+              ? historyError.message
+              : "Unable to load conversation history",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
+          setLoadingConversationId(
+            null,
+          );
+        }
+      }
+    }
+
+    void loadConversationHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  useEffect(() => {
     messagesEndRef
       .current
       ?.scrollIntoView({
@@ -994,19 +1563,94 @@ export default function ChatPage() {
   }
 
 
-  function selectConversation(
+  async function selectConversation(
     conversationId: string,
-  ): void {
-    if (isLoading) {
+  ): Promise<void> {
+    if (
+      isLoading ||
+      historyLoading ||
+      loadingConversationId
+    ) {
       return;
     }
 
-    setActiveConversationId(
-      conversationId,
-    );
+    const conversation =
+      conversations.find(
+        (candidate) =>
+          candidate.id ===
+          conversationId,
+      );
+
+    if (!conversation) {
+      return;
+    }
 
     setError(null);
     setUsage(null);
+
+    if (
+      conversation.persisted &&
+      !conversation.hydrated
+    ) {
+      setLoadingConversationId(
+        conversationId,
+      );
+
+      try {
+        const detail =
+          await loadPersistedConversation(
+            conversationId,
+          );
+
+        const loadedConversation =
+          persistedConversationToConversation(
+            detail,
+          );
+
+        setConversations(
+          (currentConversations) =>
+            currentConversations.map(
+              (currentConversation) =>
+                currentConversation.id ===
+                conversationId
+                  ? loadedConversation
+                  : currentConversation,
+            ),
+        );
+
+        setActiveConversationId(
+          conversationId,
+        );
+
+        setSelectedEmployeeRoleId(
+          loadedConversation
+            .preferredRoleId ??
+            "auto",
+        );
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load conversation",
+        );
+
+        return;
+      } finally {
+        setLoadingConversationId(
+          null,
+        );
+      }
+    } else {
+      setActiveConversationId(
+        conversationId,
+      );
+
+      setSelectedEmployeeRoleId(
+        conversation
+          .preferredRoleId ??
+          "auto",
+      );
+    }
 
     if (
       window.innerWidth <
@@ -1164,12 +1808,15 @@ export default function ChatPage() {
       !selectedModel ||
       isLoading ||
       registryLoading ||
+      historyLoading ||
+      loadingConversationId !==
+        null ||
       !activeConversation
     ) {
       return;
     }
 
-    const conversationId =
+    let conversationId =
       activeConversation.id;
 
     const manualEmployee =
@@ -1237,86 +1884,283 @@ export default function ChatPage() {
     setGuardianUnlockRequired(false);
     setError(null);
     setUsage(null);
-    setInput("");
     setIsLoading(true);
 
-    const userMessage: ChatMessage = {
-      id: createId(),
-      role: "user",
-      content: trimmedInput,
+    const originalConversationId =
+      activeConversation.id;
+
+    const conversationTitle =
+      activeConversation.title ===
+      "New chat"
+        ? createConversationTitle(
+            trimmedInput,
+          )
+        : activeConversation.title;
+
+    const conversationSettings = {
+      selected_model:
+        selectedModel,
+      temperature,
+      max_tokens:
+        maxTokens,
     };
 
-    const assistantMessageId =
-      createId();
+    let persistedConversation =
+      activeConversation;
 
-    const assistantMessage: ChatMessage = {
-      id:
-        assistantMessageId,
-      role: "assistant",
-      content: "",
-      employeeRoleId:
-        responderRole?.id,
-      employeeTitle:
-        responderRole?.title,
-      departmentName:
+    let userMessage:
+      ChatMessage;
+
+    let assistantMessage:
+      ChatMessage;
+
+    let assistantMessageId:
+      string;
+
+    try {
+      if (
+        !activeConversation.persisted
+      ) {
+        const created =
+          await createPersistedConversation(
+            conversationTitle,
+            selectedEmployeeRoleId,
+            conversationSettings,
+          );
+
+        persistedConversation =
+          persistedConversationToConversation(
+            created,
+          );
+
+        conversationId =
+          persistedConversation.id;
+      } else {
+        const updated =
+          await updatePersistedConversation(
+            conversationId,
+            {
+              title:
+                conversationTitle,
+              preferred_role_id:
+                selectedEmployeeRoleId,
+              settings:
+                conversationSettings,
+            },
+          );
+
+        persistedConversation =
+          persistedConversationToConversation(
+            updated,
+          );
+      }
+
+      setConversations(
+        (
+          currentConversations,
+        ) =>
+          currentConversations.map(
+            (conversation) =>
+              conversation.id ===
+                originalConversationId ||
+              conversation.id ===
+                conversationId
+                ? persistedConversation
+                : conversation,
+          ),
+      );
+
+      setActiveConversationId(
+        conversationId,
+      );
+
+      const persistedUserMessage =
+        await createPersistedMessage(
+          conversationId,
+          {
+            role: "user",
+            content:
+              trimmedInput,
+            status:
+              "completed",
+            metadata: {
+              requested_role_id:
+                selectedEmployeeRoleId,
+            },
+          },
+        );
+
+      const departmentName =
         responderRole
           ?.department_id
           ? departmentNameById.get(
               responderRole
                 .department_id,
-            )
-          : undefined,
-      machineAgentId:
-        routeToGuardian
-          ? undefined
-          : manualEmployee
-              ?.machine_agent_id ??
-            undefined,
-      status:
-        responderRole
-          ? "running"
-          : "routing",
-      activity:
-        routeToGuardian
-          ? "Consulting Guardian…"
-          : manualEmployee
-            ? `Starting ${manualEmployee.title}…`
-            : "Selecting the best DAP employee…",
-    };
+            ) ?? null
+          : routeToGuardian
+            ? "Executive Office"
+            : null;
 
-    const nextMessages = [
-      ...activeConversation
-        .messages,
-      userMessage,
-    ];
+      const persistedAssistantMessage =
+        await createPersistedMessage(
+          conversationId,
+          {
+            role:
+              "assistant",
+            content: "",
 
-    setConversations(
-      (
-        currentConversations,
-      ) =>
-        currentConversations.map(
-          (conversation) =>
-            conversation.id ===
-            conversationId
-              ? {
-                  ...conversation,
-                  title:
-                    conversation
-                      .title ===
-                    "New chat"
-                      ? createConversationTitle(
-                          trimmedInput,
-                        )
-                      : conversation
-                          .title,
-                  messages: [
-                    ...nextMessages,
-                    assistantMessage,
-                  ],
-                }
-              : conversation,
+            employee_role_id:
+              responderRole?.id ??
+              null,
+            employee_title:
+              responderRole?.title ??
+              null,
+            department_name:
+              departmentName,
+
+            machine_agent_id:
+              routeToGuardian
+                ? null
+                : manualEmployee
+                    ?.machine_agent_id ??
+                  null,
+
+            model:
+              routeToGuardian
+                ? null
+                : selectedModel,
+
+            routing_confidence:
+              null,
+
+            status:
+              responderRole
+                ? "running"
+                : "routing",
+
+            metadata: {
+              lane:
+                routeToGuardian
+                  ? "guardian"
+                  : "agent-chat",
+              requested_role_id:
+                selectedEmployeeRoleId,
+            },
+          },
+        );
+
+      userMessage =
+        persistedMessageToChatMessage(
+          persistedUserMessage,
+        );
+
+      assistantMessage = {
+        ...persistedMessageToChatMessage(
+          persistedAssistantMessage,
         ),
-    );
+
+        activity:
+          routeToGuardian
+            ? "Consulting Guardian…"
+            : manualEmployee
+              ? `Starting ${manualEmployee.title}…`
+              : "Selecting the best DAP employee…",
+      };
+
+      assistantMessageId =
+        persistedAssistantMessage
+          .message_id;
+
+      const nextMessages = [
+        ...persistedConversation
+          .messages,
+        userMessage,
+      ];
+
+      setConversations(
+        (
+          currentConversations,
+        ) =>
+          currentConversations.map(
+            (conversation) =>
+              conversation.id ===
+                originalConversationId ||
+              conversation.id ===
+                conversationId
+                ? {
+                    ...persistedConversation,
+
+                    id:
+                      conversationId,
+
+                    title:
+                      conversationTitle,
+
+                    persisted:
+                      true,
+
+                    hydrated:
+                      true,
+
+                    preferredRoleId:
+                      selectedEmployeeRoleId,
+
+                    messages: [
+                      ...nextMessages,
+                      assistantMessage,
+                    ],
+                  }
+                : conversation,
+          ),
+      );
+
+      setInput("");
+    } catch (
+      persistenceError
+    ) {
+      setError(
+        persistenceError instanceof
+          Error
+          ? persistenceError
+              .message
+          : "Unable to save chat before sending.",
+      );
+
+      setIsLoading(false);
+
+      return;
+    }
+
+    const persistTerminalAssistant =
+      async (
+        patch: Parameters<
+          typeof updatePersistedMessage
+        >[2],
+      ): Promise<void> => {
+        try {
+          await updatePersistedMessage(
+            conversationId,
+            assistantMessageId,
+            patch,
+          );
+        } catch (
+          terminalPersistenceError
+        ) {
+          const persistenceMessage =
+            terminalPersistenceError
+              instanceof Error
+              ? terminalPersistenceError
+                  .message
+              : "Unable to save final assistant state.";
+
+          setError(
+            (currentError) =>
+              currentError
+                ? `${currentError} · ${persistenceMessage}`
+                : persistenceMessage,
+          );
+        }
+      };
 
     const objective =
       !routeToGuardian &&
@@ -1334,6 +2178,45 @@ export default function ChatPage() {
 
     abortControllerRef.current =
       controller;
+
+    let latestAssistantContent = "";
+
+    let latestEmployeeRoleId =
+      responderRole?.id ??
+      null;
+
+    let latestEmployeeTitle =
+      responderRole?.title ??
+      null;
+
+    let latestDepartmentName =
+      responderRole
+        ?.department_id
+        ? departmentNameById.get(
+            responderRole
+              .department_id,
+          ) ?? null
+        : routeToGuardian
+          ? "Executive Office"
+          : null;
+
+    let latestMachineAgentId =
+      routeToGuardian
+        ? null
+        : manualEmployee
+            ?.machine_agent_id ??
+          null;
+
+    let latestRoutingConfidence:
+      number | null = null;
+
+    let latestSources:
+      unknown[] = [];
+
+    let terminalAgentPatch:
+      Parameters<
+        typeof updatePersistedMessage
+      >[2] | null = null;
 
     try {
       if (routeToGuardian) {
@@ -1423,24 +2306,50 @@ export default function ChatPage() {
           );
         }
 
+        const guardianDepartment =
+          guardianRole
+            ?.department_id
+            ? departmentNameById.get(
+                guardianRole
+                  .department_id,
+              ) ??
+              "Executive Office"
+            : "Executive Office";
+
+        latestAssistantContent =
+          payload.answer;
+
+        latestEmployeeRoleId =
+          guardianRole?.id ??
+          null;
+
+        latestEmployeeTitle =
+          guardianRole?.title ??
+          "Chief Executive Officer";
+
+        latestDepartmentName =
+          guardianDepartment;
+
+        latestMachineAgentId =
+          null;
+
         updateAssistantMessage(
           conversationId,
           assistantMessageId,
           {
             employeeRoleId:
-              guardianRole?.id,
+              latestEmployeeRoleId ??
+              undefined,
             employeeTitle:
-              guardianRole?.title ??
-              "Chief Executive Officer",
+              latestEmployeeTitle ??
+              undefined,
             departmentName:
-              guardianRole
-                ?.department_id
-                ? departmentNameById.get(
-                    guardianRole
-                      .department_id,
-                  )
-                : "Executive Office",
+              latestDepartmentName ??
+              undefined,
             machineAgentId:
+              undefined,
+            model:
+              payload.model ??
               undefined,
             content:
               payload.answer,
@@ -1450,6 +2359,48 @@ export default function ChatPage() {
               payload.intent
                 ? `Guardian · ${payload.intent}`
                 : "Guardian completed",
+          },
+        );
+
+        await persistTerminalAssistant(
+          {
+            content:
+              payload.answer,
+
+            employee_role_id:
+              latestEmployeeRoleId,
+            employee_title:
+              latestEmployeeTitle,
+            department_name:
+              latestDepartmentName,
+            machine_agent_id:
+              null,
+
+            model:
+              payload.model ??
+              null,
+
+            routing_confidence:
+              null,
+
+            status:
+              "completed",
+
+            metadata: {
+              lane:
+                "guardian",
+              requested_role_id:
+                selectedEmployeeRoleId,
+              guardian_intent:
+                payload.intent ??
+                null,
+              guardian_source:
+                payload.source ??
+                null,
+              guardian_fallback:
+                payload.fallback ??
+                null,
+            },
           },
         );
 
@@ -1524,6 +2475,24 @@ export default function ChatPage() {
               streamEvent.agent_id,
             );
 
+          latestEmployeeRoleId =
+            identity.employeeRoleId ??
+            null;
+
+          latestEmployeeTitle =
+            identity.employeeTitle ??
+            null;
+
+          latestDepartmentName =
+            identity.departmentName ??
+            null;
+
+          latestMachineAgentId =
+            identity.machineAgentId;
+
+          latestRoutingConfidence =
+            streamEvent.confidence;
+
           updateAssistantMessage(
             conversationId,
             assistantMessageId,
@@ -1552,6 +2521,21 @@ export default function ChatPage() {
             employeeIdentity(
               streamEvent.agent_id,
             );
+
+          latestEmployeeRoleId =
+            identity.employeeRoleId ??
+            latestEmployeeRoleId;
+
+          latestEmployeeTitle =
+            identity.employeeTitle ??
+            latestEmployeeTitle;
+
+          latestDepartmentName =
+            identity.departmentName ??
+            latestDepartmentName;
+
+          latestMachineAgentId =
+            identity.machineAgentId;
 
           updateAssistantMessage(
             conversationId,
@@ -1589,6 +2573,16 @@ export default function ChatPage() {
           streamEvent.type ===
           "answer"
         ) {
+          latestAssistantContent =
+            streamEvent.content;
+
+          if (
+            streamEvent.sources
+          ) {
+            latestSources =
+              streamEvent.sources;
+          }
+
           updateAssistantMessage(
             conversationId,
             assistantMessageId,
@@ -1615,40 +2609,133 @@ export default function ChatPage() {
                 .run.agent_id,
             );
 
+          const finalStatus:
+            AssistantStatus =
+              streamEvent
+                .run.status ===
+              "completed"
+                ? "completed"
+                : streamEvent
+                      .run
+                      .status ===
+                    "cancelled"
+                  ? "cancelled"
+                  : streamEvent
+                        .run
+                        .status ===
+                      "failed"
+                    ? "failed"
+                    : "running";
+
+          latestAssistantContent =
+            streamEvent
+              .run.answer;
+
+          latestEmployeeRoleId =
+            identity.employeeRoleId ??
+            null;
+
+          latestEmployeeTitle =
+            identity.employeeTitle ??
+            null;
+
+          latestDepartmentName =
+            identity.departmentName ??
+            null;
+
+          latestMachineAgentId =
+            identity.machineAgentId;
+
+          const safeSources =
+            latestSources.filter(
+              (
+                source,
+              ): source is Record<
+                string,
+                unknown
+              > =>
+                typeof source ===
+                  "object" &&
+                source !== null &&
+                !Array.isArray(
+                  source,
+                ),
+            );
+
+          terminalAgentPatch = {
+            content:
+              streamEvent
+                .run.answer,
+
+            employee_role_id:
+              latestEmployeeRoleId,
+            employee_title:
+              latestEmployeeTitle,
+            department_name:
+              latestDepartmentName,
+            machine_agent_id:
+              latestMachineAgentId,
+
+            run_id:
+              streamEvent
+                .run.run_id,
+
+            model:
+              selectedModel,
+
+            routing_confidence:
+              latestRoutingConfidence,
+
+            status:
+              finalStatus,
+
+            sources:
+              safeSources,
+
+            usage: {
+              ...streamEvent
+                .run.usage,
+            },
+
+            metadata: {
+              lane:
+                "agent-chat",
+              requested_role_id:
+                selectedEmployeeRoleId,
+              final_agent_id:
+                streamEvent
+                  .run.agent_id,
+            },
+          };
+
           updateAssistantMessage(
             conversationId,
             assistantMessageId,
             {
               ...identity,
+
               runId:
                 streamEvent
                   .run.run_id,
+
+              model:
+                selectedModel,
+
               content:
                 streamEvent
                   .run.answer,
+
+              routingConfidence:
+                latestRoutingConfidence,
+
               status:
-                streamEvent
-                  .run.status ===
-                "completed"
-                  ? "completed"
-                  : streamEvent
-                        .run
-                        .status ===
-                      "cancelled"
-                    ? "cancelled"
-                    : streamEvent
-                          .run
-                          .status ===
-                        "failed"
-                      ? "failed"
-                      : "running",
+                finalStatus,
+
               activity:
-                streamEvent
-                  .run.status ===
+                finalStatus ===
                 "completed"
                   ? "Completed"
-                  : streamEvent
-                      .run.status,
+                  : finalStatus,
             },
           );
 
@@ -1751,6 +2838,14 @@ export default function ChatPage() {
           }
         }
       }
+      if (
+        terminalAgentPatch
+      ) {
+        await persistTerminalAssistant(
+          terminalAgentPatch,
+        );
+      }
+
     } catch (requestError) {
       if (
         requestError instanceof
@@ -1772,6 +2867,44 @@ export default function ChatPage() {
               "Stopped",
           },
         );
+
+        await persistTerminalAssistant(
+          {
+            content:
+              latestAssistantContent,
+
+            employee_role_id:
+              latestEmployeeRoleId,
+            employee_title:
+              latestEmployeeTitle,
+            department_name:
+              latestDepartmentName,
+            machine_agent_id:
+              latestMachineAgentId,
+
+            model:
+              routeToGuardian
+                ? null
+                : selectedModel,
+
+            routing_confidence:
+              latestRoutingConfidence,
+
+            status:
+              "cancelled",
+
+            metadata: {
+              lane:
+                routeToGuardian
+                  ? "guardian"
+                  : "agent-chat",
+              requested_role_id:
+                selectedEmployeeRoleId,
+              stopped_by_owner:
+                true,
+            },
+          },
+        );
       } else {
         const errorMessage =
           requestError instanceof
@@ -1782,16 +2915,57 @@ export default function ChatPage() {
 
         setError(errorMessage);
 
+        const failedContent =
+          latestAssistantContent ||
+          "I could not complete this response.";
+
         updateAssistantMessage(
           conversationId,
           assistantMessageId,
-          (message) => ({
+          {
             status: "failed",
             activity: "Failed",
             content:
-              message.content ||
-              "I could not complete this response.",
-          }),
+              failedContent,
+          },
+        );
+
+        await persistTerminalAssistant(
+          {
+            content:
+              failedContent,
+
+            employee_role_id:
+              latestEmployeeRoleId,
+            employee_title:
+              latestEmployeeTitle,
+            department_name:
+              latestDepartmentName,
+            machine_agent_id:
+              latestMachineAgentId,
+
+            model:
+              routeToGuardian
+                ? null
+                : selectedModel,
+
+            routing_confidence:
+              latestRoutingConfidence,
+
+            status:
+              "failed",
+
+            metadata: {
+              lane:
+                routeToGuardian
+                  ? "guardian"
+                  : "agent-chat",
+              requested_role_id:
+                selectedEmployeeRoleId,
+              error:
+                errorMessage,
+            },
+          },
         );
       }
     } finally {
@@ -1872,7 +3046,9 @@ export default function ChatPage() {
 
           <div className="flex-1 overflow-y-auto px-2">
             <p className="px-3 pb-2 pt-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-600">
-              This session
+              {historyLoading
+                ? "Loading history…"
+                : "History"}
             </p>
 
             <div className="space-y-1">
@@ -1891,14 +3067,17 @@ export default function ChatPage() {
                       }
                       type="button"
                       disabled={
-                        isLoading
+                        isLoading ||
+                        historyLoading ||
+                        loadingConversationId !==
+                          null
                       }
-                      onClick={() =>
-                        selectConversation(
+                      onClick={() => {
+                        void selectConversation(
                           conversation
                             .id,
-                        )
-                      }
+                        );
+                      }}
                       className={[
                         "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition",
                         active
