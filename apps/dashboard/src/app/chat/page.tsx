@@ -17,12 +17,16 @@ import {
   ArrowLeft,
   Bot,
   Building2,
+  Check,
   Menu,
   MessageSquare,
+  MoreHorizontal,
+  Pencil,
   Plus,
   Send,
   Settings2,
   Square,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -79,6 +83,17 @@ type Conversation = {
 
   createdAt?: string;
   updatedAt?: string;
+};
+
+
+type ConversationHistoryGroup = {
+  label:
+    | "Today"
+    | "Yesterday"
+    | "Previous 7 Days"
+    | "Older";
+
+  conversations: Conversation[];
 };
 
 
@@ -379,6 +394,61 @@ function createConversation(): Conversation {
     hydrated: true,
     preferredRoleId: "auto",
   };
+}
+
+
+function conversationHistoryLabel(
+  conversation: Conversation,
+  now = new Date(),
+): ConversationHistoryGroup["label"] {
+  if (!conversation.updatedAt) {
+    return "Today";
+  }
+
+  const updated =
+    new Date(conversation.updatedAt);
+
+  if (
+    Number.isNaN(
+      updated.getTime(),
+    )
+  ) {
+    return "Older";
+  }
+
+  const todayDay = Date.UTC(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+
+  const updatedDay = Date.UTC(
+    updated.getFullYear(),
+    updated.getMonth(),
+    updated.getDate(),
+  );
+
+  const daysAgo = Math.floor(
+    (
+      todayDay -
+      updatedDay
+    ) /
+      86_400_000,
+  );
+
+  if (daysAgo <= 0) {
+    return "Today";
+  }
+
+  if (daysAgo === 1) {
+    return "Yesterday";
+  }
+
+  if (daysAgo <= 7) {
+    return "Previous 7 Days";
+  }
+
+  return "Older";
 }
 
 
@@ -715,6 +785,33 @@ async function updatePersistedConversation(
 }
 
 
+async function deletePersistedConversation(
+  conversationId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/chat/conversations/${encodeURIComponent(
+      conversationId,
+    )}`,
+    {
+      method: "DELETE",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(
+        response,
+        `Unable to delete conversation: HTTP ${response.status}`,
+      ),
+    );
+  }
+}
+
+
 async function loadPersistedConversation(
   conversationId: string,
 ): Promise<PersistedConversationRecord> {
@@ -1003,12 +1100,37 @@ export default function ChatPage() {
     setSettingsOpen,
   ] = useState(false);
 
+  const [
+    historyMenuConversationId,
+    setHistoryMenuConversationId,
+  ] = useState<string | null>(null);
+
+  const [
+    renamingConversationId,
+    setRenamingConversationId,
+  ] = useState<string | null>(null);
+
+  const [
+    renameConversationValue,
+    setRenameConversationValue,
+  ] = useState("");
+
+  const [
+    historyMutationConversationId,
+    setHistoryMutationConversationId,
+  ] = useState<string | null>(null);
+
   const abortControllerRef =
     useRef<AbortController | null>(
       null,
     );
 
   const messagesEndRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  const historyMenuRef =
     useRef<HTMLDivElement | null>(
       null,
     );
@@ -1035,6 +1157,69 @@ export default function ChatPage() {
         ?.messages ?? [],
     [activeConversation],
   );
+
+  const groupedConversations =
+    useMemo<
+      ConversationHistoryGroup[]
+    >(
+      () => {
+        const labels:
+          ConversationHistoryGroup["label"][] =
+            [
+              "Today",
+              "Yesterday",
+              "Previous 7 Days",
+              "Older",
+            ];
+
+        const buckets =
+          new Map<
+            ConversationHistoryGroup["label"],
+            Conversation[]
+          >();
+
+        for (
+          const conversation
+          of conversations
+        ) {
+          const label =
+            conversationHistoryLabel(
+              conversation,
+            );
+
+          const current =
+            buckets.get(label) ??
+            [];
+
+          current.push(
+            conversation,
+          );
+
+          buckets.set(
+            label,
+            current,
+          );
+        }
+
+        return labels
+          .map(
+            (label) => ({
+              label,
+              conversations:
+                buckets.get(
+                  label,
+                ) ?? [],
+            }),
+          )
+          .filter(
+            (group) =>
+              group
+                .conversations
+                .length > 0,
+          );
+      },
+      [conversations],
+    );
 
 
   const enabledAgentIds =
@@ -1411,6 +1596,51 @@ export default function ChatPage() {
 
 
   useEffect(() => {
+    if (!historyMenuConversationId) {
+      return;
+    }
+
+    function handlePointerDown(
+      event: PointerEvent,
+    ): void {
+      const target =
+        event.target;
+
+      if (
+        !(target instanceof Node)
+      ) {
+        return;
+      }
+
+      if (
+        historyMenuRef.current
+          ?.contains(target)
+      ) {
+        return;
+      }
+
+      setHistoryMenuConversationId(
+        null,
+      );
+    }
+
+    window.addEventListener(
+      "pointerdown",
+      handlePointerDown,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pointerdown",
+        handlePointerDown,
+      );
+    };
+  }, [
+    historyMenuConversationId,
+  ]);
+
+
+  useEffect(() => {
     messagesEndRef
       .current
       ?.scrollIntoView({
@@ -1657,6 +1887,265 @@ export default function ChatPage() {
       768
     ) {
       setSidebarOpen(false);
+    }
+  }
+
+
+  function startConversationRename(
+    conversation: Conversation,
+  ): void {
+    setHistoryMenuConversationId(
+      null,
+    );
+
+    setRenamingConversationId(
+      conversation.id,
+    );
+
+    setRenameConversationValue(
+      conversation.title,
+    );
+  }
+
+
+  function cancelConversationRename(): void {
+    setRenamingConversationId(
+      null,
+    );
+
+    setRenameConversationValue(
+      "",
+    );
+  }
+
+
+  async function saveConversationRename(
+    conversationId: string,
+  ): Promise<void> {
+    const title =
+      renameConversationValue
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (!title) {
+      setError(
+        "Conversation title cannot be empty.",
+      );
+
+      return;
+    }
+
+    const conversation =
+      conversations.find(
+        (candidate) =>
+          candidate.id ===
+          conversationId,
+      );
+
+    if (!conversation) {
+      cancelConversationRename();
+      return;
+    }
+
+    setHistoryMutationConversationId(
+      conversationId,
+    );
+
+    setError(null);
+
+    try {
+      if (
+        conversation.persisted
+      ) {
+        const updated =
+          await updatePersistedConversation(
+            conversationId,
+            {
+              title,
+            },
+          );
+
+        const loaded =
+          persistedConversationToConversation(
+            updated,
+          );
+
+        setConversations(
+          (currentConversations) =>
+            currentConversations.map(
+              (currentConversation) =>
+                currentConversation.id ===
+                conversationId
+                  ? loaded
+                  : currentConversation,
+            ),
+        );
+      } else {
+        setConversations(
+          (currentConversations) =>
+            currentConversations.map(
+              (currentConversation) =>
+                currentConversation.id ===
+                conversationId
+                  ? {
+                      ...currentConversation,
+                      title,
+                    }
+                  : currentConversation,
+            ),
+        );
+      }
+
+      cancelConversationRename();
+    } catch (renameError) {
+      setError(
+        renameError instanceof Error
+          ? renameError.message
+          : "Unable to rename conversation.",
+      );
+    } finally {
+      setHistoryMutationConversationId(
+        null,
+      );
+    }
+  }
+
+
+  async function deleteConversationFromHistory(
+    conversationId: string,
+  ): Promise<void> {
+    const conversation =
+      conversations.find(
+        (candidate) =>
+          candidate.id ===
+          conversationId,
+      );
+
+    if (!conversation) {
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        `Delete "${conversation.title}"? This conversation and its messages will be permanently removed.`,
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setHistoryMenuConversationId(
+      null,
+    );
+
+    setHistoryMutationConversationId(
+      conversationId,
+    );
+
+    setError(null);
+
+    try {
+      if (
+        conversation.persisted
+      ) {
+        await deletePersistedConversation(
+          conversationId,
+        );
+      }
+
+      let remaining =
+        conversations.filter(
+          (candidate) =>
+            candidate.id !==
+            conversationId,
+        );
+
+      const deletingActive =
+        conversationId ===
+        activeConversationId;
+
+      if (!deletingActive) {
+        setConversations(
+          remaining,
+        );
+
+        return;
+      }
+
+      if (remaining.length === 0) {
+        const draft =
+          createConversation();
+
+        setConversations([
+          draft,
+        ]);
+
+        setActiveConversationId(
+          draft.id,
+        );
+
+        setSelectedEmployeeRoleId(
+          "auto",
+        );
+
+        setUsage(null);
+        setInput("");
+
+        return;
+      }
+
+      let fallback =
+        remaining[0];
+
+      if (
+        fallback.persisted &&
+        !fallback.hydrated
+      ) {
+        const detail =
+          await loadPersistedConversation(
+            fallback.id,
+          );
+
+        fallback =
+          persistedConversationToConversation(
+            detail,
+          );
+
+        remaining =
+          remaining.map(
+            (candidate) =>
+              candidate.id ===
+              fallback.id
+                ? fallback
+                : candidate,
+          );
+      }
+
+      setConversations(
+        remaining,
+      );
+
+      setActiveConversationId(
+        fallback.id,
+      );
+
+      setSelectedEmployeeRoleId(
+        fallback.preferredRoleId ??
+        "auto",
+      );
+
+      setUsage(null);
+      setInput("");
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete conversation.",
+      );
+    } finally {
+      setHistoryMutationConversationId(
+        null,
+      );
     }
   }
 
@@ -3051,54 +3540,235 @@ export default function ChatPage() {
                 : "History"}
             </p>
 
-            <div className="space-y-1">
-              {conversations.map(
-                (
-                  conversation,
-                ) => {
-                  const active =
-                    conversation.id ===
-                    activeConversationId;
+            <div className="space-y-4">
+              {groupedConversations.map(
+                (group) => (
+                  <div
+                    key={
+                      group.label
+                    }
+                  >
+                    <p className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-600">
+                      {group.label}
+                    </p>
 
-                  return (
-                    <button
-                      key={
-                        conversation.id
-                      }
-                      type="button"
-                      disabled={
-                        isLoading ||
-                        historyLoading ||
-                        loadingConversationId !==
-                          null
-                      }
-                      onClick={() => {
-                        void selectConversation(
-                          conversation
-                            .id,
-                        );
-                      }}
-                      className={[
-                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition",
-                        active
-                          ? "bg-white/[0.08] text-white"
-                          : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100",
-                        isLoading
-                          ? "cursor-default"
-                          : "",
-                      ].join(" ")}
-                    >
-                      <MessageSquare className="h-4 w-4 shrink-0" />
+                    <div className="space-y-1">
+                      {group.conversations.map(
+                        (
+                          conversation,
+                        ) => {
+                          const active =
+                            conversation.id ===
+                            activeConversationId;
 
-                      <span className="truncate">
-                        {
-                          conversation
-                            .title
-                        }
-                      </span>
-                    </button>
-                  );
-                },
+                          const menuOpen =
+                            historyMenuConversationId ===
+                            conversation.id;
+
+                          const renaming =
+                            renamingConversationId ===
+                            conversation.id;
+
+                          const mutating =
+                            historyMutationConversationId ===
+                            conversation.id;
+
+                          const disabled =
+                            isLoading ||
+                            historyLoading ||
+                            loadingConversationId !==
+                              null ||
+                            historyMutationConversationId !==
+                              null;
+
+                          return (
+                            <div
+                              key={
+                                conversation.id
+                              }
+                              ref={
+                                menuOpen
+                                  ? historyMenuRef
+                                  : undefined
+                              }
+                              className={[
+                                "group relative flex items-center rounded-lg transition",
+                                active
+                                  ? "bg-white/[0.08] text-white"
+                                  : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100",
+                              ].join(
+                                " ",
+                              )}
+                            >
+                              {renaming ? (
+                                <div className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5">
+                                  <input
+                                    autoFocus
+                                    value={
+                                      renameConversationValue
+                                    }
+                                    disabled={
+                                      mutating
+                                    }
+                                    onChange={(
+                                      event,
+                                    ) =>
+                                      setRenameConversationValue(
+                                        event
+                                          .target
+                                          .value,
+                                      )
+                                    }
+                                    onKeyDown={(
+                                      event,
+                                    ) => {
+                                      if (
+                                        event.key ===
+                                        "Enter"
+                                      ) {
+                                        event.preventDefault();
+
+                                        void saveConversationRename(
+                                          conversation.id,
+                                        );
+                                      }
+
+                                      if (
+                                        event.key ===
+                                        "Escape"
+                                      ) {
+                                        cancelConversationRename();
+                                      }
+                                    }}
+                                    className="min-w-0 flex-1 rounded-md border border-white/[0.12] bg-[#101014] px-2 py-1.5 text-xs text-white outline-none focus:border-white/25"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    aria-label="Save conversation name"
+                                    disabled={
+                                      mutating
+                                    }
+                                    onClick={() => {
+                                      void saveConversationRename(
+                                        conversation.id,
+                                      );
+                                    }}
+                                    className="rounded-md p-1.5 text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-40"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    aria-label="Cancel rename"
+                                    disabled={
+                                      mutating
+                                    }
+                                    onClick={
+                                      cancelConversationRename
+                                    }
+                                    className="rounded-md p-1.5 text-zinc-500 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-40"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      disabled
+                                    }
+                                    onClick={() => {
+                                      void selectConversation(
+                                        conversation.id,
+                                      );
+                                    }}
+                                    className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left text-sm disabled:cursor-default"
+                                  >
+                                    <MessageSquare className="h-4 w-4 shrink-0" />
+
+                                    <span className="truncate">
+                                      {
+                                        conversation.title
+                                      }
+                                    </span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    aria-label={`Conversation options for ${conversation.title}`}
+                                    disabled={
+                                      disabled
+                                    }
+                                    onClick={(
+                                      event,
+                                    ) => {
+                                      event.stopPropagation();
+
+                                      setHistoryMenuConversationId(
+                                        (
+                                          current,
+                                        ) =>
+                                          current ===
+                                          conversation.id
+                                            ? null
+                                            : conversation.id,
+                                      );
+                                    }}
+                                    className={[
+                                      "mr-1 rounded-md p-1.5 transition",
+                                      menuOpen
+                                        ? "bg-white/[0.08] text-white"
+                                        : "text-zinc-600 opacity-0 hover:bg-white/[0.07] hover:text-white group-hover:opacity-100 focus:opacity-100",
+                                    ].join(
+                                      " ",
+                                    )}
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+
+                                  {menuOpen && (
+                                    <div className="absolute right-1 top-10 z-50 w-36 overflow-hidden rounded-lg border border-white/[0.1] bg-[#222225] p-1 shadow-2xl">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          startConversationRename(
+                                            conversation,
+                                          )
+                                        }
+                                        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/[0.07] hover:text-white"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+
+                                        Rename
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void deleteConversationFromHistory(
+                                            conversation.id,
+                                          );
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+
+                                        Delete
+                                      </button>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                ),
               )}
             </div>
           </div>
