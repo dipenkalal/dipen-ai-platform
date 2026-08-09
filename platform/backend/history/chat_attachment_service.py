@@ -1,0 +1,282 @@
+from hashlib import sha256
+from typing import Protocol
+
+from fastapi import (
+    HTTPException,
+    UploadFile,
+)
+from pydantic import ValidationError
+
+from history.chat_attachment_repository import (
+    ChatAttachmentRepository,
+    chat_attachment_repository,
+)
+from history.chat_attachment_schemas import (
+    ChatAttachmentRecord,
+    CreatePendingChatAttachmentInput,
+)
+from knowledge.schemas import (
+    DocumentDeleteResponse,
+    DocumentUploadResponse,
+)
+from knowledge.services.knowledge import (
+    knowledge_service,
+)
+
+
+class KnowledgeAttachmentLifecycle(
+    Protocol
+):
+    async def upload_document(
+        self,
+        upload: UploadFile,
+    ) -> DocumentUploadResponse:
+        ...
+
+    async def delete_document(
+        self,
+        document_id: str,
+    ) -> DocumentDeleteResponse:
+        ...
+
+
+class ChatAttachmentService:
+    def __init__(
+        self,
+        repository: ChatAttachmentRepository,
+        knowledge: KnowledgeAttachmentLifecycle,
+    ) -> None:
+        self.repository = repository
+        self.knowledge = knowledge
+
+    async def upload_attachment(
+        self,
+        conversation_id: str,
+        upload: UploadFile,
+    ) -> ChatAttachmentRecord:
+        filename = (
+            upload.filename
+            or "document"
+        )
+
+        content_type = (
+            upload.content_type
+            or "application/octet-stream"
+        )
+
+        try:
+            content = await upload.read()
+            await upload.seek(0)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Unable to read the "
+                    f"uploaded file: {exc}"
+                ),
+            ) from exc
+
+        digest = sha256(
+            content
+        ).hexdigest()
+
+        try:
+            pending_input = (
+                CreatePendingChatAttachmentInput(
+                    filename=filename,
+                    content_type=content_type,
+                    size_bytes=len(content),
+                    sha256=digest,
+                )
+            )
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Invalid attachment metadata"
+                ),
+            ) from exc
+
+        attachment = (
+            self.repository.create_pending(
+                conversation_id,
+                pending_input,
+            )
+        )
+
+        if attachment is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Chat conversation "
+                    f"'{conversation_id}' "
+                    "was not found."
+                ),
+            )
+
+        try:
+            uploaded = (
+                await self.knowledge
+                .upload_document(upload)
+            )
+        except HTTPException as exc:
+            self.repository.mark_failed(
+                attachment.attachment_id,
+                self._exception_message(
+                    exc
+                ),
+            )
+
+            raise
+        except Exception as exc:
+            self.repository.mark_failed(
+                attachment.attachment_id,
+                self._exception_message(
+                    exc
+                ),
+            )
+
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Attachment ingestion "
+                    f"failed: {exc}"
+                ),
+            ) from exc
+
+        document = uploaded.document
+
+        try:
+            indexed = (
+                self.repository.mark_indexed(
+                    attachment.attachment_id,
+                    knowledge_document_id=(
+                        document.document_id
+                    ),
+                    chunk_count=(
+                        document.chunk_count
+                    ),
+                )
+            )
+        except Exception as exc:
+            await self._compensate_after_indexing(
+                attachment_id=(
+                    attachment.attachment_id
+                ),
+                knowledge_document_id=(
+                    document.document_id
+                ),
+                cause=exc,
+            )
+
+            raise AssertionError(
+                "unreachable"
+            ) from exc
+
+        if indexed is None:
+            await self._compensate_after_indexing(
+                attachment_id=(
+                    attachment.attachment_id
+                ),
+                knowledge_document_id=(
+                    document.document_id
+                ),
+                cause=RuntimeError(
+                    "Attachment metadata "
+                    "could not transition "
+                    "from pending to indexed"
+                ),
+            )
+
+            raise AssertionError(
+                "unreachable"
+            )
+
+        return indexed
+
+    async def _compensate_after_indexing(
+        self,
+        *,
+        attachment_id: str,
+        knowledge_document_id: str,
+        cause: Exception,
+    ) -> None:
+        compensation_error: (
+            Exception | None
+        ) = None
+
+        try:
+            await self.knowledge.delete_document(
+                knowledge_document_id
+            )
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                compensation_error = exc
+        except Exception as exc:  # noqa: BLE001
+            # Compensation is the final recovery boundary.
+            # Preserve unexpected cleanup failures so the
+            # attachment cannot appear successfully cleaned.
+            compensation_error = exc
+
+        error_message = (
+            "Attachment metadata "
+            "finalization failed: "
+            f"{cause}"
+        )
+
+        if compensation_error is not None:
+            error_message += (
+                "; Knowledge cleanup "
+                "also failed: "
+                f"{compensation_error}"
+            )
+
+        self.repository.mark_failed(
+            attachment_id,
+            error_message,
+        )
+
+        if compensation_error is not None:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Attachment metadata "
+                    "finalization failed and "
+                    "Knowledge cleanup could "
+                    "not be completed."
+                ),
+            ) from compensation_error
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Attachment metadata "
+                "finalization failed. "
+                "The indexed Knowledge "
+                "document was cleaned up."
+            ),
+        ) from cause
+
+    @staticmethod
+    def _exception_message(
+        exc: Exception,
+    ) -> str:
+        if isinstance(
+            exc,
+            HTTPException,
+        ):
+            return str(
+                exc.detail
+            )
+
+        return str(exc)
+
+
+chat_attachment_service = (
+    ChatAttachmentService(
+        repository=(
+            chat_attachment_repository
+        ),
+        knowledge=knowledge_service,
+    )
+)
