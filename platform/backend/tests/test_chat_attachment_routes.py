@@ -212,21 +212,21 @@ def test_upload_list_and_delete_attachment(
     )
 
     listing = client.get(
-        
+
             "/api/v1/chat/conversations/"
             f"{conversation_id}/attachments"
-        
+
     )
 
     assert listing.status_code == 200
     assert listing.json()["total"] == 1
 
     deleted = client.delete(
-        
+
             "/api/v1/chat/conversations/"
             f"{conversation_id}/attachments/"
             f"{attachment_id}"
-        
+
     )
 
     assert deleted.status_code == 200
@@ -238,10 +238,10 @@ def test_upload_list_and_delete_attachment(
     )
 
     listing = client.get(
-        
+
             "/api/v1/chat/conversations/"
             f"{conversation_id}/attachments"
-        
+
     )
 
     assert listing.json()["total"] == 0
@@ -289,11 +289,11 @@ def test_attachment_delete_rejects_other_conversation(
     ]
 
     rejected = client.delete(
-        
+
             "/api/v1/chat/conversations/"
             f"{other_conversation}/attachments/"
             f"{attachment_id}"
-        
+
     )
 
     assert rejected.status_code == 404
@@ -304,10 +304,10 @@ def test_attachment_delete_rejects_other_conversation(
     )
 
     owner_listing = client.get(
-        
+
             "/api/v1/chat/conversations/"
             f"{owner_conversation}/attachments"
-        
+
     )
 
     assert (
@@ -376,10 +376,10 @@ def test_conversation_delete_cleans_attachment_first(
     assert uploaded.status_code == 201
 
     deleted = client.delete(
-        
+
             "/api/v1/chat/conversations/"
             f"{conversation_id}"
-        
+
     )
 
     assert deleted.status_code == 200
@@ -391,10 +391,10 @@ def test_conversation_delete_cleans_attachment_first(
     )
 
     missing = client.get(
-        
+
             "/api/v1/chat/conversations/"
             f"{conversation_id}"
-        
+
     )
 
     assert missing.status_code == 404
