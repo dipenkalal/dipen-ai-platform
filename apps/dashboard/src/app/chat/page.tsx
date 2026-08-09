@@ -61,6 +61,8 @@ type ChatMessage = {
   usage?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 
+  attachments?: ChatAttachment[];
+
   createdAt?: string;
   updatedAt?: string;
 };
@@ -471,10 +473,81 @@ function persistedMessageToChatMessage(
   };
 }
 
+function conversationMessageAttachments(
+  conversation: Conversation,
+): ChatAttachment[] {
+  return conversation.messages.flatMap((message) => message.attachments ?? []);
+}
+
+function withBoundConversationAttachments(
+  conversation: Conversation,
+  attachments: ChatAttachment[],
+): Conversation {
+  const attachmentsByMessageId = new Map<string, ChatAttachment[]>();
+
+  for (const attachment of attachments) {
+    if (!attachment.message_id) {
+      continue;
+    }
+
+    const current = attachmentsByMessageId.get(attachment.message_id) ?? [];
+
+    current.push(attachment);
+
+    attachmentsByMessageId.set(attachment.message_id, current);
+  }
+
+  return {
+    ...conversation,
+    messages: conversation.messages.map((message) => ({
+      ...message,
+      attachments: attachmentsByMessageId.get(message.id) ?? [],
+    })),
+  };
+}
+
+function attachmentTypeLabel(filename: string): string {
+  const extension = filename.split(".").pop()?.trim().toUpperCase();
+
+  return extension || "FILE";
+}
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`;
+  }
+
+  const kibibytes = sizeBytes / 1024;
+
+  if (kibibytes < 1024) {
+    return `${
+      kibibytes >= 10 ? Math.round(kibibytes) : kibibytes.toFixed(1)
+    } KB`;
+  }
+
+  const mebibytes = kibibytes / 1024;
+
+  return `${mebibytes >= 10 ? Math.round(mebibytes) : mebibytes.toFixed(1)} MB`;
+}
+
+function attachmentStatusLabel(status: ChatAttachmentStatus): string {
+  switch (status) {
+    case "indexed":
+      return "Indexed";
+    case "pending":
+      return "Processing";
+    case "deleting":
+      return "Removing";
+    case "failed":
+      return "Failed";
+  }
+}
+
 function persistedConversationToConversation(
   conversation: PersistedConversationRecord,
+  attachments: ChatAttachment[] = [],
 ): Conversation {
-  return {
+  const converted: Conversation = {
     id: conversation.conversation_id,
     title: conversation.title,
 
@@ -488,6 +561,8 @@ function persistedConversationToConversation(
     createdAt: conversation.created_at,
     updatedAt: conversation.updated_at,
   };
+
+  return withBoundConversationAttachments(converted, attachments);
 }
 
 function persistedSummaryToConversation(
@@ -1382,6 +1457,17 @@ export default function ChatPage() {
               (attachment) => attachment.message_id === null,
             ),
           );
+
+          setConversations((currentConversations) =>
+            currentConversations.map((conversation) =>
+              conversation.id === conversationId
+                ? withBoundConversationAttachments(
+                    conversation,
+                    payload.attachments,
+                  )
+                : conversation,
+            ),
+          );
         }
       })
       .catch((attachmentLoadError) => {
@@ -1405,6 +1491,7 @@ export default function ChatPage() {
   }, [
     activeConversation?.id,
     activeConversation?.persisted,
+    activeConversation?.hydrated,
     isUploadingAttachment,
   ]);
 
@@ -1632,7 +1719,10 @@ export default function ChatPage() {
           title,
         });
 
-        const loaded = persistedConversationToConversation(updated);
+        const loaded = persistedConversationToConversation(
+          updated,
+          conversationMessageAttachments(conversation),
+        );
 
         setConversations((currentConversations) =>
           currentConversations.map((currentConversation) =>
@@ -1714,6 +1804,9 @@ export default function ChatPage() {
 
         return;
       }
+
+      setAttachments([]);
+      setIsLoadingAttachments(false);
 
       if (remaining.length === 0) {
         const draft = createConversation();
@@ -2101,6 +2194,9 @@ export default function ChatPage() {
 
     let persistedConversation = activeConversation;
 
+    const existingMessageAttachments =
+      conversationMessageAttachments(activeConversation);
+
     let userMessage: ChatMessage;
 
     let assistantMessage: ChatMessage;
@@ -2144,7 +2240,10 @@ export default function ChatPage() {
           settings: conversationSettings,
         });
 
-        persistedConversation = persistedConversationToConversation(updated);
+        persistedConversation = persistedConversationToConversation(
+          updated,
+          existingMessageAttachments,
+        );
       }
 
       setConversations((currentConversations) =>
@@ -2171,9 +2270,18 @@ export default function ChatPage() {
         },
       );
 
-      if (attachmentIdsForMessage.length > 0) {
-        const boundAttachmentIds = new Set(attachmentIdsForMessage);
+      const boundAttachmentIds = new Set(attachmentIdsForMessage);
 
+      const boundAttachmentsForMessage = attachments
+        .filter((attachment) =>
+          boundAttachmentIds.has(attachment.attachment_id),
+        )
+        .map((attachment) => ({
+          ...attachment,
+          message_id: persistedUserMessage.message_id,
+        }));
+
+      if (attachmentIdsForMessage.length > 0) {
         setAttachments((currentAttachments) =>
           currentAttachments.filter(
             (attachment) => !boundAttachmentIds.has(attachment.attachment_id),
@@ -2216,7 +2324,10 @@ export default function ChatPage() {
 
       persistedUserMessageId = persistedUserMessage.message_id;
 
-      userMessage = persistedMessageToChatMessage(persistedUserMessage);
+      userMessage = {
+        ...persistedMessageToChatMessage(persistedUserMessage),
+        attachments: boundAttachmentsForMessage,
+      };
 
       assistantMessage = {
         ...persistedMessageToChatMessage(persistedAssistantMessage),
@@ -3148,8 +3259,43 @@ export default function ChatPage() {
                     ].join(" ")}
                   >
                     {message.role === "user" ? (
-                      <div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-[#2a2a2e] px-4 py-2.5 text-[15px] leading-7 text-zinc-100 sm:max-w-[75%]">
-                        {message.content}
+                      <div className="flex max-w-[85%] flex-col items-end gap-2 sm:max-w-[75%]">
+                        <div className="whitespace-pre-wrap rounded-3xl bg-[#2a2a2e] px-4 py-2.5 text-[15px] leading-7 text-zinc-100">
+                          {message.content}
+                        </div>
+
+                        {message.attachments &&
+                          message.attachments.length > 0 && (
+                            <div className="flex max-w-full flex-wrap justify-end gap-2">
+                              {message.attachments.map((attachment) => (
+                                <div
+                                  key={attachment.attachment_id}
+                                  title={attachment.filename}
+                                  className="flex max-w-full items-center gap-2.5 rounded-xl border border-white/[0.09] bg-white/[0.035] px-3 py-2 text-left"
+                                >
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.07] bg-white/[0.04] text-zinc-400">
+                                    <FileText className="h-4 w-4" />
+                                  </div>
+
+                                  <div className="min-w-0">
+                                    <p className="max-w-[260px] truncate text-xs font-medium text-zinc-200">
+                                      {attachment.filename}
+                                    </p>
+
+                                    <p className="mt-0.5 text-[10px] text-zinc-500">
+                                      {attachmentTypeLabel(attachment.filename)}{" "}
+                                      ·{" "}
+                                      {formatAttachmentSize(
+                                        attachment.size_bytes,
+                                      )}{" "}
+                                      ·{" "}
+                                      {attachmentStatusLabel(attachment.status)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                       </div>
                     ) : (
                       <div className="flex min-w-0 max-w-full gap-4">
