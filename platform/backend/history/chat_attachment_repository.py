@@ -25,6 +25,25 @@ class ChatAttachmentRepository:
             timezone.utc
         ).isoformat()
 
+    def conversation_exists(
+        self,
+        conversation_id: str,
+    ) -> bool:
+        with self.database.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT 1
+                FROM chat_conversations
+                WHERE conversation_id = ?
+                LIMIT 1
+                """,
+                (
+                    conversation_id,
+                ),
+            ).fetchone()
+
+        return row is not None
+
     def create_pending(
         self,
         conversation_id: str,

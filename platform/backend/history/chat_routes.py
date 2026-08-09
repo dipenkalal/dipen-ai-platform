@@ -1,9 +1,21 @@
+from typing import Annotated
+
 from fastapi import (
     APIRouter,
+    File,
     Query,
+    UploadFile,
     status,
 )
 
+from history.chat_attachment_schemas import (
+    ChatAttachmentDeleteResponse,
+    ChatAttachmentListResponse,
+    ChatAttachmentRecord,
+)
+from history.chat_attachment_service import (
+    chat_attachment_service,
+)
 from history.chat_schemas import (
     ChatConversationDeleteResponse,
     ChatConversationListResponse,
@@ -113,6 +125,59 @@ async def delete_chat_conversation(
         chat_history_service
         .delete_conversation(
             conversation_id
+        )
+    )
+
+
+@router.post(
+    "/{conversation_id}/attachments",
+    response_model=ChatAttachmentRecord,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_chat_attachment(
+    conversation_id: str,
+    file: Annotated[
+        UploadFile,
+        File(),
+    ],
+) -> ChatAttachmentRecord:
+    return await (
+        chat_attachment_service
+        .upload_attachment(
+            conversation_id,
+            file,
+        )
+    )
+
+
+@router.get(
+    "/{conversation_id}/attachments",
+    response_model=ChatAttachmentListResponse,
+)
+async def list_chat_attachments(
+    conversation_id: str,
+) -> ChatAttachmentListResponse:
+    return (
+        chat_attachment_service
+        .list_attachments(
+            conversation_id
+        )
+    )
+
+
+@router.delete(
+    "/{conversation_id}/attachments/{attachment_id}",
+    response_model=ChatAttachmentDeleteResponse,
+)
+async def delete_chat_attachment(
+    conversation_id: str,
+    attachment_id: str,
+) -> ChatAttachmentDeleteResponse:
+    return await (
+        chat_attachment_service
+        .delete_conversation_attachment(
+            conversation_id,
+            attachment_id,
         )
     )
 

@@ -13,6 +13,7 @@ from history.chat_attachment_repository import (
 )
 from history.chat_attachment_schemas import (
     ChatAttachmentDeleteResponse,
+    ChatAttachmentListResponse,
     ChatAttachmentRecord,
     CreatePendingChatAttachmentInput,
 )
@@ -49,6 +50,65 @@ class ChatAttachmentService:
     ) -> None:
         self.repository = repository
         self.knowledge = knowledge
+
+    def list_attachments(
+        self,
+        conversation_id: str,
+    ) -> ChatAttachmentListResponse:
+        if not self.repository.conversation_exists(
+            conversation_id
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Chat conversation "
+                    f"'{conversation_id}' "
+                    "was not found."
+                ),
+            )
+
+        attachments = (
+            self.repository
+            .list_conversation_attachments(
+                conversation_id
+            )
+        )
+
+        return ChatAttachmentListResponse(
+            attachments=attachments,
+            total=len(attachments),
+        )
+
+    async def delete_conversation_attachment(
+        self,
+        conversation_id: str,
+        attachment_id: str,
+    ) -> ChatAttachmentDeleteResponse:
+        attachment = (
+            self.repository.get_attachment(
+                attachment_id
+            )
+        )
+
+        if (
+            attachment is None
+            or attachment.conversation_id
+            != conversation_id
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Chat attachment "
+                    f"'{attachment_id}' "
+                    "was not found in "
+                    "conversation "
+                    f"'{conversation_id}'."
+                ),
+            )
+
+        return await self.delete_attachment(
+            attachment_id
+        )
 
     async def upload_attachment(
         self,

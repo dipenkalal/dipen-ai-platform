@@ -80,3 +80,8 @@ class CreatePendingChatAttachmentInput(
         max_length=64,
         pattern=r"^[0-9a-f]{64}$",
     )
+
+
+class ChatAttachmentListResponse(BaseModel):
+    attachments: list[ChatAttachmentRecord]
+    total: int
