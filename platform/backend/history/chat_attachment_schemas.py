@@ -3,9 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ChatAttachmentOwnership = Literal[
-    "chat_owned",
-]
+ChatAttachmentOwnership = Literal["chat_owned",]
 
 ChatAttachmentStatus = Literal[
     "pending",
@@ -43,13 +41,9 @@ class ChatAttachmentRecord(BaseModel):
 
     sha256: str | None = None
 
-    ownership: ChatAttachmentOwnership = (
-        "chat_owned"
-    )
+    ownership: ChatAttachmentOwnership = "chat_owned"
 
-    status: ChatAttachmentStatus = (
-        "pending"
-    )
+    status: ChatAttachmentStatus = "pending"
 
     error: str | None = None
 
@@ -57,9 +51,7 @@ class ChatAttachmentRecord(BaseModel):
     updated_at: datetime
 
 
-class CreatePendingChatAttachmentInput(
-    BaseModel
-):
+class CreatePendingChatAttachmentInput(BaseModel):
     filename: str = Field(
         min_length=1,
         max_length=512,
@@ -84,4 +76,50 @@ class CreatePendingChatAttachmentInput(
 
 class ChatAttachmentListResponse(BaseModel):
     attachments: list[ChatAttachmentRecord]
+    total: int
+
+
+class ChatAttachmentContextRequest(BaseModel):
+    query: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+    per_document_limit: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+
+    score_threshold: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+
+    max_sources: int = Field(
+        default=6,
+        ge=1,
+        le=20,
+    )
+
+    max_context_chars: int = Field(
+        default=6000,
+        ge=500,
+        le=12000,
+    )
+
+
+class ChatAttachmentContextSource(BaseModel):
+    document_id: str
+    filename: str
+    chunk_id: str
+    chunk_index: int
+    score: float
+    excerpt: str
+
+
+class ChatAttachmentContextResponse(BaseModel):
+    context: str
+    sources: list[ChatAttachmentContextSource]
     total: int

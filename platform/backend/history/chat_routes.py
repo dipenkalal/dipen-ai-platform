@@ -8,7 +8,12 @@ from fastapi import (
     status,
 )
 
+from history.chat_attachment_context_service import (
+    chat_attachment_context_service,
+)
 from history.chat_attachment_schemas import (
+    ChatAttachmentContextRequest,
+    ChatAttachmentContextResponse,
     ChatAttachmentDeleteResponse,
     ChatAttachmentListResponse,
     ChatAttachmentRecord,
@@ -44,10 +49,7 @@ router = APIRouter(
 async def create_chat_conversation(
     data: CreateChatConversationInput,
 ) -> ChatConversationRecord:
-    return (
-        chat_history_service
-        .create_conversation(data)
-    )
+    return chat_history_service.create_conversation(data)
 
 
 @router.get(
@@ -67,16 +69,11 @@ async def list_chat_conversations(
     search: str | None = None,
     include_archived: bool = False,
 ) -> ChatConversationListResponse:
-    return (
-        chat_history_service
-        .list_conversations(
-            limit=limit,
-            offset=offset,
-            search=search,
-            include_archived=(
-                include_archived
-            ),
-        )
+    return chat_history_service.list_conversations(
+        limit=limit,
+        offset=offset,
+        search=search,
+        include_archived=(include_archived),
     )
 
 
@@ -87,12 +84,7 @@ async def list_chat_conversations(
 async def get_chat_conversation(
     conversation_id: str,
 ) -> ChatConversationRecord:
-    return (
-        chat_history_service
-        .get_conversation(
-            conversation_id
-        )
-    )
+    return chat_history_service.get_conversation(conversation_id)
 
 
 @router.patch(
@@ -103,30 +95,20 @@ async def update_chat_conversation(
     conversation_id: str,
     data: UpdateChatConversationInput,
 ) -> ChatConversationRecord:
-    return (
-        chat_history_service
-        .update_conversation(
-            conversation_id,
-            data,
-        )
+    return chat_history_service.update_conversation(
+        conversation_id,
+        data,
     )
 
 
 @router.delete(
     "/{conversation_id}",
-    response_model=(
-        ChatConversationDeleteResponse
-    ),
+    response_model=(ChatConversationDeleteResponse),
 )
 async def delete_chat_conversation(
     conversation_id: str,
 ) -> ChatConversationDeleteResponse:
-    return await (
-        chat_history_service
-        .delete_conversation(
-            conversation_id
-        )
-    )
+    return await chat_history_service.delete_conversation(conversation_id)
 
 
 @router.post(
@@ -141,12 +123,9 @@ async def upload_chat_attachment(
         File(),
     ],
 ) -> ChatAttachmentRecord:
-    return await (
-        chat_attachment_service
-        .upload_attachment(
-            conversation_id,
-            file,
-        )
+    return await chat_attachment_service.upload_attachment(
+        conversation_id,
+        file,
     )
 
 
@@ -157,12 +136,7 @@ async def upload_chat_attachment(
 async def list_chat_attachments(
     conversation_id: str,
 ) -> ChatAttachmentListResponse:
-    return (
-        chat_attachment_service
-        .list_attachments(
-            conversation_id
-        )
-    )
+    return chat_attachment_service.list_attachments(conversation_id)
 
 
 @router.delete(
@@ -173,12 +147,25 @@ async def delete_chat_attachment(
     conversation_id: str,
     attachment_id: str,
 ) -> ChatAttachmentDeleteResponse:
-    return await (
-        chat_attachment_service
-        .delete_conversation_attachment(
-            conversation_id,
-            attachment_id,
-        )
+    return await chat_attachment_service.delete_conversation_attachment(
+        conversation_id,
+        attachment_id,
+    )
+
+
+@router.post(
+    ("/{conversation_id}/messages/{message_id}/attachment-context"),
+    response_model=ChatAttachmentContextResponse,
+)
+async def build_chat_attachment_context(
+    conversation_id: str,
+    message_id: str,
+    data: ChatAttachmentContextRequest,
+) -> ChatAttachmentContextResponse:
+    return await chat_attachment_context_service.build_context(
+        conversation_id=conversation_id,
+        message_id=message_id,
+        data=data,
     )
 
 
@@ -191,12 +178,9 @@ async def create_chat_message(
     conversation_id: str,
     data: CreateChatMessageInput,
 ) -> ChatMessageRecord:
-    return (
-        chat_history_service
-        .create_message(
-            conversation_id,
-            data,
-        )
+    return chat_history_service.create_message(
+        conversation_id,
+        data,
     )
 
 
@@ -209,11 +193,8 @@ async def update_chat_message(
     message_id: str,
     data: UpdateChatMessageInput,
 ) -> ChatMessageRecord:
-    return (
-        chat_history_service
-        .update_message(
-            conversation_id,
-            message_id,
-            data,
-        )
+    return chat_history_service.update_message(
+        conversation_id,
+        message_id,
+        data,
     )
