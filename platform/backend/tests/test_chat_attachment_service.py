@@ -8,6 +8,9 @@ from fastapi import HTTPException
 from history.chat_attachment_repository import (
     ChatAttachmentRepository,
 )
+from history.chat_attachment_schemas import (
+    CreatePendingChatAttachmentInput,
+)
 from history.chat_attachment_service import (
     ChatAttachmentService,
 )
@@ -533,7 +536,12 @@ async def test_compensation_failure_is_reported(
 
     assert (
         records[0].status
-        == "failed"
+        == "deleting"
+    )
+
+    assert (
+        records[0].knowledge_document_id
+        == "document-1"
     )
 
     assert (
@@ -542,4 +550,234 @@ async def test_compensation_failure_is_reported(
             records[0].error
             or ""
         )
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_pending_attachment_needs_no_knowledge_cleanup(
+    tmp_path: Path,
+) -> None:
+    (
+        repository,
+        knowledge,
+        _,
+    ) = make_service(
+        tmp_path
+    )
+
+    attachment = (
+        repository.create_pending(
+            "conversation-1",
+            CreatePendingChatAttachmentInput(
+                filename="pending.txt",
+                content_type="text/plain",
+                size_bytes=7,
+                sha256="a" * 64,
+            ),
+        )
+    )
+
+    assert attachment is not None
+
+    service = ChatAttachmentService(
+        repository=repository,
+        knowledge=knowledge,
+    )
+
+    result = await service.delete_attachment(
+        attachment.attachment_id
+    )
+
+    assert result.deleted
+    assert (
+        result.cleanup_result
+        == "not_required"
+    )
+
+    assert (
+        knowledge.deleted_document_ids
+        == []
+    )
+
+    assert (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_indexed_attachment_cleans_knowledge_first(
+    tmp_path: Path,
+) -> None:
+    (
+        repository,
+        knowledge,
+        service,
+    ) = make_service(
+        tmp_path
+    )
+
+    upload = FakeUpload(
+        filename="example.txt",
+        content_type="text/plain",
+        content=b"example",
+    )
+
+    attachment = (
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+    )
+
+    result = (
+        await service.delete_attachment(
+            attachment.attachment_id
+        )
+    )
+
+    assert (
+        result.cleanup_result
+        == "deleted"
+    )
+
+    assert (
+        knowledge.deleted_document_ids
+        == ["document-1"]
+    )
+
+    assert (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_tolerates_missing_knowledge_document(
+    tmp_path: Path,
+) -> None:
+    (
+        repository,
+        knowledge,
+        service,
+    ) = make_service(
+        tmp_path
+    )
+
+    upload = FakeUpload(
+        filename="example.txt",
+        content_type="text/plain",
+        content=b"example",
+    )
+
+    attachment = (
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+    )
+
+    knowledge.delete_error = (
+        HTTPException(
+            status_code=404,
+            detail="Document not found",
+        )
+    )
+
+    result = (
+        await service.delete_attachment(
+            attachment.attachment_id
+        )
+    )
+
+    assert (
+        result.cleanup_result
+        == "already_missing"
+    )
+
+    assert (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_failure_retains_retryable_cleanup_target(
+    tmp_path: Path,
+) -> None:
+    (
+        repository,
+        knowledge,
+        service,
+    ) = make_service(
+        tmp_path
+    )
+
+    upload = FakeUpload(
+        filename="example.txt",
+        content_type="text/plain",
+        content=b"example",
+    )
+
+    attachment = (
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+    )
+
+    knowledge.delete_error = (
+        HTTPException(
+            status_code=502,
+            detail="Qdrant unavailable",
+        )
+    )
+
+    with pytest.raises(
+        HTTPException
+    ):
+        await service.delete_attachment(
+            attachment.attachment_id
+        )
+
+    retained = (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+    )
+
+    assert retained is not None
+    assert retained.status == "deleting"
+
+    assert (
+        retained.knowledge_document_id
+        == "document-1"
+    )
+
+    assert (
+        retained.error
+        == "Qdrant unavailable"
+    )
+
+    knowledge.delete_error = None
+
+    result = (
+        await service.delete_attachment(
+            attachment.attachment_id
+        )
+    )
+
+    assert result.deleted
+
+    assert (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+        is None
     )

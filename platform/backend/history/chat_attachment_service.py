@@ -12,6 +12,7 @@ from history.chat_attachment_repository import (
     chat_attachment_repository,
 )
 from history.chat_attachment_schemas import (
+    ChatAttachmentDeleteResponse,
     ChatAttachmentRecord,
     CreatePendingChatAttachmentInput,
 )
@@ -194,6 +195,134 @@ class ChatAttachmentService:
 
         return indexed
 
+    async def delete_attachment(
+        self,
+        attachment_id: str,
+    ) -> ChatAttachmentDeleteResponse:
+        attachment = (
+            self.repository.get_attachment(
+                attachment_id
+            )
+        )
+
+        if attachment is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Chat attachment "
+                    f"'{attachment_id}' "
+                    "was not found."
+                ),
+            )
+
+        document_id = (
+            attachment.knowledge_document_id
+        )
+
+        if document_id is None:
+            deleted = (
+                self.repository.delete_metadata(
+                    attachment_id
+                )
+            )
+
+            if not deleted:
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "Chat attachment "
+                        f"'{attachment_id}' "
+                        "was not found."
+                    ),
+                )
+
+            return ChatAttachmentDeleteResponse(
+                deleted=True,
+                attachment_id=attachment_id,
+                knowledge_document_id=None,
+                cleanup_result="not_required",
+            )
+
+        deleting = (
+            self.repository.mark_deleting(
+                attachment_id
+            )
+        )
+
+        if deleting is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Chat attachment "
+                    f"'{attachment_id}' "
+                    "is not in a deletable state."
+                ),
+            )
+
+        cleanup_result = "deleted"
+
+        try:
+            await self.knowledge.delete_document(
+                document_id
+            )
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                cleanup_result = (
+                    "already_missing"
+                )
+            else:
+                self.repository.record_delete_error(
+                    attachment_id,
+                    self._exception_message(
+                        exc
+                    ),
+                )
+                raise
+        except Exception as exc:
+            self.repository.record_delete_error(
+                attachment_id,
+                self._exception_message(
+                    exc
+                ),
+            )
+
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Knowledge cleanup "
+                    f"failed: {exc}"
+                ),
+            ) from exc
+
+        self.repository.delete_metadata(
+            attachment_id
+        )
+
+        return ChatAttachmentDeleteResponse(
+            deleted=True,
+            attachment_id=attachment_id,
+            knowledge_document_id=(
+                document_id
+            ),
+            cleanup_result=cleanup_result,
+        )
+
+    async def cleanup_conversation_attachments(
+        self,
+        conversation_id: str,
+    ) -> None:
+        targets = (
+            self.repository
+            .list_cleanup_targets(
+                conversation_id
+            )
+        )
+
+        for attachment in targets:
+            await self.delete_attachment(
+                attachment.attachment_id
+            )
+
     async def _compensate_after_indexing(
         self,
         *,
@@ -231,12 +360,28 @@ class ChatAttachmentService:
                 f"{compensation_error}"
             )
 
-        self.repository.mark_failed(
-            attachment_id,
-            error_message,
-        )
-
         if compensation_error is not None:
+            cleanup_record = (
+                self.repository
+                .mark_cleanup_required(
+                    attachment_id,
+                    knowledge_document_id=(
+                        knowledge_document_id
+                    ),
+                    error=error_message,
+                )
+            )
+
+            if cleanup_record is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Attachment cleanup "
+                        "ownership could not "
+                        "be persisted."
+                    ),
+                ) from compensation_error
+
             raise HTTPException(
                 status_code=502,
                 detail=(
@@ -246,6 +391,11 @@ class ChatAttachmentService:
                     "not be completed."
                 ),
             ) from compensation_error
+
+        self.repository.mark_failed(
+            attachment_id,
+            error_message,
+        )
 
         raise HTTPException(
             status_code=500,

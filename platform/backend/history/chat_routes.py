@@ -109,7 +109,7 @@ async def update_chat_conversation(
 async def delete_chat_conversation(
     conversation_id: str,
 ) -> ChatConversationDeleteResponse:
-    return (
+    return await (
         chat_history_service
         .delete_conversation(
             conversation_id

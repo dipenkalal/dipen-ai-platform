@@ -308,6 +308,49 @@ class ChatAttachmentRepository:
             attachment_id
         )
 
+    def mark_cleanup_required(
+        self,
+        attachment_id: str,
+        *,
+        knowledge_document_id: str,
+        error: str,
+    ) -> ChatAttachmentRecord | None:
+        if not knowledge_document_id.strip():
+            raise ValueError(
+                "knowledge_document_id is required"
+            )
+
+        now = self._now()
+
+        with self.database.connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_attachments
+                SET
+                    knowledge_document_id = ?,
+                    status = 'deleting',
+                    error = ?,
+                    updated_at = ?
+                WHERE attachment_id = ?
+                  AND status = 'pending'
+                """,
+                (
+                    knowledge_document_id,
+                    error,
+                    now,
+                    attachment_id,
+                ),
+            )
+
+            connection.commit()
+
+        if cursor.rowcount <= 0:
+            return None
+
+        return self.get_attachment(
+            attachment_id
+        )
+
     def mark_deleting(
         self,
         attachment_id: str,
@@ -320,6 +363,7 @@ class ChatAttachmentRepository:
                 UPDATE chat_attachments
                 SET
                     status = 'deleting',
+                    error = NULL,
                     updated_at = ?
                 WHERE attachment_id = ?
                   AND status = 'indexed'
@@ -327,6 +371,53 @@ class ChatAttachmentRepository:
                       IS NOT NULL
                 """,
                 (
+                    now,
+                    attachment_id,
+                ),
+            )
+
+            connection.commit()
+
+        if cursor.rowcount > 0:
+            return self.get_attachment(
+                attachment_id
+            )
+
+        existing = self.get_attachment(
+            attachment_id
+        )
+
+        if (
+            existing is not None
+            and existing.status == "deleting"
+            and existing.knowledge_document_id
+            is not None
+        ):
+            return existing
+
+        return None
+
+    def record_delete_error(
+        self,
+        attachment_id: str,
+        error: str,
+    ) -> ChatAttachmentRecord | None:
+        now = self._now()
+
+        with self.database.connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE chat_attachments
+                SET
+                    error = ?,
+                    updated_at = ?
+                WHERE attachment_id = ?
+                  AND status = 'deleting'
+                  AND knowledge_document_id
+                      IS NOT NULL
+                """,
+                (
+                    error,
                     now,
                     attachment_id,
                 ),

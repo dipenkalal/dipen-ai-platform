@@ -1,5 +1,9 @@
 from fastapi import HTTPException
 
+from history.chat_attachment_service import (
+    ChatAttachmentService,
+    chat_attachment_service,
+)
 from history.chat_repository import (
     ChatHistoryRepository,
     chat_history_repository,
@@ -20,8 +24,14 @@ class ChatHistoryService:
     def __init__(
         self,
         repository: ChatHistoryRepository,
+        attachment_service: (
+            ChatAttachmentService | None
+        ) = None,
     ) -> None:
         self.repository = repository
+        self.attachment_service = (
+            attachment_service
+        )
 
     def create_conversation(
         self,
@@ -107,10 +117,38 @@ class ChatHistoryService:
 
         return record
 
-    def delete_conversation(
+    async def delete_conversation(
         self,
         conversation_id: str,
     ) -> ChatConversationDeleteResponse:
+        existing = (
+            self.repository
+            .get_conversation(
+                conversation_id
+            )
+        )
+
+        if existing is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "Chat conversation "
+                    f"'{conversation_id}' "
+                    "was not found."
+                ),
+            )
+
+        if (
+            self.attachment_service
+            is not None
+        ):
+            await (
+                self.attachment_service
+                .cleanup_conversation_attachments(
+                    conversation_id
+                )
+            )
+
         deleted = (
             self.repository
             .delete_conversation(
@@ -192,6 +230,9 @@ class ChatHistoryService:
 
 chat_history_service = (
     ChatHistoryService(
-        chat_history_repository
+        chat_history_repository,
+        attachment_service=(
+            chat_attachment_service
+        ),
     )
 )

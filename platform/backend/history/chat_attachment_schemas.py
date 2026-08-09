@@ -15,6 +15,20 @@ ChatAttachmentStatus = Literal[
 ]
 
 
+ChatAttachmentCleanupResult = Literal[
+    "not_required",
+    "deleted",
+    "already_missing",
+]
+
+
+class ChatAttachmentDeleteResponse(BaseModel):
+    deleted: bool
+    attachment_id: str
+    knowledge_document_id: str | None = None
+    cleanup_result: ChatAttachmentCleanupResult
+
+
 class ChatAttachmentRecord(BaseModel):
     attachment_id: str
     conversation_id: str
