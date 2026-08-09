@@ -35,17 +35,11 @@ class ChatMessageRecord(BaseModel):
 
     status: ChatMessageStatus = "completed"
 
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
+    sources: list[dict[str, Any]] = Field(default_factory=list)
 
-    usage: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    usage: dict[str, Any] = Field(default_factory=dict)
 
-    metadata: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     created_at: datetime
     updated_at: datetime
@@ -69,13 +63,9 @@ class ChatConversationRecord(BaseModel):
     title: str
     preferred_role_id: str | None = None
 
-    settings: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    settings: dict[str, Any] = Field(default_factory=dict)
 
-    messages: list[ChatMessageRecord] = Field(
-        default_factory=list
-    )
+    messages: list[ChatMessageRecord] = Field(default_factory=list)
 
     created_at: datetime
     updated_at: datetime
@@ -103,9 +93,7 @@ class CreateChatConversationInput(BaseModel):
 
     preferred_role_id: str | None = "auto"
 
-    settings: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class UpdateChatConversationInput(BaseModel):
@@ -126,6 +114,11 @@ class CreateChatMessageInput(BaseModel):
     role: ChatMessageRole
     content: str = ""
 
+    attachment_ids: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+    )
+
     employee_role_id: str | None = None
     employee_title: str | None = None
     department_name: str | None = None
@@ -137,17 +130,11 @@ class CreateChatMessageInput(BaseModel):
 
     status: ChatMessageStatus = "completed"
 
-    sources: list[dict[str, Any]] = Field(
-        default_factory=list
-    )
+    sources: list[dict[str, Any]] = Field(default_factory=list)
 
-    usage: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    usage: dict[str, Any] = Field(default_factory=dict)
 
-    metadata: dict[str, Any] = Field(
-        default_factory=dict
-    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class UpdateChatMessageInput(BaseModel):

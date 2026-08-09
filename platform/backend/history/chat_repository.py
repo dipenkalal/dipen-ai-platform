@@ -18,6 +18,10 @@ from history.database import (
 )
 
 
+class ChatMessageAttachmentBindingError(ValueError):
+    """Attachment binding could not be completed atomically."""
+
+
 class ChatHistoryRepository:
     def __init__(
         self,
@@ -27,9 +31,7 @@ class ChatHistoryRepository:
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(
-            timezone.utc
-        ).isoformat()
+        return datetime.now(timezone.utc).isoformat()
 
     def create_conversation(
         self,
@@ -69,15 +71,10 @@ class ChatHistoryRepository:
 
             connection.commit()
 
-        record = self.get_conversation(
-            conversation_id
-        )
+        record = self.get_conversation(conversation_id)
 
         if record is None:
-            raise RuntimeError(
-                "Created chat conversation "
-                "could not be read."
-            )
+            raise RuntimeError("Created chat conversation could not be read.")
 
         return record
 
@@ -128,26 +125,17 @@ class ChatHistoryRepository:
         parameters: list[Any] = []
 
         if not include_archived:
-            conditions.append(
-                "c.archived_at IS NULL"
-            )
+            conditions.append("c.archived_at IS NULL")
 
         if search:
-            conditions.append(
-                "c.title LIKE ?"
-            )
+            conditions.append("c.title LIKE ?")
 
-            parameters.append(
-                f"%{search}%"
-            )
+            parameters.append(f"%{search}%")
 
         where_clause = ""
 
         if conditions:
-            where_clause = (
-                "WHERE "
-                + " AND ".join(conditions)
-            )
+            where_clause = "WHERE " + " AND ".join(conditions)
 
         with self.database.connection() as connection:
             total_row = connection.execute(
@@ -192,17 +180,10 @@ class ChatHistoryRepository:
                 ],
             ).fetchall()
 
-        total = int(
-            total_row["total"]
-            if total_row
-            else 0
-        )
+        total = int(total_row["total"] if total_row else 0)
 
         return (
-            [
-                self._row_to_summary(row)
-                for row in rows
-            ],
+            [self._row_to_summary(row) for row in rows],
             total,
         )
 
@@ -211,45 +192,29 @@ class ChatHistoryRepository:
         conversation_id: str,
         data: UpdateChatConversationInput,
     ) -> ChatConversationRecord | None:
-        changes = data.model_dump(
-            exclude_unset=True
-        )
+        changes = data.model_dump(exclude_unset=True)
 
         if not changes:
-            return self.get_conversation(
-                conversation_id
-            )
+            return self.get_conversation(conversation_id)
 
         assignments: list[str] = []
         parameters: list[Any] = []
 
         if "title" in changes:
-            title = (
-                str(changes["title"]).strip()
-            )
+            title = str(changes["title"]).strip()
 
             if not title:
                 title = "New chat"
 
-            assignments.append(
-                "title = ?"
-            )
+            assignments.append("title = ?")
             parameters.append(title)
 
         if "preferred_role_id" in changes:
-            assignments.append(
-                "preferred_role_id = ?"
-            )
-            parameters.append(
-                changes[
-                    "preferred_role_id"
-                ]
-            )
+            assignments.append("preferred_role_id = ?")
+            parameters.append(changes["preferred_role_id"])
 
         if "settings" in changes:
-            assignments.append(
-                "settings_json = ?"
-            )
+            assignments.append("settings_json = ?")
             parameters.append(
                 json.dumps(
                     changes["settings"],
@@ -258,27 +223,15 @@ class ChatHistoryRepository:
             )
 
         if "archived" in changes:
-            assignments.append(
-                "archived_at = ?"
-            )
+            assignments.append("archived_at = ?")
 
-            parameters.append(
-                self._now()
-                if changes["archived"]
-                else None
-            )
+            parameters.append(self._now() if changes["archived"] else None)
 
-        assignments.append(
-            "updated_at = ?"
-        )
+        assignments.append("updated_at = ?")
 
-        parameters.append(
-            self._now()
-        )
+        parameters.append(self._now())
 
-        parameters.append(
-            conversation_id
-        )
+        parameters.append(conversation_id)
 
         with self.database.connection() as connection:
             cursor = connection.execute(
@@ -295,9 +248,7 @@ class ChatHistoryRepository:
         if cursor.rowcount <= 0:
             return None
 
-        return self.get_conversation(
-            conversation_id
-        )
+        return self.get_conversation(conversation_id)
 
     def delete_conversation(
         self,
@@ -325,9 +276,7 @@ class ChatHistoryRepository:
         now = self._now()
 
         with self.database.connection() as connection:
-            connection.execute(
-                "BEGIN IMMEDIATE"
-            )
+            connection.execute("BEGIN IMMEDIATE")
 
             conversation = connection.execute(
                 """
@@ -342,6 +291,80 @@ class ChatHistoryRepository:
                 connection.rollback()
                 return None
 
+            attachment_ids = list(data.attachment_ids)
+
+            if attachment_ids:
+                if data.role != "user":
+                    connection.rollback()
+                    raise (
+                        ChatMessageAttachmentBindingError(
+                            "Attachments can only be bound to user messages."
+                        )
+                    )
+
+                if len(set(attachment_ids)) != len(attachment_ids):
+                    connection.rollback()
+                    raise (
+                        ChatMessageAttachmentBindingError(
+                            "Attachment IDs must be unique."
+                        )
+                    )
+
+                for attachment_id in attachment_ids:
+                    attachment = connection.execute(
+                        """
+                            SELECT
+                                attachment_id,
+                                conversation_id,
+                                message_id,
+                                status
+                            FROM chat_attachments
+                            WHERE attachment_id = ?
+                            """,
+                        (attachment_id,),
+                    ).fetchone()
+
+                    if attachment is None:
+                        connection.rollback()
+                        raise (
+                            ChatMessageAttachmentBindingError(
+                                f"Chat attachment '{attachment_id}' was not found."
+                            )
+                        )
+
+                    if attachment["conversation_id"] != conversation_id:
+                        connection.rollback()
+                        raise (
+                            ChatMessageAttachmentBindingError(
+                                "Chat attachment "
+                                f"'{attachment_id}' "
+                                "does not belong "
+                                "to this conversation."
+                            )
+                        )
+
+                    if attachment["status"] != "indexed":
+                        connection.rollback()
+                        raise (
+                            ChatMessageAttachmentBindingError(
+                                "Chat attachment "
+                                f"'{attachment_id}' "
+                                "must be indexed "
+                                "before message binding."
+                            )
+                        )
+
+                    if attachment["message_id"] is not None:
+                        connection.rollback()
+                        raise (
+                            ChatMessageAttachmentBindingError(
+                                "Chat attachment "
+                                f"'{attachment_id}' "
+                                "is already bound "
+                                "to a message."
+                            )
+                        )
+
             sequence_row = connection.execute(
                 """
                 SELECT
@@ -355,11 +378,7 @@ class ChatHistoryRepository:
                 (conversation_id,),
             ).fetchone()
 
-            sequence = int(
-                sequence_row[
-                    "next_sequence"
-                ]
-            )
+            sequence = int(sequence_row["next_sequence"])
 
             connection.execute(
                 """
@@ -436,6 +455,37 @@ class ChatHistoryRepository:
                 ),
             )
 
+            for attachment_id in attachment_ids:
+                cursor = connection.execute(
+                    """
+                    UPDATE chat_attachments
+                    SET
+                        message_id = ?,
+                        updated_at = ?
+                    WHERE attachment_id = ?
+                      AND conversation_id = ?
+                      AND status = 'indexed'
+                      AND message_id IS NULL
+                    """,
+                    (
+                        message_id,
+                        now,
+                        attachment_id,
+                        conversation_id,
+                    ),
+                )
+
+                if cursor.rowcount != 1:
+                    connection.rollback()
+                    raise (
+                        ChatMessageAttachmentBindingError(
+                            "Chat attachment "
+                            f"'{attachment_id}' "
+                            "could not be bound "
+                            "atomically."
+                        )
+                    )
+
             connection.commit()
 
         return self.get_message(
@@ -474,9 +524,7 @@ class ChatHistoryRepository:
         message_id: str,
         data: UpdateChatMessageInput,
     ) -> ChatMessageRecord | None:
-        changes = data.model_dump(
-            exclude_unset=True
-        )
+        changes = data.model_dump(exclude_unset=True)
 
         if not changes:
             return self.get_message(
@@ -486,18 +534,13 @@ class ChatHistoryRepository:
 
         column_map = {
             "content": "content",
-            "employee_role_id":
-                "employee_role_id",
-            "employee_title":
-                "employee_title",
-            "department_name":
-                "department_name",
-            "machine_agent_id":
-                "machine_agent_id",
+            "employee_role_id": "employee_role_id",
+            "employee_title": "employee_title",
+            "department_name": "department_name",
+            "machine_agent_id": "machine_agent_id",
             "run_id": "run_id",
             "model": "model",
-            "routing_confidence":
-                "routing_confidence",
+            "routing_confidence": "routing_confidence",
             "status": "status",
         }
 
@@ -508,13 +551,9 @@ class ChatHistoryRepository:
             if field not in changes:
                 continue
 
-            assignments.append(
-                f"{column} = ?"
-            )
+            assignments.append(f"{column} = ?")
 
-            parameters.append(
-                changes[field]
-            )
+            parameters.append(changes[field])
 
         for field, column in (
             ("sources", "sources_json"),
@@ -524,9 +563,7 @@ class ChatHistoryRepository:
             if field not in changes:
                 continue
 
-            assignments.append(
-                f"{column} = ?"
-            )
+            assignments.append(f"{column} = ?")
 
             parameters.append(
                 json.dumps(
@@ -538,9 +575,7 @@ class ChatHistoryRepository:
 
         now = self._now()
 
-        assignments.append(
-            "updated_at = ?"
-        )
+        assignments.append("updated_at = ?")
         parameters.append(now)
 
         parameters.extend(
@@ -607,29 +642,17 @@ class ChatHistoryRepository:
     ) -> ChatMessageRecord:
         return ChatMessageRecord(
             message_id=row["message_id"],
-            conversation_id=(
-                row["conversation_id"]
-            ),
+            conversation_id=(row["conversation_id"]),
             sequence=row["sequence"],
             role=row["role"],
             content=row["content"],
-            employee_role_id=(
-                row["employee_role_id"]
-            ),
-            employee_title=(
-                row["employee_title"]
-            ),
-            department_name=(
-                row["department_name"]
-            ),
-            machine_agent_id=(
-                row["machine_agent_id"]
-            ),
+            employee_role_id=(row["employee_role_id"]),
+            employee_title=(row["employee_title"]),
+            department_name=(row["department_name"]),
+            machine_agent_id=(row["machine_agent_id"]),
             run_id=row["run_id"],
             model=row["model"],
-            routing_confidence=(
-                row["routing_confidence"]
-            ),
+            routing_confidence=(row["routing_confidence"]),
             status=row["status"],
             sources=self._load_json(
                 row["sources_json"],
@@ -653,23 +676,14 @@ class ChatHistoryRepository:
         message_rows: list[Any],
     ) -> ChatConversationRecord:
         return ChatConversationRecord(
-            conversation_id=(
-                row["conversation_id"]
-            ),
+            conversation_id=(row["conversation_id"]),
             title=row["title"],
-            preferred_role_id=(
-                row["preferred_role_id"]
-            ),
+            preferred_role_id=(row["preferred_role_id"]),
             settings=self._load_json(
                 row["settings_json"],
                 {},
             ),
-            messages=[
-                self._row_to_message(
-                    message
-                )
-                for message in message_rows
-            ],
+            messages=[self._row_to_message(message) for message in message_rows],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             archived_at=row["archived_at"],
@@ -679,30 +693,15 @@ class ChatHistoryRepository:
         self,
         row: Any,
     ) -> ChatConversationSummary:
-        last_message = (
-            row["last_message"] or ""
-        )
+        last_message = row["last_message"] or ""
 
-        preview = (
-            last_message[:160]
-            + (
-                "…"
-                if len(last_message) > 160
-                else ""
-            )
-        )
+        preview = last_message[:160] + ("…" if len(last_message) > 160 else "")
 
         return ChatConversationSummary(
-            conversation_id=(
-                row["conversation_id"]
-            ),
+            conversation_id=(row["conversation_id"]),
             title=row["title"],
-            preferred_role_id=(
-                row["preferred_role_id"]
-            ),
-            message_count=int(
-                row["message_count"] or 0
-            ),
+            preferred_role_id=(row["preferred_role_id"]),
+            message_count=int(row["message_count"] or 0),
             last_message_preview=preview,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
@@ -710,8 +709,4 @@ class ChatHistoryRepository:
         )
 
 
-chat_history_repository = (
-    ChatHistoryRepository(
-        history_database
-    )
-)
+chat_history_repository = ChatHistoryRepository(history_database)

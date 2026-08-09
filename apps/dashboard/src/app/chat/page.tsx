@@ -560,6 +560,7 @@ async function createPersistedMessage(
   message: {
     role: MessageRole;
     content: string;
+    attachment_ids?: string[];
 
     employee_role_id?: string | null;
     employee_title?: string | null;
@@ -1334,7 +1335,11 @@ export default function ChatPage() {
     void loadPersistedAttachments(conversationId)
       .then((payload) => {
         if (!cancelled) {
-          setAttachments(payload.attachments);
+          setAttachments(
+            payload.attachments.filter(
+              (attachment) => attachment.message_id === null,
+            ),
+          );
         }
       })
       .catch((attachmentLoadError) => {
@@ -1871,7 +1876,11 @@ export default function ChatPage() {
       try {
         const refreshed = await loadPersistedAttachments(conversationId);
 
-        setAttachments(refreshed.attachments);
+        setAttachments(
+          refreshed.attachments.filter(
+            (attachment) => attachment.message_id === null,
+          ),
+        );
       } catch {
         // Keep current chip if refresh also fails.
       }
@@ -1980,6 +1989,7 @@ export default function ChatPage() {
       isLoading ||
       isUploadingAttachment ||
       isLoadingAttachments ||
+      deletingAttachmentId !== null ||
       registryLoading ||
       historyLoading ||
       loadingConversationId !== null ||
@@ -2055,6 +2065,13 @@ export default function ChatPage() {
 
     let assistantMessageId: string;
 
+    const attachmentIdsForMessage = attachments
+      .filter(
+        (attachment) =>
+          attachment.status === "indexed" && attachment.message_id === null,
+      )
+      .map((attachment) => attachment.attachment_id);
+
     try {
       if (!activeConversation.persisted) {
         const created = await createPersistedConversation(
@@ -2092,12 +2109,23 @@ export default function ChatPage() {
         {
           role: "user",
           content: trimmedInput,
+          attachment_ids: attachmentIdsForMessage,
           status: "completed",
           metadata: {
             requested_role_id: selectedEmployeeRoleId,
           },
         },
       );
+
+      if (attachmentIdsForMessage.length > 0) {
+        const boundAttachmentIds = new Set(attachmentIdsForMessage);
+
+        setAttachments((currentAttachments) =>
+          currentAttachments.filter(
+            (attachment) => !boundAttachmentIds.has(attachment.attachment_id),
+          ),
+        );
+      }
 
       const departmentName = responderRole?.department_id
         ? (departmentNameById.get(responderRole.department_id) ?? null)
@@ -3427,6 +3455,7 @@ export default function ChatPage() {
                         !selectedModel ||
                         isUploadingAttachment ||
                         isLoadingAttachments ||
+                        deletingAttachmentId !== null ||
                         registryLoading
                       }
                       aria-label="Send message"
