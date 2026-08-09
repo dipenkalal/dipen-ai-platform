@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
+from agents.executor import agent_executor
 from agents.registry import agent_registry
 from agents.router import AgentRoute, agent_router
 from agents.runtime import instrumented_agent_executor
@@ -123,6 +124,28 @@ class AgentService:
         self,
         request: AgentRunRequest,
     ) -> AsyncIterator[str]:
+        async for event in self._stream(
+            request,
+            instrument_runtime=True,
+        ):
+            yield event
+
+    async def stream_chat(
+        self,
+        request: AgentRunRequest,
+    ) -> AsyncIterator[str]:
+        async for event in self._stream(
+            request,
+            instrument_runtime=False,
+        ):
+            yield event
+
+    async def _stream(
+        self,
+        request: AgentRunRequest,
+        *,
+        instrument_runtime: bool,
+    ) -> AsyncIterator[str]:
         try:
             resolved_request, route = self.resolve_request(request)
 
@@ -158,7 +181,13 @@ class AgentService:
                 + "\n"
             )
 
-            response = await instrumented_agent_executor.run(
+            executor = (
+                instrumented_agent_executor
+                if instrument_runtime
+                else agent_executor
+            )
+
+            response = await executor.run(
                 resolved_request
             )
 
