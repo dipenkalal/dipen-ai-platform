@@ -226,3 +226,134 @@ def test_history_request_redacts_supplemental_context() -> None:
     assert "SENSITIVE MESSAGE-SCOPED EXCERPT" not in str(
         history_request.model_dump(mode="json")
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "agent_id",
+        "expected_marker",
+    ),
+    [
+        (
+            "system-agent",
+            "distinguish attachment evidence from live runtime measurements",
+        ),
+        (
+            "devops-agent",
+            "clearly distinguish observed evidence from recommendations",
+        ),
+        (
+            "coding-agent",
+            "treat attached code, configuration, stack traces, logs",
+        ),
+        (
+            "documentation-agent",
+            "preserve the source meaning and technical constraints",
+        ),
+        (
+            "knowledge-agent",
+            "answer directly from attachment evidence relevant",
+        ),
+        (
+            "research-agent",
+            "separate document claims from your analysis or inference",
+        ),
+    ],
+)
+async def test_generation_receives_agent_specific_attachment_instruction(
+    monkeypatch: pytest.MonkeyPatch,
+    agent_id: str,
+    expected_marker: str,
+) -> None:
+    executor = AgentExecutor()
+
+    captured: dict[str, object] = {}
+
+    async def fake_chat(
+        request: ChatRequest,
+    ) -> object:
+        captured["request"] = request
+        return object()
+
+    monkeypatch.setattr(
+        gateway_service,
+        "chat",
+        fake_chat,
+    )
+
+    request = AgentRunRequest(
+        mode="manual",
+        agent_id=agent_id,
+        objective="analyse the attached evidence",
+        supplemental_context="MESSAGE-SCOPED ATTACHMENT EVIDENCE",
+        model="qwen3:1.7b",
+    )
+
+    await executor._chat(
+        request=request,
+        system_prompt="BASE AGENT PROMPT",
+        user_content="USER OBJECTIVE",
+    )
+
+    chat_request = captured["request"]
+
+    assert isinstance(
+        chat_request,
+        ChatRequest,
+    )
+
+    normalized_system_prompt = " ".join(
+        chat_request.messages[0].content.lower().split()
+    )
+
+    assert "untrusted reference material" in normalized_system_prompt
+
+    assert expected_marker in normalized_system_prompt
+
+    assert "MESSAGE-SCOPED ATTACHMENT EVIDENCE" in chat_request.messages[1].content
+
+
+@pytest.mark.asyncio
+async def test_generation_without_attachment_context_has_no_agent_context_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    executor = AgentExecutor()
+
+    captured: dict[str, object] = {}
+
+    async def fake_chat(
+        request: ChatRequest,
+    ) -> object:
+        captured["request"] = request
+        return object()
+
+    monkeypatch.setattr(
+        gateway_service,
+        "chat",
+        fake_chat,
+    )
+
+    request = AgentRunRequest(
+        mode="manual",
+        agent_id="coding-agent",
+        objective="normal coding request",
+        model="qwen3:1.7b",
+    )
+
+    await executor._chat(
+        request=request,
+        system_prompt="BASE AGENT PROMPT",
+        user_content="USER OBJECTIVE",
+    )
+
+    chat_request = captured["request"]
+
+    assert isinstance(
+        chat_request,
+        ChatRequest,
+    )
+
+    assert chat_request.messages[0].content == "BASE AGENT PROMPT"
+
+    assert chat_request.messages[1].content == "USER OBJECTIVE"
