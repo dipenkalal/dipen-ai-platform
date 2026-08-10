@@ -543,6 +543,40 @@ function attachmentStatusLabel(status: ChatAttachmentStatus): string {
   }
 }
 
+function attachmentCitationSources(
+  sources: unknown[] | undefined,
+): ChatAttachmentCitationSource[] {
+  return (sources ?? []).filter(
+    (
+      source,
+    ): source is ChatAttachmentCitationSource => {
+      if (
+        !source ||
+        typeof source !== "object" ||
+        Array.isArray(source)
+      ) {
+        return false;
+      }
+
+      const value =
+        source as Record<string, unknown>;
+
+      return (
+        value.kind === "attachment" &&
+        typeof value.attachment_id === "string" &&
+        typeof value.document_id === "string" &&
+        typeof value.filename === "string" &&
+        typeof value.chunk_id === "string" &&
+        typeof value.chunk_index === "number" &&
+        Number.isInteger(value.chunk_index) &&
+        value.chunk_index >= 0 &&
+        typeof value.score === "number"
+      );
+    },
+  );
+}
+
+
 function persistedConversationToConversation(
   conversation: PersistedConversationRecord,
   attachments: ChatAttachment[] = [],
@@ -630,9 +664,33 @@ async function createPersistedConversation(
   return (await response.json()) as PersistedConversationRecord;
 }
 
+type ChatAttachmentContextSource = {
+  document_id: string;
+  filename: string;
+  chunk_id: string;
+  chunk_index: number;
+  score: number;
+  excerpt: string;
+};
+
+
+type ChatAttachmentCitationSource = {
+  kind: "attachment";
+
+  attachment_id: string;
+  document_id: string;
+
+  filename: string;
+
+  chunk_id: string;
+  chunk_index: number;
+  score: number;
+};
+
+
 type ChatAttachmentContextResponse = {
   context: string;
-  sources: unknown[];
+  sources: ChatAttachmentContextSource[];
   total: number;
 };
 
@@ -2205,6 +2263,8 @@ export default function ChatPage() {
 
     let persistedUserMessageId: string | null = null;
 
+    let boundAttachmentsForMessage: ChatAttachment[] = [];
+
     const attachmentIdsForMessage = attachments
       .filter(
         (attachment) =>
@@ -2272,7 +2332,7 @@ export default function ChatPage() {
 
       const boundAttachmentIds = new Set(attachmentIdsForMessage);
 
-      const boundAttachmentsForMessage = attachments
+      boundAttachmentsForMessage = attachments
         .filter((attachment) =>
           boundAttachmentIds.has(attachment.attachment_id),
         )
@@ -2432,6 +2492,9 @@ export default function ChatPage() {
 
     let latestSources: unknown[] = [];
 
+    let attachmentCitationSourcesForMessage:
+      ChatAttachmentCitationSource[] = [];
+
     let terminalAgentPatch:
       Parameters<typeof updatePersistedMessage>[2] | null = null;
 
@@ -2459,6 +2522,83 @@ export default function ChatPage() {
             "Attached files returned no usable indexed context for this message.",
           );
         }
+
+        const attachmentByDocumentId =
+          new Map(
+            boundAttachmentsForMessage.flatMap(
+              (attachment) =>
+                attachment.knowledge_document_id
+                  ? [
+                      [
+                        attachment.knowledge_document_id,
+                        attachment,
+                      ] as const,
+                    ]
+                  : [],
+            ),
+          );
+
+        const citationSources =
+          attachmentContext.sources.map(
+            (source): ChatAttachmentCitationSource => {
+              const attachment =
+                attachmentByDocumentId.get(
+                  source.document_id,
+                );
+
+              if (!attachment) {
+                throw new Error(
+                  "Attachment citation source ownership mismatch.",
+                );
+              }
+
+              if (
+                source.filename !==
+                attachment.filename
+              ) {
+                throw new Error(
+                  "Attachment citation filename mismatch.",
+                );
+              }
+
+              return {
+                kind: "attachment",
+
+                attachment_id:
+                  attachment.attachment_id,
+
+                document_id:
+                  source.document_id,
+
+                filename:
+                  attachment.filename,
+
+                chunk_id:
+                  source.chunk_id,
+
+                chunk_index:
+                  source.chunk_index,
+
+                score:
+                  source.score,
+              };
+            },
+          );
+
+        if (
+          citationSources.length !==
+          attachmentContext.total
+        ) {
+          throw new Error(
+            "Attachment citation source count mismatch.",
+          );
+        }
+
+        attachmentCitationSourcesForMessage =
+          citationSources;
+
+        latestSources =
+          citationSources;
 
         supplementalContext = contextText;
       }
@@ -2666,8 +2806,14 @@ export default function ChatPage() {
         if (streamEvent.type === "answer") {
           latestAssistantContent = streamEvent.content;
 
-          if (streamEvent.sources) {
-            latestSources = streamEvent.sources;
+          if (
+            attachmentCitationSourcesForMessage.length > 0
+          ) {
+            latestSources =
+              attachmentCitationSourcesForMessage;
+          } else if (streamEvent.sources) {
+            latestSources =
+              streamEvent.sources;
           }
 
           updateAssistantMessage(conversationId, assistantMessageId, {
@@ -2701,12 +2847,20 @@ export default function ChatPage() {
 
           latestMachineAgentId = identity.machineAgentId;
 
-          const safeSources = latestSources.filter(
-            (source): source is Record<string, unknown> =>
-              typeof source === "object" &&
-              source !== null &&
-              !Array.isArray(source),
-          );
+          const sourceCandidates =
+            attachmentCitationSourcesForMessage.length > 0
+              ? attachmentCitationSourcesForMessage
+              : latestSources;
+
+          const safeSources =
+            sourceCandidates.filter(
+              (
+                source,
+              ): source is Record<string, unknown> =>
+                typeof source === "object" &&
+                source !== null &&
+                !Array.isArray(source),
+            );
 
           terminalAgentPatch = {
             content: streamEvent.run.answer,
@@ -2747,6 +2901,8 @@ export default function ChatPage() {
             content: streamEvent.run.answer,
 
             routingConfidence: latestRoutingConfidence,
+
+            sources: safeSources,
 
             status: finalStatus,
 
@@ -3337,6 +3493,67 @@ export default function ChatPage() {
                               {message.activity ?? "Working…"}
                             </div>
                           )}
+
+                          {message.content &&
+                            attachmentCitationSources(
+                              message.sources,
+                            ).length > 0 && (
+                              <div className="mt-4 border-t border-white/[0.07] pt-3">
+                                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-600">
+                                  Sources
+                                </p>
+
+                                <div className="flex flex-wrap gap-2">
+                                  {attachmentCitationSources(
+                                    message.sources,
+                                  ).map(
+                                    (
+                                      source,
+                                      sourceIndex,
+                                    ) => (
+                                      <div
+                                        key={[
+                                          source.attachment_id,
+                                          source.chunk_id,
+                                        ].join(":")}
+                                        title={[
+                                          source.filename,
+                                          `Chunk ${
+                                            source.chunk_index +
+                                            1
+                                          }`,
+                                          `Score ${source.score.toFixed(
+                                            4,
+                                          )}`,
+                                        ].join(" · ")}
+                                        className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-xs text-zinc-400"
+                                      >
+                                        <span className="shrink-0 font-medium text-zinc-300">
+                                          [
+                                          {sourceIndex +
+                                            1}
+                                          ]
+                                        </span>
+
+                                        <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+
+                                        <span className="max-w-[260px] truncate">
+                                          {
+                                            source.filename
+                                          }
+                                        </span>
+
+                                        <span className="shrink-0 text-zinc-600">
+                                          · Chunk{" "}
+                                          {source.chunk_index +
+                                            1}
+                                        </span>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                           {message.content && message.status === "running" && (
                             <p className="mt-2 text-xs text-zinc-600">
