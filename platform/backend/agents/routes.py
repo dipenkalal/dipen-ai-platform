@@ -82,23 +82,6 @@ async def run_agent(
 
 
 @router.post(
-    "/agents/chat/stream",
-    response_class=StreamingResponse,
-)
-async def stream_chat_agent(
-    request: AgentRunRequest,
-) -> StreamingResponse:
-    return StreamingResponse(
-        agent_service.stream_chat(request),
-        media_type="application/x-ndjson",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post(
     "/agents/run/stream",
     response_class=StreamingResponse,
 )

@@ -20,6 +20,7 @@ from gateway.schemas import (
 from gateway.service import gateway_service
 from tools.registry import tool_registry
 
+
 SYSTEM_AGENT_PROMPT = """
 You are the System Agent inside Dipen AI Platform.
 
@@ -32,9 +33,6 @@ Your responsibilities:
 4. Never invent system measurements.
 5. Do not suggest destructive commands.
 6. Keep the response practical and concise.
-7. Ollama "size" and "size_vram" values are raw bytes.
-8. When size_human or size_vram_human is provided, use those
-   human-readable values instead of presenting raw bytes as MB or GB.
 """.strip()
 
 
@@ -120,99 +118,6 @@ ExecutorHandler = Callable[
 
 
 class AgentExecutor:
-    @staticmethod
-    def _humanize_bytes(
-        value: Any,
-    ) -> str | None:
-        if (
-            not isinstance(value, (int, float))
-            or isinstance(value, bool)
-            or value < 0
-        ):
-            return None
-
-        size = float(value)
-
-        units = (
-            "B",
-            "KiB",
-            "MiB",
-            "GiB",
-            "TiB",
-        )
-
-        unit_index = 0
-
-        while (
-            size >= 1024.0
-            and unit_index < len(units) - 1
-        ):
-            size /= 1024.0
-            unit_index += 1
-
-        if unit_index == 0:
-            return f"{int(size)} {units[unit_index]}"
-
-        return f"{size:.2f} {units[unit_index]}"
-
-    @classmethod
-    def _normalize_status_for_prompt(
-        cls,
-        output: Any,
-    ) -> Any:
-        if not isinstance(output, dict):
-            return output
-
-        normalized = dict(output)
-
-        ollama = normalized.get("ollama")
-
-        if not isinstance(ollama, dict):
-            return normalized
-
-        normalized_ollama = dict(ollama)
-
-        loaded_models = ollama.get(
-            "loaded_models"
-        )
-
-        if isinstance(loaded_models, list):
-            normalized_models = []
-
-            for model in loaded_models:
-                if not isinstance(model, dict):
-                    normalized_models.append(model)
-                    continue
-
-                normalized_model = dict(model)
-
-                for field in (
-                    "size",
-                    "size_vram",
-                ):
-                    human = cls._humanize_bytes(
-                        normalized_model.get(field)
-                    )
-
-                    if human is not None:
-                        normalized_model[
-                            f"{field}_human"
-                        ] = human
-
-                normalized_models.append(
-                    normalized_model
-                )
-
-            normalized_ollama[
-                "loaded_models"
-            ] = normalized_models
-
-        normalized["ollama"] = (
-            normalized_ollama
-        )
-
-        return normalized
-
     def __init__(self) -> None:
         self._handlers: dict[str, ExecutorHandler] = {
             "system-agent": self._dispatch_system_agent,
@@ -776,9 +681,7 @@ class AgentExecutor:
                     "",
                     "Current system data:",
                     json.dumps(
-                        self._normalize_status_for_prompt(
-                            result.output
-                        ),
+                        result.output,
                         indent=2,
                         default=str,
                     ),

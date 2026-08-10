@@ -97,11 +97,7 @@ function isActiveRoute(
 export function AppNavigation() {
   const pathname = usePathname();
 
-  if (
-    pathname === "/" ||
-    pathname === "/chat" ||
-    pathname.startsWith("/chat/")
-  ) {
+  if (pathname === "/") {
     return null;
   }
 
