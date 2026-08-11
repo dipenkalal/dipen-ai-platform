@@ -781,3 +781,133 @@ async def test_delete_failure_retains_retryable_cleanup_target(
         )
         is None
     )
+
+
+
+@pytest.mark.asyncio
+async def test_delete_bound_conversation_attachment_is_rejected(
+    tmp_path: Path,
+) -> None:
+    (
+        repository,
+        knowledge,
+        service,
+    ) = make_service(
+        tmp_path
+    )
+
+    upload = FakeUpload(
+        filename="bound-evidence.txt",
+        content_type="text/plain",
+        content=b"bound evidence",
+    )
+
+    attachment = (
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+    )
+
+    with (
+        repository.database
+        .connection()
+    ) as connection:
+        connection.execute(
+            """
+            INSERT INTO chat_messages (
+                message_id,
+                conversation_id,
+                sequence,
+                role,
+                content,
+                status,
+                sources_json,
+                usage_json,
+                metadata_json,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?
+            )
+            """,
+            (
+                "message-bound-1",
+                "conversation-1",
+                1,
+                "user",
+                "Use the attached evidence.",
+                "completed",
+                "[]",
+                "{}",
+                "{}",
+                "2026-08-11T00:00:00+00:00",
+                "2026-08-11T00:00:00+00:00",
+            ),
+        )
+
+        connection.commit()
+
+    bound = repository.bind_to_message(
+        attachment.attachment_id,
+        "message-bound-1",
+    )
+
+    assert bound is not None
+    assert (
+        bound.message_id
+        == "message-bound-1"
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await (
+            service
+            .delete_conversation_attachment(
+                "conversation-1",
+                attachment.attachment_id,
+            )
+        )
+
+    assert (
+        exc_info.value.status_code
+        == 409
+    )
+
+    assert (
+        "already bound to a message"
+        in str(
+            exc_info.value.detail
+        )
+    )
+
+    retained = (
+        repository.get_attachment(
+            attachment.attachment_id
+        )
+    )
+
+    assert retained is not None
+
+    assert (
+        retained.message_id
+        == "message-bound-1"
+    )
+
+    assert (
+        retained.status
+        == "indexed"
+    )
+
+    assert (
+        retained.knowledge_document_id
+        == "document-1"
+    )
+
+    assert (
+        knowledge.deleted_document_ids
+        == []
+    )

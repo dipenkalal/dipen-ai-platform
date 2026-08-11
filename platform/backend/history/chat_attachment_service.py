@@ -106,6 +106,19 @@ class ChatAttachmentService:
                 ),
             )
 
+        if attachment.message_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Chat attachment "
+                    f"'{attachment_id}' "
+                    "is already bound to a message "
+                    "and cannot be removed independently. "
+                    "Delete the conversation to remove "
+                    "bound attachment evidence."
+                ),
+            )
+
         return await self.delete_attachment(
             attachment_id
         )
