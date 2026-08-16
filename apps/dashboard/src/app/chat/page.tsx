@@ -2036,16 +2036,15 @@ export default function ChatPage() {
     }
   }
 
-  async function removeChatAttachment(attachmentId: string): Promise<void> {
-    if (
-      !activeConversation?.persisted ||
-      isUploadingAttachment ||
-      deletingAttachmentId !== null
-    ) {
+  async function removeChatAttachment(
+    attachment: ChatAttachment,
+  ): Promise<void> {
+    if (isUploadingAttachment || deletingAttachmentId !== null) {
       return;
     }
 
-    const conversationId = activeConversation.id;
+    const attachmentId = attachment.attachment_id;
+    const conversationId = attachment.conversation_id;
 
     setError(null);
 
@@ -3795,9 +3794,7 @@ export default function ChatPage() {
                               deleting || isLoading || isUploadingAttachment
                             }
                             onClick={() =>
-                              void removeChatAttachment(
-                                attachment.attachment_id,
-                              )
+                              void removeChatAttachment(attachment)
                             }
                             aria-label={`Remove ${attachment.filename}`}
                             title="Remove attachment"
