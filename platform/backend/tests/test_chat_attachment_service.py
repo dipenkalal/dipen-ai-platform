@@ -294,7 +294,7 @@ async def test_missing_conversation_does_not_upload(
 
 
 @pytest.mark.asyncio
-async def test_knowledge_failure_marks_attachment_failed(
+async def test_operational_knowledge_failure_marks_attachment_failed(
     tmp_path: Path,
 ) -> None:
     (
@@ -307,19 +307,17 @@ async def test_knowledge_failure_marks_attachment_failed(
 
     knowledge.upload_error = (
         HTTPException(
-            status_code=415,
+            status_code=502,
             detail=(
-                "Unsupported file type"
+                "Knowledge service unavailable"
             ),
         )
     )
 
     upload = FakeUpload(
-        filename="example.exe",
-        content_type=(
-            "application/octet-stream"
-        ),
-        content=b"not-supported",
+        filename="example.txt",
+        content_type="text/plain",
+        content=b"example",
     )
 
     with pytest.raises(
@@ -332,7 +330,12 @@ async def test_knowledge_failure_marks_attachment_failed(
 
     assert (
         exc_info.value.status_code
-        == 415
+        == 502
+    )
+
+    assert (
+        exc_info.value.detail
+        == "Attachment ingestion failed"
     )
 
     records = (
@@ -358,7 +361,7 @@ async def test_knowledge_failure_marks_attachment_failed(
 
     assert (
         attachment.error
-        == "Unsupported file type"
+        == "Knowledge service unavailable"
     )
 
 

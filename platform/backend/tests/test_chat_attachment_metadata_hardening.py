@@ -208,6 +208,37 @@ async def test_preflight_rejects_too_long_filename_before_read(
 
 
 @pytest.mark.asyncio
+async def test_chat_upload_rejects_extension_before_metadata(
+    tmp_path: Path,
+) -> None:
+    repository, _, service = make_service(
+        tmp_path
+    )
+    upload = CountingUpload(
+        filename="malware.exe",
+        content_type="application/octet-stream",
+        content=b"unused",
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+
+    assert exc_info.value.status_code == 415
+    assert upload.read_sizes == []
+    assert (
+        repository.list_conversation_attachments(
+            "conversation-1"
+        )
+        == []
+    )
+
+
+@pytest.mark.asyncio
 async def test_upstream_5xx_detail_is_not_exposed_on_upload(
     tmp_path: Path,
 ) -> None:

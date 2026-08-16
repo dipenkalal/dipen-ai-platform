@@ -174,8 +174,7 @@ class ChatAttachmentService:
             )
 
         prepared = await prepare_upload(
-            upload,
-            validate_extension=False,
+            upload
         )
 
         filename = prepared.filename
