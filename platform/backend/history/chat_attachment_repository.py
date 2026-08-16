@@ -12,6 +12,14 @@ from history.database import (
 )
 
 
+class ChatAttachmentCountLimitError(ValueError):
+    """Conversation attachment count quota was exceeded."""
+
+
+class ChatAttachmentStorageLimitError(ValueError):
+    """Conversation attachment byte quota was exceeded."""
+
+
 class ChatAttachmentRepository:
     def __init__(
         self,
@@ -40,11 +48,62 @@ class ChatAttachmentRepository:
 
         return row is not None
 
+    def conversation_attachment_usage(
+        self,
+        conversation_id: str,
+    ) -> tuple[int, int] | None:
+        with self.database.connection() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(attachment.attachment_id)
+                        AS attachment_count,
+                    COALESCE(
+                        SUM(attachment.size_bytes),
+                        0
+                    ) AS total_bytes
+                FROM chat_conversations AS conversation
+                LEFT JOIN chat_attachments AS attachment
+                  ON attachment.conversation_id =
+                     conversation.conversation_id
+                WHERE conversation.conversation_id = ?
+                GROUP BY conversation.conversation_id
+                """,
+                (conversation_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return (
+            int(row["attachment_count"]),
+            int(row["total_bytes"]),
+        )
+
     def create_pending(
         self,
         conversation_id: str,
         data: CreatePendingChatAttachmentInput,
+        *,
+        max_attachments: int | None = None,
+        max_total_bytes: int | None = None,
     ) -> ChatAttachmentRecord | None:
+        if (
+            max_attachments is not None
+            and max_attachments <= 0
+        ):
+            raise ValueError(
+                "max_attachments must be positive"
+            )
+
+        if (
+            max_total_bytes is not None
+            and max_total_bytes < 0
+        ):
+            raise ValueError(
+                "max_total_bytes cannot be negative"
+            )
+
         attachment_id = str(uuid4())
 
         now = self._now()
@@ -64,6 +123,49 @@ class ChatAttachmentRepository:
             if conversation is None:
                 connection.rollback()
                 return None
+
+            usage = connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS attachment_count,
+                    COALESCE(
+                        SUM(size_bytes),
+                        0
+                    ) AS total_bytes
+                FROM chat_attachments
+                WHERE conversation_id = ?
+                """,
+                (conversation_id,),
+            ).fetchone()
+
+            attachment_count = int(
+                usage["attachment_count"]
+            )
+            total_bytes = int(
+                usage["total_bytes"]
+            )
+
+            if (
+                max_attachments is not None
+                and attachment_count
+                >= max_attachments
+            ):
+                connection.rollback()
+                raise ChatAttachmentCountLimitError(
+                    "Conversation attachment count "
+                    "limit reached"
+                )
+
+            if (
+                max_total_bytes is not None
+                and total_bytes + data.size_bytes
+                > max_total_bytes
+            ):
+                connection.rollback()
+                raise ChatAttachmentStorageLimitError(
+                    "Conversation attachment storage "
+                    "limit exceeded"
+                )
 
             connection.execute(
                 """

@@ -4,8 +4,12 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
+import history.chat_attachment_service as chat_attachment_service_module
 from history.chat_attachment_repository import (
     ChatAttachmentRepository,
+)
+from history.chat_attachment_schemas import (
+    CreatePendingChatAttachmentInput,
 )
 from history.chat_attachment_service import (
     ChatAttachmentService,
@@ -161,6 +165,25 @@ def make_service(
     return repository, knowledge, service
 
 
+def seed_pending_attachment(
+    repository: ChatAttachmentRepository,
+    *,
+    size_bytes: int,
+    filename: str = "existing.txt",
+) -> None:
+    attachment = repository.create_pending(
+        "conversation-1",
+        CreatePendingChatAttachmentInput(
+            filename=filename,
+            content_type="text/plain",
+            size_bytes=size_bytes,
+            sha256="a" * 64,
+        ),
+    )
+
+    assert attachment is not None
+
+
 @pytest.mark.asyncio
 async def test_missing_conversation_is_rejected_before_read(
     tmp_path: Path,
@@ -308,3 +331,185 @@ async def test_direct_preflight_rejects_extension_before_read(
 
     assert exc_info.value.status_code == 415
     assert upload.read_sizes == []
+
+
+@pytest.mark.asyncio
+async def test_conversation_count_limit_rejects_before_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        chat_attachment_service_module,
+        "CHAT_ATTACHMENT_MAX_PER_CONVERSATION",
+        1,
+    )
+    repository, knowledge, service = (
+        make_service(tmp_path)
+    )
+    seed_pending_attachment(
+        repository,
+        size_bytes=1,
+    )
+    upload = CountingUpload(
+        filename="blocked.txt",
+        content_type="text/plain",
+        content=b"blocked",
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert upload.read_sizes == []
+    assert knowledge.upload_count == 0
+    assert len(
+        repository.list_conversation_attachments(
+            "conversation-1"
+        )
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_atomic_count_limit_rechecks_after_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        chat_attachment_service_module,
+        "CHAT_ATTACHMENT_MAX_PER_CONVERSATION",
+        1,
+    )
+    monkeypatch.setattr(
+        upload_validation,
+        "MAX_FILE_SIZE_BYTES",
+        8,
+    )
+    repository, knowledge, service = (
+        make_service(tmp_path)
+    )
+    seed_pending_attachment(
+        repository,
+        size_bytes=1,
+    )
+    monkeypatch.setattr(
+        repository,
+        "conversation_attachment_usage",
+        lambda _conversation_id: (0, 0),
+    )
+    upload = CountingUpload(
+        filename="raced.txt",
+        content_type="text/plain",
+        content=b"race",
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert upload.read_sizes == [9]
+    assert knowledge.upload_count == 0
+    assert len(
+        repository.list_conversation_attachments(
+            "conversation-1"
+        )
+    ) == 1
+
+
+@pytest.mark.asyncio
+async def test_conversation_storage_limit_rejects_before_knowledge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        chat_attachment_service_module,
+        "CHAT_ATTACHMENT_MAX_BYTES_PER_CONVERSATION",
+        8,
+    )
+    monkeypatch.setattr(
+        upload_validation,
+        "MAX_FILE_SIZE_BYTES",
+        8,
+    )
+    repository, knowledge, service = (
+        make_service(tmp_path)
+    )
+    seed_pending_attachment(
+        repository,
+        size_bytes=6,
+    )
+    upload = CountingUpload(
+        filename="overflow.txt",
+        content_type="text/plain",
+        content=b"789",
+    )
+
+    with pytest.raises(
+        HTTPException
+    ) as exc_info:
+        await service.upload_attachment(
+            "conversation-1",
+            upload,
+        )
+
+    assert exc_info.value.status_code == 413
+    assert upload.read_sizes == [9]
+    assert knowledge.upload_count == 0
+    assert (
+        repository.conversation_attachment_usage(
+            "conversation-1"
+        )
+        == (1, 6)
+    )
+
+
+@pytest.mark.asyncio
+async def test_exact_conversation_storage_limit_is_allowed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        chat_attachment_service_module,
+        "CHAT_ATTACHMENT_MAX_BYTES_PER_CONVERSATION",
+        8,
+    )
+    monkeypatch.setattr(
+        upload_validation,
+        "MAX_FILE_SIZE_BYTES",
+        8,
+    )
+    repository, knowledge, service = (
+        make_service(tmp_path)
+    )
+    seed_pending_attachment(
+        repository,
+        size_bytes=5,
+    )
+    upload = CountingUpload(
+        filename="fits.txt",
+        content_type="text/plain",
+        content=b"678",
+    )
+
+    attachment = await service.upload_attachment(
+        "conversation-1",
+        upload,
+    )
+
+    assert attachment.status == "indexed"
+    assert knowledge.upload_count == 1
+    assert (
+        repository.conversation_attachment_usage(
+            "conversation-1"
+        )
+        == (2, 8)
+    )

@@ -8,7 +8,9 @@ from fastapi import (
 from pydantic import ValidationError
 
 from history.chat_attachment_repository import (
+    ChatAttachmentCountLimitError,
     ChatAttachmentRepository,
+    ChatAttachmentStorageLimitError,
     chat_attachment_repository,
 )
 from history.chat_attachment_schemas import (
@@ -27,6 +29,11 @@ from knowledge.services.knowledge import (
 from knowledge.services.upload_validation import (
     PreparedUpload,
     prepare_upload,
+)
+
+CHAT_ATTACHMENT_MAX_PER_CONVERSATION = 50
+CHAT_ATTACHMENT_MAX_BYTES_PER_CONVERSATION = (
+    100 * 1024 * 1024
 )
 
 
@@ -132,15 +139,37 @@ class ChatAttachmentService:
         conversation_id: str,
         upload: UploadFile,
     ) -> ChatAttachmentRecord:
-        if not self.repository.conversation_exists(
-            conversation_id
-        ):
+        usage = (
+            self.repository
+            .conversation_attachment_usage(
+                conversation_id
+            )
+        )
+
+        if usage is None:
             raise HTTPException(
                 status_code=404,
                 detail=(
                     "Chat conversation "
                     f"'{conversation_id}' "
                     "was not found."
+                ),
+            )
+
+        attachment_count, _ = usage
+
+        if (
+            attachment_count
+            >= CHAT_ATTACHMENT_MAX_PER_CONVERSATION
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Chat conversation attachment "
+                    "limit reached. Remove an "
+                    "unbound attachment or delete "
+                    "the conversation before "
+                    "uploading another file."
                 ),
             )
 
@@ -174,12 +203,41 @@ class ChatAttachmentService:
                 ),
             ) from exc
 
-        attachment = (
-            self.repository.create_pending(
-                conversation_id,
-                pending_input,
+        try:
+            attachment = (
+                self.repository.create_pending(
+                    conversation_id,
+                    pending_input,
+                    max_attachments=(
+                        CHAT_ATTACHMENT_MAX_PER_CONVERSATION
+                    ),
+                    max_total_bytes=(
+                        CHAT_ATTACHMENT_MAX_BYTES_PER_CONVERSATION
+                    ),
+                )
             )
-        )
+        except ChatAttachmentCountLimitError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Chat conversation attachment "
+                    "limit reached. Remove an "
+                    "unbound attachment or delete "
+                    "the conversation before "
+                    "uploading another file."
+                ),
+            ) from exc
+        except ChatAttachmentStorageLimitError as exc:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    "Chat conversation attachment "
+                    "storage limit would be exceeded. "
+                    "Remove an unbound attachment or "
+                    "delete the conversation before "
+                    "uploading another file."
+                ),
+            ) from exc
 
         if attachment is None:
             raise HTTPException(
