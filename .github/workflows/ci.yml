@@ -93,6 +93,7 @@ jobs:
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_chat_attachment_upload_preflight.py \
+            tests/test_chat_attachment_metadata_hardening.py \
             tests/test_chat_attachment_service.py \
             tests/test_chat_attachment_routes.py \
             tests/test_company_registry.py \
@@ -186,6 +187,7 @@ jobs:
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_chat_attachment_upload_preflight.py \
+            tests/test_chat_attachment_metadata_hardening.py \
             tests/test_chat_attachment_service.py \
             tests/test_chat_attachment_routes.py \
             tests/test_company_registry.py \
@@ -216,6 +218,7 @@ jobs:
             tests/test_agent_router.py \
             tests/test_agent_truth_foundation.py \
             tests/test_chat_attachment_upload_preflight.py \
+            tests/test_chat_attachment_metadata_hardening.py \
             tests/test_chat_attachment_service.py \
             tests/test_chat_attachment_routes.py \
             tests/test_chat_attachment_repository.py \

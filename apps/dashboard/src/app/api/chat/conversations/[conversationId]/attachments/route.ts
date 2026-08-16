@@ -89,13 +89,10 @@ export async function GET(
         "Cache-Control": "no-store",
       },
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       {
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Unable to load chat attachments",
+        detail: "Unable to load chat attachments",
       },
       {
         status: 502,
@@ -199,17 +196,14 @@ export async function POST(
         "Cache-Control": "no-store",
       },
     });
-  } catch (error) {
+  } catch {
     if (requestTooLarge) {
       return attachmentRequestTooLargeResponse();
     }
 
     return Response.json(
       {
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Unable to upload chat attachment",
+        detail: "Unable to upload chat attachment",
       },
       {
         status: 502,

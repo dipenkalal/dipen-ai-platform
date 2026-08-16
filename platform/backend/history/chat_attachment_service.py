@@ -262,6 +262,14 @@ class ChatAttachmentService:
                 ),
             )
 
+            if exc.status_code >= 500:
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail=(
+                        "Attachment ingestion failed"
+                    ),
+                ) from exc
+
             raise
         except Exception as exc:
             self.repository.mark_failed(
@@ -274,8 +282,7 @@ class ChatAttachmentService:
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    "Attachment ingestion "
-                    f"failed: {exc}"
+                    "Attachment ingestion failed"
                 ),
             ) from exc
 
@@ -411,6 +418,15 @@ class ChatAttachmentService:
                         exc
                     ),
                 )
+
+                if exc.status_code >= 500:
+                    raise HTTPException(
+                        status_code=exc.status_code,
+                        detail=(
+                            "Knowledge cleanup failed"
+                        ),
+                    ) from exc
+
                 raise
         except Exception as exc:
             self.repository.record_delete_error(
@@ -423,8 +439,7 @@ class ChatAttachmentService:
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    "Knowledge cleanup "
-                    f"failed: {exc}"
+                    "Knowledge cleanup failed"
                 ),
             ) from exc
 

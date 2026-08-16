@@ -9,6 +9,9 @@ from knowledge.config import (
     MAX_FILE_SIZE_BYTES,
 )
 
+MAX_UPLOAD_FILENAME_LENGTH = 512
+MAX_UPLOAD_CONTENT_TYPE_LENGTH = 255
+
 
 @dataclass(slots=True)
 class PreparedUpload:
@@ -44,6 +47,71 @@ class PreparedUpload:
         return chunk
 
 
+def _sanitize_filename(
+    value: str | None,
+) -> str:
+    raw = (
+        value or "document"
+    ).replace("\\", "/")
+
+    filename = raw.rsplit(
+        "/",
+        1,
+    )[-1].strip()
+
+    filename = "".join(
+        character
+        for character in filename
+        if character >= " "
+        and character != "\x7f"
+    )
+
+    if not filename:
+        filename = "document"
+
+    if len(filename) > MAX_UPLOAD_FILENAME_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The uploaded filename is too long"
+            ),
+        )
+
+    return filename
+
+
+def _normalize_content_type(
+    value: str | None,
+) -> str:
+    if not value:
+        return "application/octet-stream"
+
+    media_type = (
+        value.split(
+            ";",
+            1,
+        )[0]
+        .strip()
+        .lower()
+    )
+
+    if not media_type:
+        return "application/octet-stream"
+
+    if (
+        len(media_type)
+        > MAX_UPLOAD_CONTENT_TYPE_LENGTH
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "The uploaded content type is too long"
+            ),
+        )
+
+    return media_type
+
+
 async def _read_upload(
     upload,
     limit: int,
@@ -72,8 +140,13 @@ async def prepare_upload(
     max_size_bytes: int | None = None,
     validate_extension: bool = True,
 ) -> PreparedUpload:
-    filename = upload.filename or "document"
+    filename = _sanitize_filename(
+        upload.filename
+    )
     extension = Path(filename).suffix.lower()
+    content_type = _normalize_content_type(
+        upload.content_type
+    )
 
     if (
         validate_extension
@@ -133,9 +206,6 @@ async def prepare_upload(
     return PreparedUpload(
         filename=filename,
         extension=extension,
-        content_type=(
-            upload.content_type
-            or "application/octet-stream"
-        ),
+        content_type=content_type,
         content=content,
     )
