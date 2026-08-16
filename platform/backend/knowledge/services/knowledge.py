@@ -1,15 +1,12 @@
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
 from knowledge.config import (
-    ALLOWED_EXTENSIONS,
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     KNOWLEDGE_UPLOAD_DIRECTORY,
-    MAX_FILE_SIZE_BYTES,
     OLLAMA_EMBEDDING_MODEL,
     QDRANT_COLLECTION,
 )
@@ -33,6 +30,10 @@ from knowledge.services.extractor import (
     EmptyDocumentError,
     UnsupportedDocumentError,
     extract_document_text,
+)
+from knowledge.services.upload_validation import (
+    PreparedUpload,
+    prepare_upload,
 )
 from knowledge.services.vector_store import (
     vector_store,
@@ -67,45 +68,24 @@ class KnowledgeService:
 
     async def upload_document(
         self,
-        upload: UploadFile,
+        upload: UploadFile | PreparedUpload,
     ) -> DocumentUploadResponse:
-        original_filename = (
-            upload.filename or "document"
+        prepared = await prepare_upload(
+            upload
         )
 
-        extension = Path(
-            original_filename
-        ).suffix.lower()
+        return await self.upload_prepared_document(
+            prepared
+        )
 
-        if extension not in ALLOWED_EXTENSIONS:
-            allowed = ", ".join(
-                sorted(ALLOWED_EXTENSIONS)
-            )
-
-            raise HTTPException(
-                status_code=415,
-                detail=(
-                    "Unsupported file type. "
-                    f"Allowed extensions: {allowed}"
-                ),
-            )
-
-        content = await upload.read()
-
-        if not content:
-            raise HTTPException(
-                status_code=400,
-                detail="The uploaded file is empty",
-            )
-
-        if len(content) > MAX_FILE_SIZE_BYTES:
-            raise HTTPException(
-                status_code=413,
-                detail=(
-                    "The uploaded file exceeds the "
-                    f"{MAX_FILE_SIZE_BYTES} byte limit"
-                ),
-            )
+    async def upload_prepared_document(
+        self,
+        prepared: PreparedUpload,
+    ) -> DocumentUploadResponse:
+        original_filename = prepared.filename
+        extension = prepared.extension
+        content_type = prepared.content_type
+        content = prepared.content
 
         document_id = str(uuid4())
         created_at = datetime.now(
@@ -171,10 +151,7 @@ class KnowledgeService:
             await vector_store.add_document_chunks(
                 document_id=document_id,
                 filename=original_filename,
-                content_type=(
-                    upload.content_type
-                    or "application/octet-stream"
-                ),
+                content_type=content_type,
                 size_bytes=len(content),
                 created_at=created_at,
                 chunks=chunk_contents,
@@ -217,10 +194,7 @@ class KnowledgeService:
         document = DocumentInfo(
             document_id=document_id,
             filename=original_filename,
-            content_type=(
-                upload.content_type
-                or "application/octet-stream"
-            ),
+            content_type=content_type,
             size_bytes=len(content),
             chunk_count=len(chunks),
             created_at=created_at,

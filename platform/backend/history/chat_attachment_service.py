@@ -24,6 +24,10 @@ from knowledge.schemas import (
 from knowledge.services.knowledge import (
     knowledge_service,
 )
+from knowledge.services.upload_validation import (
+    PreparedUpload,
+    prepare_upload,
+)
 
 
 class KnowledgeAttachmentLifecycle(
@@ -31,7 +35,7 @@ class KnowledgeAttachmentLifecycle(
 ):
     async def upload_document(
         self,
-        upload: UploadFile,
+        upload: UploadFile | PreparedUpload,
     ) -> DocumentUploadResponse:
         ...
 
@@ -128,27 +132,26 @@ class ChatAttachmentService:
         conversation_id: str,
         upload: UploadFile,
     ) -> ChatAttachmentRecord:
-        filename = (
-            upload.filename
-            or "document"
-        )
-
-        content_type = (
-            upload.content_type
-            or "application/octet-stream"
-        )
-
-        try:
-            content = await upload.read()
-            await upload.seek(0)
-        except Exception as exc:
+        if not self.repository.conversation_exists(
+            conversation_id
+        ):
             raise HTTPException(
-                status_code=400,
+                status_code=404,
                 detail=(
-                    "Unable to read the "
-                    f"uploaded file: {exc}"
+                    "Chat conversation "
+                    f"'{conversation_id}' "
+                    "was not found."
                 ),
-            ) from exc
+            )
+
+        prepared = await prepare_upload(
+            upload,
+            validate_extension=False,
+        )
+
+        filename = prepared.filename
+        content_type = prepared.content_type
+        content = prepared.content
 
         digest = sha256(
             content
@@ -191,7 +194,7 @@ class ChatAttachmentService:
         try:
             uploaded = (
                 await self.knowledge
-                .upload_document(upload)
+                .upload_document(prepared)
             )
         except HTTPException as exc:
             self.repository.mark_failed(
