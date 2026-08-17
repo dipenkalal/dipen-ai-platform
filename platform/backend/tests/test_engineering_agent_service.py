@@ -145,7 +145,9 @@ def test_prepare_rejects_wrong_task_binding() -> None:
         "a/../b.py",
         ".git/config",
         ".github/workflows/ci.yml",
+        "platform/guardian/broker.py",
         "platform/backend/guardian/broker.py",
+        "deploy/systemd/dap-guardian.service",
         "C:\\temp\\file.py",
     ],
 )
