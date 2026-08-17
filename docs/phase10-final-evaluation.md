@@ -27,7 +27,7 @@ This is deliberately narrower than either full adoption or full rejection: selec
 
 A dedicated `Phase 10 Ruflo Evaluation` workflow was added because the repository's older backend CI uses explicit file/test lists and did not automatically cover new Phase 10 engineering files.
 
-The final pre-close evaluation checkpoint passed:
+The final evaluation checkpoint passed:
 
 - focused Guardian boundary job: **success**;
 - focused Phase 10 engineering Ruff: **success**;
@@ -39,7 +39,7 @@ The final pre-close evaluation checkpoint passed:
 - dashboard lint, Guardian voice safety, and production build: **success**;
 - Owner Channel workflow: **success**.
 
-The temporary draft pull request exists only to exercise pull-request CI. It is to be closed without merge after this documentation-only final wording commit is validated. Main remains untouched.
+The temporary draft pull request existed only to exercise pull-request CI and is closed without merge after this validated checkpoint. Main remains untouched.
 
 ## 10E — Guardian enforcement boundary
 
