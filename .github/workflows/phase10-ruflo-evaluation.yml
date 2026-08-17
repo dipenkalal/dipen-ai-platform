@@ -1,0 +1,92 @@
+name: Phase 10 Ruflo Evaluation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase10/ruflo-evaluation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase10-ruflo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engineering:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: |
+          python -m ruff check \
+            engineering/ruflo_adapter_contract.py \
+            engineering/ruflo_candidate_bridge.py \
+            engineering/ruflo_executive_handoff.py \
+            engineering/ruflo_audit_evidence.py \
+            engineering/ruflo_audit_repository.py \
+            engineering/ruflo_ollama_compatibility.py \
+            tests/test_ruflo_adapter_contract.py \
+            tests/test_ruflo_candidate_bridge.py \
+            tests/test_ruflo_executive_handoff.py \
+            tests/test_ruflo_audit_evidence.py \
+            tests/test_ruflo_audit_repository.py \
+            tests/test_ruflo_ollama_compatibility.py
+      - name: Mypy
+        run: |
+          python -m mypy \
+            engineering/ruflo_adapter_contract.py \
+            engineering/ruflo_candidate_bridge.py \
+            engineering/ruflo_executive_handoff.py \
+            engineering/ruflo_audit_evidence.py \
+            engineering/ruflo_audit_repository.py \
+            engineering/ruflo_ollama_compatibility.py \
+            --follow-imports=skip
+      - name: Compile
+        run: |
+          python -m compileall -q engineering \
+            tests/test_ruflo_adapter_contract.py \
+            tests/test_ruflo_candidate_bridge.py \
+            tests/test_ruflo_executive_handoff.py \
+            tests/test_ruflo_audit_evidence.py \
+            tests/test_ruflo_audit_repository.py \
+            tests/test_ruflo_ollama_compatibility.py
+      - name: Phase 10 engineering tests
+        run: |
+          python -m pytest -q \
+            tests/test_ruflo_adapter_contract.py \
+            tests/test_ruflo_candidate_bridge.py \
+            tests/test_ruflo_executive_handoff.py \
+            tests/test_ruflo_audit_evidence.py \
+            tests/test_ruflo_audit_repository.py \
+            tests/test_ruflo_ollama_compatibility.py
+
+  guardian-boundary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Phase 10 Guardian regression
+        run: python -m compileall -q tests/test_phase10_ruflo_boundary.py
+      - name: Phase 10 Guardian regression
+        run: python -m unittest -v tests.test_phase10_ruflo_boundary
