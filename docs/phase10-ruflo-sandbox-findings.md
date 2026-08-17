@@ -46,6 +46,12 @@ Two npm provisioning attempts were intentionally bounded:
 
 Therefore the full Ruflo CLI runtime is classified as **impractical to provision on the current Acer host via npm for this evaluation**. Further repeated full/minimal CLI install attempts are prohibited unless the evaluation plan is explicitly changed.
 
+### Codex adapter publication drift
+
+The Ruflo GitHub `main` source currently declares `@claude-flow/codex` version `3.0.3`, while the npm registry currently publishes `3.0.2` as the available package version. A controlled install attempt pinned to `3.0.3` failed immediately with `ETARGET` and created no project state. This is recorded as upstream source/registry release drift rather than a DAP or Acer failure.
+
+For runtime evaluation, use the explicitly published npm version after verifying it with `npm view @claude-flow/codex version` instead of assuming the version declared on upstream `main` has been published.
+
 ## 10B Decision
 
 Phase 10B passes as an isolation and feasibility evaluation, with the following constraint:
