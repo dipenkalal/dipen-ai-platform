@@ -47,6 +47,9 @@ jobs:
             engineering/remote_git_publication.py \
             engineering/remote_git_publisher.py \
             engineering/remote_git_publication_smoke.py \
+            engineering/engineering_diff_evidence.py \
+            engineering/engineering_audit_evidence.py \
+            engineering/engineering_audit_repository.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
             tests/test_codex_execution_contract.py \
@@ -58,7 +61,10 @@ jobs:
             tests/test_git_delivery_smoke.py \
             tests/test_remote_git_publication.py \
             tests/test_remote_git_publisher.py \
-            tests/test_remote_git_publication_smoke.py
+            tests/test_remote_git_publication_smoke.py \
+            tests/test_engineering_diff_evidence.py \
+            tests/test_engineering_audit_evidence.py \
+            tests/test_engineering_audit_repository.py
       - name: Mypy
         run: |
           python -m mypy \
@@ -74,6 +80,9 @@ jobs:
             engineering/remote_git_publication.py \
             engineering/remote_git_publisher.py \
             engineering/remote_git_publication_smoke.py \
+            engineering/engineering_diff_evidence.py \
+            engineering/engineering_audit_evidence.py \
+            engineering/engineering_audit_repository.py \
             --follow-imports=skip
       - name: Compile
         run: |
@@ -90,6 +99,9 @@ jobs:
             engineering/remote_git_publication.py \
             engineering/remote_git_publisher.py \
             engineering/remote_git_publication_smoke.py \
+            engineering/engineering_diff_evidence.py \
+            engineering/engineering_audit_evidence.py \
+            engineering/engineering_audit_repository.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
             tests/test_codex_execution_contract.py \
@@ -101,7 +113,10 @@ jobs:
             tests/test_git_delivery_smoke.py \
             tests/test_remote_git_publication.py \
             tests/test_remote_git_publisher.py \
-            tests/test_remote_git_publication_smoke.py
+            tests/test_remote_git_publication_smoke.py \
+            tests/test_engineering_diff_evidence.py \
+            tests/test_engineering_audit_evidence.py \
+            tests/test_engineering_audit_repository.py
       - name: Phase 11 engineering tests
         run: |
           python -m pytest -q \
@@ -116,7 +131,10 @@ jobs:
             tests/test_git_delivery_smoke.py \
             tests/test_remote_git_publication.py \
             tests/test_remote_git_publisher.py \
-            tests/test_remote_git_publication_smoke.py
+            tests/test_remote_git_publication_smoke.py \
+            tests/test_engineering_diff_evidence.py \
+            tests/test_engineering_audit_evidence.py \
+            tests/test_engineering_audit_repository.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
