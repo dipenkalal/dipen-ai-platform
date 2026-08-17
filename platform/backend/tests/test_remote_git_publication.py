@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from engineering.git_delivery_contract import GitDeliveryPlan, GitDeliveryReceipt
+from engineering.git_delivery_contract import (
+    GitDeliveryPlan,
+    GitDeliveryReceipt,
+)
 from engineering.local_git_delivery import LocalGitDeliveryResult
 from engineering.remote_git_publication import (
     RemoteGitPublicationObservation,
