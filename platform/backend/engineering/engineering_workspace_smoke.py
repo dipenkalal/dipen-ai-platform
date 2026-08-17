@@ -17,7 +17,11 @@ PHASE11_BRANCH = "phase11/autonomous-engineering-agent"
 BACKEND_PORT = 8112
 DASHBOARD_PORT = 3112
 DEFAULT_TRUTH_DB = Path("/home/dipen/dap/data/agent-history/agent-truth.db")
+DEFAULT_NPM_CACHE = Path("/home/dipen/dap/cache/phase11g-npm")
 READ_ONLY_COUNT_TABLES = frozenset({"task_ledger", "engineering_audit_evidence"})
+NPM_INSTALL_ATTEMPTS = 3
+NPM_INSTALL_TIMEOUT_SECONDS = 420
+NPM_RETRY_DELAY_SECONDS = 8.0
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -38,6 +42,11 @@ def _git(repo: Path, *args: str) -> str:
 def _truth_db_path() -> Path:
     configured = os.environ.get("DAP_AGENT_TRUTH_DB", "").strip()
     return Path(configured).expanduser().resolve() if configured else DEFAULT_TRUTH_DB
+
+
+def _npm_cache_path() -> Path:
+    configured = os.environ.get("DAP_PHASE11_NPM_CACHE", "").strip()
+    return Path(configured).expanduser().resolve() if configured else DEFAULT_NPM_CACHE
 
 
 def _table_count_read_only(database: Path, table: str) -> int:
@@ -181,6 +190,78 @@ def _tail(path: Path, *, max_bytes: int = 4000) -> str:
     return data[-max_bytes:].decode("utf-8", errors="replace")
 
 
+def _npm_install_output(
+    *,
+    attempt: int,
+    stdout: bytes | None,
+    stderr: bytes | None,
+    returncode: int | None,
+    timed_out: bool,
+) -> bytes:
+    header = (
+        f"--- npm ci attempt {attempt}/{NPM_INSTALL_ATTEMPTS} "
+        f"returncode={returncode} timed_out={str(timed_out).lower()} ---\n"
+    ).encode()
+    return header + (stdout or b"") + (stderr or b"")
+
+
+def _install_dashboard_dependencies(
+    *,
+    npm: str,
+    dashboard: Path,
+    env: dict[str, str],
+) -> int:
+    failures: list[bytes] = []
+    for attempt in range(1, NPM_INSTALL_ATTEMPTS + 1):
+        print(
+            f"npm_install_attempt|{attempt}/{NPM_INSTALL_ATTEMPTS}",
+            flush=True,
+        )
+        try:
+            install = subprocess.run(
+                (npm, "ci", "--no-audit", "--no-fund", "--prefer-offline"),
+                cwd=dashboard,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                check=False,
+                timeout=NPM_INSTALL_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            failures.append(
+                _npm_install_output(
+                    attempt=attempt,
+                    stdout=error.stdout,
+                    stderr=error.stderr,
+                    returncode=None,
+                    timed_out=True,
+                )
+            )
+        else:
+            if install.returncode == 0:
+                print(f"npm_install_succeeded_attempt|{attempt}", flush=True)
+                return attempt
+            failures.append(
+                _npm_install_output(
+                    attempt=attempt,
+                    stdout=install.stdout,
+                    stderr=install.stderr,
+                    returncode=install.returncode,
+                    timed_out=False,
+                )
+            )
+
+        if attempt < NPM_INSTALL_ATTEMPTS:
+            print(f"npm_install_retrying_after_seconds|{NPM_RETRY_DELAY_SECONDS:g}")
+            time.sleep(NPM_RETRY_DELAY_SECONDS)
+
+    detail = b"\n".join(failures)[-12000:].decode("utf-8", errors="replace")
+    raise RuntimeError(
+        "disposable dashboard npm ci failed after "
+        f"{NPM_INSTALL_ATTEMPTS} attempts:\n{detail}"
+    )
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -211,6 +292,8 @@ def main() -> int:
         os.environ.get("DAP_PHASE11_SANDBOX_ROOT", "/home/dipen/dap/sandboxes")
     ).resolve()
     sandbox_parent.mkdir(parents=True, exist_ok=True)
+    npm_cache = _npm_cache_path()
+    npm_cache.mkdir(parents=True, exist_ok=True)
     run_root = Path(
         tempfile.mkdtemp(prefix="phase11g-workspace-", dir=sandbox_parent)
     ).resolve()
@@ -294,25 +377,24 @@ def main() -> int:
             {
                 "DAP_BACKEND_BASE_URL": f"http://127.0.0.1:{BACKEND_PORT}",
                 "NEXT_TELEMETRY_DISABLED": "1",
-                "npm_config_cache": str(run_root / "npm-cache"),
+                "npm_config_cache": str(npm_cache),
                 "npm_config_audit": "false",
                 "npm_config_fund": "false",
+                "npm_config_fetch_retries": "5",
+                "npm_config_fetch_retry_factor": "2",
+                "npm_config_fetch_retry_mintimeout": "10000",
+                "npm_config_fetch_retry_maxtimeout": "120000",
+                "npm_config_fetch_timeout": "120000",
+                "npm_config_maxsockets": "4",
+                "npm_config_prefer_offline": "true",
+                "npm_config_progress": "false",
             }
         )
-        install = subprocess.run(
-            (npm, "ci", "--no-audit", "--no-fund"),
-            cwd=dashboard,
+        npm_install_attempt = _install_dashboard_dependencies(
+            npm=npm,
+            dashboard=dashboard,
             env=dashboard_env,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            check=False,
-            timeout=240,
         )
-        if install.returncode != 0:
-            detail = (install.stdout + install.stderr)[-4000:].decode(
-                "utf-8", errors="replace"
-            )
-            raise RuntimeError(f"disposable dashboard npm ci failed:\n{detail}")
 
         build = subprocess.run(
             (npm, "run", "build"),
@@ -321,7 +403,7 @@ def main() -> int:
             stdin=subprocess.DEVNULL,
             capture_output=True,
             check=False,
-            timeout=240,
+            timeout=300,
         )
         if build.returncode != 0:
             detail = (build.stdout + build.stderr)[-4000:].decode(
@@ -397,12 +479,15 @@ def main() -> int:
             print(f"workspace_{method.lower()}|{status}")
         print(f"dashboard_engineering|{page_status}")
         print(f"dashboard_proxy|{proxy_status}")
+        print(f"npm_install_succeeded_attempt|{npm_install_attempt}")
+        print(f"npm_cache|{npm_cache}")
         print("production_db_mutated|false")
         print("live_services_restarted|false")
         print("docker_used|false")
         print("guardian_contacted|false")
         print("telegram_enabled|false")
         print("disposable_dashboard_dependencies|true")
+        print("persistent_npm_tarball_cache_only|true")
         print("smoke_disposition|succeeded")
         return 0
     except Exception:
