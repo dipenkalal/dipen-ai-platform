@@ -20,6 +20,7 @@ from engineering.codex_execution_contract import (
     codex_execution_validator,
 )
 from engineering.engineering_agent_service import EngineeringWorkOrder
+from engineering.guardian_execution_admission import EngineeringGuardianAdmission
 
 CODEX_CLI_VERSION = "codex-cli 0.146.0"
 
@@ -164,13 +165,7 @@ class GitArchiveWorkspaceMaterializer:
         archive_path = workspace.parent / f".{workspace.name}.tar"
         try:
             archive = subprocess.run(
-                (
-                    "git",
-                    "archive",
-                    "--format=tar",
-                    f"--output={archive_path}",
-                    source_commit,
-                ),
+                ("git", "archive", "--format=tar", f"--output={archive_path}", source_commit),
                 cwd=source_repo,
                 env=dict(env),
                 stdin=subprocess.DEVNULL,
@@ -218,18 +213,15 @@ class CodexRunResult(BaseModel):
     workspace: Path
     command_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     source_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    guardian_admission_id: str
+    guardian_admission_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     stdout_tail: str = ""
     stderr_tail: str = ""
     timed_out: bool = False
 
 
 class BoundedCodexRunner:
-    """Execute Codex only against a disposable tracked-file snapshot.
-
-    This is not production wiring. It owns no task authority, Git delivery,
-    Guardian approval, merge, or deployment. The source repository is read-only
-    from this class's perspective; Codex receives a snapshot without `.git`.
-    """
+    """Execute Codex only after DAP proves a non-privileged Guardian boundary."""
 
     _parent_env_keys = (
         "HOME",
@@ -256,8 +248,14 @@ class BoundedCodexRunner:
         *,
         work_order: EngineeringWorkOrder,
         ticket: CodexExecutionTicket,
+        guardian_admission: EngineeringGuardianAdmission,
     ) -> CodexRunResult:
         self._validate_binding(work_order=work_order, ticket=ticket)
+        self._validate_guardian_admission(
+            work_order=work_order,
+            ticket=ticket,
+            admission=guardian_admission,
+        )
         parent_env = self._parent_environment()
         self._preflight(parent_env)
 
@@ -301,10 +299,7 @@ class BoundedCodexRunner:
             ),
             production_secret_access_attempted=False,
         )
-        receipt = codex_execution_validator.evaluate(
-            ticket=ticket,
-            observation=observation,
-        )
+        receipt = codex_execution_validator.evaluate(ticket=ticket, observation=observation)
         if result.timed_out and receipt.disposition == "succeeded":
             raise RuntimeError("timed-out Codex run cannot be accepted")
 
@@ -313,6 +308,8 @@ class BoundedCodexRunner:
             workspace=workspace,
             command_sha256=self._command_hash(argv),
             source_commit=self.config.source_commit,
+            guardian_admission_id=guardian_admission.admission_id,
+            guardian_admission_sha256=guardian_admission.canonical_hash(),
             stdout_tail=self._tail(result.stdout),
             stderr_tail=self._tail(result.stderr),
             timed_out=result.timed_out,
@@ -414,6 +411,34 @@ class BoundedCodexRunner:
             raise ValueError("Codex ticket path scope differs from the work order")
         if ticket.sandbox_mode != "workspace-write" or ticket.approval_policy != "on-request":
             raise ValueError("Codex ticket does not use the Phase 11 sandbox policy")
+
+    @staticmethod
+    def _validate_guardian_admission(
+        *,
+        work_order: EngineeringWorkOrder,
+        ticket: CodexExecutionTicket,
+        admission: EngineeringGuardianAdmission,
+    ) -> None:
+        if admission.work_order_id != work_order.work_order_id:
+            raise ValueError("Guardian admission belongs to another work order")
+        if admission.work_order_sha256 != work_order.canonical_hash():
+            raise ValueError("Guardian admission work-order hash mismatch")
+        if admission.ticket_id != ticket.ticket_id:
+            raise ValueError("Guardian admission belongs to another Codex ticket")
+        if admission.ticket_sha256 != ticket.canonical_hash():
+            raise ValueError("Guardian admission ticket hash mismatch")
+        if admission.risk_class != "non_privileged_workspace":
+            raise ValueError("Guardian admission risk class is not non-privileged")
+        if not admission.codex_execution_admitted or not admission.execution_may_proceed:
+            raise ValueError("Guardian admission does not permit Codex execution")
+        if (
+            admission.guardian_service_contact_required
+            or admission.guardian_service_contacted
+            or admission.guardian_broker_contact_allowed
+            or admission.root_authorization_required
+            or admission.root_authorization_granted
+        ):
+            raise ValueError("Codex execution cannot carry Guardian/root authority")
 
     @staticmethod
     def _snapshot(workspace: Path) -> dict[str, str]:
