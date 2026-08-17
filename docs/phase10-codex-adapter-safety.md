@@ -32,14 +32,52 @@ Direct `claude-flow-codex init` is therefore blocked for Phase 10.
 
 The exported generator API is a better integration seam than the initializer, but generated configuration must still be treated as untrusted data. Upstream `generateConfigToml()` defaults to safer top-level approval/sandbox values, yet it also unconditionally includes a Ruflo MCP server in its generated TOML and emits `network_access = true` in the workspace-write section. DAP must not consume that output verbatim.
 
+### Phase 10C.5 generator-only PoC
+
+The adapter's pure generator and validator exports were executed without invoking the initializer or Codex CLI.
+
+Observed results:
+
+- generated minimal `AGENTS.md` candidate: 947 bytes;
+- `validateAgentsMd()` returned `valid=true`, zero errors, and three warnings;
+- generated configuration candidate: 7,724 bytes;
+- `validateConfigToml()` returned `valid=true`, zero errors, and one warning;
+- the requested conservative top-level settings were present: `approval_policy="untrusted"`, `sandbox_mode="read-only"`, and `web_search="disabled"`;
+- despite those inputs, the same generated configuration also contained `approval_policy="never"`, `sandbox_mode="danger-full-access"`, `web_search="live"`, `network_access=true`, a Ruflo MCP server, and an `npx` invocation using `@claude-flow/cli@latest`;
+- the disposable project workspace remained unchanged;
+- no `.agents`, `.codex`, `.claude-flow`, or `AGENTS.md` project state was created;
+- no adapter process or listener remained;
+- no initializer, Codex CLI, MCP registration, plugin installation, or real Codex configuration access occurred.
+
+This proves that upstream validation success is not equivalent to DAP policy approval. Ruflo validators may be used as syntax/shape checks, but DAP must perform an independent policy gate.
+
+## DAP-owned integration rule
+
 The allowed Phase 10C direction is therefore:
 
-1. call pure generator / validator functions only;
-2. treat returned strings as untrusted candidate artifacts;
-3. apply DAP-owned policy filtering or construct DAP-owned configuration instead of accepting Ruflo's local Codex config;
-4. never allow Ruflo to register MCP, install plugins, modify real Codex user state, or choose privileged execution policy;
-5. keep Codex execution, auditing, and privileged actions behind DAP/Guardian-owned boundaries.
+1. call selected pure generator / validator functions only;
+2. pin the npm package version and verify the installed artifact hash before import;
+3. treat every returned string as untrusted candidate data;
+4. apply DAP-owned deny/allow policy checks independently of Ruflo validators;
+5. never accept upstream-generated Codex configuration verbatim;
+6. let DAP render its own Codex execution policy/configuration;
+7. never allow Ruflo to register MCP, install plugins, modify real Codex user state, or choose privileged execution policy;
+8. keep Codex execution, auditing, and privileged actions behind DAP/Guardian-owned boundaries.
+
+## Phase 10C.6 wrapper
+
+A Phase 10 evaluation gate is maintained at `scripts/phase10-codex-adapter-gate.mjs`.
+
+The gate is intentionally limited to pure adapter exports. It:
+
+- requires the evaluated package metadata to equal `3.0.2`;
+- requires the installed adapter CLI SHA-256 to equal `1df00b5aa26c6d76b354bbf2d80042c9c91e83b877c7bacc22f96ee098bea096`;
+- generates and validates a minimal AGENTS candidate;
+- applies a DAP-owned policy scan before accepting that candidate;
+- generates upstream configuration only as a negative control and requires DAP policy to reject it;
+- never writes the rejected upstream configuration as a usable `.toml` artifact;
+- never calls `CodexInitializer`, the adapter CLI, `child_process`, MCP registration, plugin installation, or Codex execution.
 
 ## Current decision
 
-Proceed to a generator-only proof of concept. Do not execute `init`, `dual`, `loop`, MCP registration, plugin installation, or any command that mutates real Codex state.
+Proceed with the DAP-owned adapter gate and verify it on the Acer sandbox. Continue to block `init`, `dual`, `loop`, direct MCP registration, plugin installation, and any command that mutates real Codex state.
