@@ -31,7 +31,7 @@ class VectorStore:
         try:
             await self.client.get_collections()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     async def ensure_collection(
