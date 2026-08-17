@@ -1,9 +1,13 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from agents.truth_repository import AgentTruthRepository
-from engineering.engineering_audit_repository import EngineeringAuditRepository
+from engineering.engineering_audit_repository import (
+    EngineeringAuditRepository,
+    PersistedEngineeringAuditRecord,
+)
 from engineering.engineering_owner_review import (
     EngineeringOwnerReviewDecisionRequest,
     engineering_owner_review_service,
@@ -83,8 +87,6 @@ def test_review_repository_requires_persisted_evidence(tmp_path: Path) -> None:
     audit = EngineeringAuditRepository(truth)
     review = EngineeringOwnerReviewRepository(truth, audit)
     evidence = successful_evidence()
-    from engineering.engineering_audit_repository import PersistedEngineeringAuditRecord
-    from datetime import datetime, timezone
 
     package = engineering_owner_review_service.build_package(
         task=task,
