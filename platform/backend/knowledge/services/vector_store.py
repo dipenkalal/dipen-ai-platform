@@ -138,19 +138,39 @@ class VectorStore:
         limit: int,
         score_threshold: float | None,
         document_id: str | None,
+        excluded_document_ids: set[str] | None = None,
     ) -> list[Any]:
-        query_filter = None
+        must_conditions: list[FieldCondition] = []
+        must_not_conditions: list[FieldCondition] = []
 
         if document_id:
+            must_conditions.append(
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(
+                        value=document_id,
+                    ),
+                )
+            )
+
+        for excluded_document_id in sorted(
+            excluded_document_ids or set()
+        ):
+            must_not_conditions.append(
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(
+                        value=excluded_document_id,
+                    ),
+                )
+            )
+
+        query_filter = None
+
+        if must_conditions or must_not_conditions:
             query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="document_id",
-                        match=MatchValue(
-                            value=document_id,
-                        ),
-                    )
-                ]
+                must=must_conditions or None,
+                must_not=must_not_conditions or None,
             )
 
         result = await self.client.query_points(
