@@ -6,6 +6,7 @@ import shutil
 import signal
 import sqlite3
 import subprocess
+import tarfile
 import tempfile
 import time
 import urllib.error
@@ -61,6 +62,42 @@ def _copy_truth_database_read_only(source: Path, destination: Path) -> None:
         sqlite3.connect(destination, timeout=10.0) as destination_connection,
     ):
         source_connection.backup(destination_connection)
+
+
+def _materialize_dashboard(
+    *,
+    repo: Path,
+    source_commit: str,
+    run_root: Path,
+) -> Path:
+    archive_path = run_root / "dashboard.tar"
+    archive = subprocess.run(
+        (
+            "git",
+            "archive",
+            "--format=tar",
+            f"--output={archive_path}",
+            source_commit,
+            "apps/dashboard",
+        ),
+        cwd=repo,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+        timeout=60,
+    )
+    if archive.returncode != 0:
+        detail = archive.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"dashboard git archive failed: {detail}")
+    try:
+        with tarfile.open(archive_path, mode="r") as bundle:
+            bundle.extractall(run_root, filter="data")
+    finally:
+        archive_path.unlink(missing_ok=True)
+    dashboard = run_root / "apps" / "dashboard"
+    if not (dashboard / "package-lock.json").is_file():
+        raise RuntimeError("disposable dashboard snapshot is incomplete")
+    return dashboard
 
 
 def _request(
@@ -151,7 +188,6 @@ def _repo_root() -> Path:
 def main() -> int:
     repo = _repo_root()
     backend = repo / "platform" / "backend"
-    dashboard = repo / "apps" / "dashboard"
     python = backend / ".venv" / "bin" / "python"
     truth_db = _truth_db_path()
 
@@ -188,6 +224,11 @@ def main() -> int:
     dashboard_process: subprocess.Popen[bytes] | None = None
     try:
         _copy_truth_database_read_only(truth_db, copied_truth)
+        dashboard = _materialize_dashboard(
+            repo=repo,
+            source_commit=source_commit,
+            run_root=run_root,
+        )
 
         backend_env = os.environ.copy()
         backend_env.update(
@@ -248,10 +289,35 @@ def main() -> int:
                     f"engineering workspace {method} expected 405, observed {status}"
                 )
 
+        dashboard_env = os.environ.copy()
+        dashboard_env.update(
+            {
+                "DAP_BACKEND_BASE_URL": f"http://127.0.0.1:{BACKEND_PORT}",
+                "NEXT_TELEMETRY_DISABLED": "1",
+                "npm_config_cache": str(run_root / "npm-cache"),
+                "npm_config_audit": "false",
+                "npm_config_fund": "false",
+            }
+        )
+        install = subprocess.run(
+            (npm, "ci", "--no-audit", "--no-fund"),
+            cwd=dashboard,
+            env=dashboard_env,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=False,
+            timeout=240,
+        )
+        if install.returncode != 0:
+            detail = (install.stdout + install.stderr)[-4000:].decode(
+                "utf-8", errors="replace"
+            )
+            raise RuntimeError(f"disposable dashboard npm ci failed:\n{detail}")
+
         build = subprocess.run(
             (npm, "run", "build"),
             cwd=dashboard,
-            env=os.environ.copy(),
+            env=dashboard_env,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             check=False,
@@ -263,10 +329,6 @@ def main() -> int:
             )
             raise RuntimeError(f"dashboard build failed:\n{detail}")
 
-        dashboard_env = os.environ.copy()
-        dashboard_env["DAP_BACKEND_BASE_URL"] = (
-            f"http://127.0.0.1:{BACKEND_PORT}"
-        )
         dashboard_process = _start_process(
             (
                 npm,
@@ -340,6 +402,7 @@ def main() -> int:
         print("docker_used|false")
         print("guardian_contacted|false")
         print("telegram_enabled|false")
+        print("disposable_dashboard_dependencies|true")
         print("smoke_disposition|succeeded")
         return 0
     except Exception:
