@@ -66,6 +66,7 @@ jobs:
             history/chat_attachment_service.py \
             knowledge/services/knowledge.py \
             knowledge/services/upload_validation.py \
+            knowledge/services/vector_store.py \
             executive_office/delegation_service.py \
             executive_office/execution_cancellation_reconciliation.py \
             executive_office/execution_cancellation_recovery.py \
@@ -96,6 +97,7 @@ jobs:
             tests/test_chat_attachment_metadata_hardening.py \
             tests/test_chat_attachment_service.py \
             tests/test_chat_attachment_routes.py \
+            tests/test_knowledge_chat_owned_isolation.py \
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
@@ -182,6 +184,7 @@ jobs:
             history/chat_attachment_service.py \
             knowledge/services/knowledge.py \
             knowledge/services/upload_validation.py \
+            knowledge/services/vector_store.py \
             owner_channels \
             tests/test_agent_cancellation.py \
             tests/test_agent_router.py \
@@ -190,6 +193,7 @@ jobs:
             tests/test_chat_attachment_metadata_hardening.py \
             tests/test_chat_attachment_service.py \
             tests/test_chat_attachment_routes.py \
+            tests/test_knowledge_chat_owned_isolation.py \
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
             tests/test_executive_execution.py \
@@ -225,6 +229,7 @@ jobs:
             tests/test_chat_attachment_database.py \
             tests/test_chat_message_attachment_binding.py \
             tests/test_chat_attachment_context_service.py \
+            tests/test_knowledge_chat_owned_isolation.py \
             tests/test_chat_history_service.py \
             tests/test_company_registry.py \
             tests/test_executive_delegation.py \
