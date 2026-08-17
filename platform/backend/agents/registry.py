@@ -190,6 +190,32 @@ agent_registry.register(
 
 agent_registry.register(
     AgentDefinition(
+        id="engineering-agent",
+        name="Engineering Agent",
+        description=(
+            "Prepare and deliver DAP-authorized repository engineering work "
+            "through bounded work orders, controlled execution, evidence, and "
+            "owner-reviewed Git delivery."
+        ),
+        category="coding",
+        icon="git-pull-request",
+        accent="blue",
+        tools=[],
+        capabilities=[
+            "Bounded engineering work-order preparation",
+            "Repository change planning",
+            "Test and verification planning",
+            "Owner-reviewed delivery preparation",
+        ],
+        recommended_model="qwen3:1.7b",
+        safe=True,
+        enabled=True,
+    )
+)
+
+
+agent_registry.register(
+    AgentDefinition(
         id="documentation-agent",
         name="Documentation Agent",
         description=(
