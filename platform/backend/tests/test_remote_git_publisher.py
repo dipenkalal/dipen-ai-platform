@@ -22,6 +22,7 @@ SOURCE_COMMIT = "1" * 40
 LOCAL_COMMIT = "2" * 40
 DELIVERY_BRANCH = "engineering/phase11-publisher-test-0123456789ab"
 BASE_BRANCH = "phase11/autonomous-engineering-agent"
+OBSERVED_GH_VERSION = "gh version 2.97.0 (2026-07-31)"
 
 
 def delivery_plan() -> GitDeliveryPlan:
@@ -53,6 +54,7 @@ def local_result(tmp_path: Path, plan: GitDeliveryPlan) -> LocalGitDeliveryResul
         commit_sha=LOCAL_COMMIT,
         committed_files=plan.changed_files,
         findings=(),
+        message="Local Git delivery passed; remote publication remains separately disabled.",
     )
     return LocalGitDeliveryResult(
         receipt=receipt,
@@ -71,7 +73,7 @@ class FakeRunner:
         remote_sha: str | None = None,
         pr_exists: bool = False,
         pr_is_draft: bool = True,
-        gh_version: str = EXPECTED_GH_VERSION,
+        gh_version: str = OBSERVED_GH_VERSION,
     ) -> None:
         self.remote_sha = remote_sha
         self.pr_exists = pr_exists
@@ -180,6 +182,7 @@ def test_publisher_creates_only_exact_branch_and_draft_pr(
     assert result.receipt.disposition == "succeeded"
     assert result.remote_commit_sha == LOCAL_COMMIT
     assert result.pull_request_number == 123
+    assert result.gh_version == OBSERVED_GH_VERSION
     assert result.branch_reused is False
     assert result.draft_pull_request_reused is False
     assert result.github_credentials_exposed_to_codex is False
@@ -204,6 +207,18 @@ def test_publisher_creates_only_exact_branch_and_draft_pr(
     assert "--force" not in {token for argv in fake.commands for token in argv}
     assert "merge" not in {token for argv in fake.commands for token in argv}
     assert all("GH_TOKEN" not in env and "GITHUB_TOKEN" not in env for env in fake.environments)
+
+
+def test_publisher_accepts_exact_version_without_build_suffix(tmp_path: Path) -> None:
+    _, local, publication = publication_fixture(tmp_path)
+    fake = FakeRunner(gh_version=f"gh version {EXPECTED_GH_VERSION}")
+
+    result = publisher(tmp_path, fake).publish(
+        plan=publication,
+        local_result=local,
+    )
+
+    assert result.gh_version == f"gh version {EXPECTED_GH_VERSION}"
 
 
 def test_publisher_reuses_exact_branch_and_exact_draft_pr(tmp_path: Path) -> None:
@@ -245,7 +260,7 @@ def test_publisher_refuses_existing_ready_for_review_pr(tmp_path: Path) -> None:
 
 def test_publisher_refuses_gh_version_drift(tmp_path: Path) -> None:
     _, local, publication = publication_fixture(tmp_path)
-    fake = FakeRunner(gh_version="gh version 9.9.9")
+    fake = FakeRunner(gh_version="gh version 9.9.9 (2099-01-01)")
 
     with pytest.raises(RuntimeError, match="GitHub CLI version drift"):
         publisher(tmp_path, fake).publish(plan=publication, local_result=local)
