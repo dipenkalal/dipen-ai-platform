@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
 import resource
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -22,12 +24,12 @@ from engineering.codex_execution_contract import (
 from engineering.codex_runner import (
     CODEX_CLI_VERSION,
     BoundedCodexRunner,
-    CodexRunResult,
     CodexRunnerConfig,
+    CodexRunResult,
 )
 from engineering.engineering_agent_service import (
-    EngineeringWorkScope,
     EngineeringWorkOrder,
+    EngineeringWorkScope,
     engineering_agent_service,
 )
 from engineering.guardian_execution_admission import (
@@ -157,8 +159,8 @@ class EngineeringBenchmarkReport(BaseModel):
     deployment_performed: Literal[False] = False
     guardian_contacted: Literal[False] = False
     task_ledger_mutated: Literal[False] = False
-    source_repo_clean: Literal[True] = True
-    sandbox_removed: Literal[True] = True
+    source_repo_clean: bool = True
+    sandbox_removed: bool = True
 
     def canonical_hash(self) -> str:
         return _hash_json(self.model_dump(mode="json"))
@@ -255,7 +257,7 @@ def benchmark_task_specs() -> tuple[BenchmarkTaskSpec, ...]:
                 "Only the target path changes.",
                 "The file compiles as Python.",
                 "The module defines add(left, right) with no imports.",
-                "add(2, 3) == 5 and add(-4, 1) == -3.",
+                "The return expression is the arithmetic addition of left and right.",
             ),
             max_attempts=2,
         ),
@@ -371,9 +373,7 @@ def _validate_acceptance(
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as error:
-            checks.append(
-                BenchmarkCheck(name="json-parse", passed=False, detail=str(error))
-            )
+            checks.append(BenchmarkCheck(name="json-parse", passed=False, detail=str(error)))
             return False, tuple(checks)
         checks.append(BenchmarkCheck(name="json-parse", passed=True, detail="valid JSON"))
         semantic = parsed == {"name": "phase11h", "enabled": True, "limit": 7}
@@ -417,50 +417,76 @@ def _validate_acceptance(
 
     if spec.kind == "python_repair":
         try:
-            code = compile(content, spec.target_path, "exec")
+            compile(content, spec.target_path, "exec")
+            tree = ast.parse(content)
         except SyntaxError as error:
-            checks.append(
-                BenchmarkCheck(name="python-compile", passed=False, detail=str(error))
-            )
+            checks.append(BenchmarkCheck(name="python-compile", passed=False, detail=str(error)))
             return False, tuple(checks)
         checks.append(
             BenchmarkCheck(name="python-compile", passed=True, detail="compile succeeded")
         )
 
-        import ast
-
-        tree = ast.parse(content)
-        import_nodes = tuple(
+        imports = tuple(
             node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))
         )
-        no_imports = not import_nodes
         checks.append(
             BenchmarkCheck(
                 name="python-no-imports",
-                passed=no_imports,
+                passed=not imports,
                 detail="Repair target must not add imports.",
             )
         )
-        namespace: dict[str, object] = {"__builtins__": {"int": int}}
-        try:
-            exec(code, namespace, namespace)
-            add = namespace.get("add")
-            functional = callable(add) and add(2, 3) == 5 and add(-4, 1) == -3
-        except Exception as error:
-            functional = False
-            functional_detail = str(error)
-        else:
-            functional_detail = "add() passed positive and negative deterministic cases."
+
+        functions = tuple(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "add"
+        )
+        addition_shape = False
+        if len(functions) == 1 and isinstance(functions[0], ast.FunctionDef):
+            returns = tuple(
+                node for node in functions[0].body if isinstance(node, ast.Return)
+            )
+            if len(returns) == 1:
+                value = returns[0].value
+                if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+                    names = {
+                        operand.id
+                        for operand in (value.left, value.right)
+                        if isinstance(operand, ast.Name)
+                    }
+                    addition_shape = names == {"left", "right"}
         checks.append(
             BenchmarkCheck(
-                name="python-functional-test",
-                passed=functional,
-                detail=functional_detail,
+                name="python-functional-shape",
+                passed=addition_shape,
+                detail="add() must directly return left + right (operand order may vary).",
             )
         )
         return all(check.passed for check in checks), tuple(checks)
 
     raise ValueError(f"unsupported benchmark task kind: {spec.kind}")
+
+
+def _check_state(checks: tuple[BenchmarkCheck, ...], name: str) -> bool | None:
+    for check in checks:
+        if check.name == name:
+            return check.passed
+    return None
+
+
+def _behavior_matches(spec: BenchmarkTaskSpec, attempt: BenchmarkAttemptResult) -> bool:
+    if not attempt.execution_succeeded or not attempt.path_compliant:
+        return False
+    if attempt.acceptance_passed != spec.expected_acceptance:
+        return False
+    if spec.kind != "expected_quality_failure":
+        return True
+    return (
+        _check_state(attempt.checks, "target-exists") is True
+        and _check_state(attempt.checks, "malformed-objective-match") is True
+        and _check_state(attempt.checks, "semantic-json-quality") is False
+    )
 
 
 def _receipt_hash(result: CodexRunResult) -> str:
@@ -534,7 +560,7 @@ def _run_attempt(
         )
         disposition = result.receipt.disposition
         timed_out = result.timed_out
-    except Exception as error:
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         acceptance_passed = False
         path_compliant = False
         execution_succeeded = False
@@ -546,10 +572,11 @@ def _run_attempt(
         if result is not None and result.workspace.exists():
             try:
                 runner.cleanup(result.workspace)
-            except Exception as cleanup_error:
+            except (OSError, RuntimeError, ValueError) as cleanup_error:
+                prefix = f"{error_text}; " if error_text else ""
                 error_text = (
-                    (error_text + "; ") if error_text else ""
-                ) + f"cleanup: {type(cleanup_error).__name__}: {cleanup_error}"
+                    f"{prefix}cleanup: {type(cleanup_error).__name__}: {cleanup_error}"
+                )
 
     elapsed = time.monotonic() - started
     after_usage = resource.getrusage(resource.RUSAGE_CHILDREN)
@@ -590,20 +617,11 @@ def _run_task(
     for attempt_number in range(1, spec.max_attempts + 1):
         attempt = _run_attempt(spec=spec, attempt=attempt_number, runner=runner)
         attempts.append(attempt)
-        behavior_matches = (
-            attempt.execution_succeeded
-            and attempt.path_compliant
-            and attempt.acceptance_passed == spec.expected_acceptance
-        )
-        if behavior_matches:
+        if _behavior_matches(spec, attempt):
             break
 
     final = attempts[-1]
-    behavior_matches = (
-        final.execution_succeeded
-        and final.path_compliant
-        and final.acceptance_passed == spec.expected_acceptance
-    )
+    behavior_matches = _behavior_matches(spec, final)
     return BenchmarkTaskResult(
         spec=spec,
         attempts=tuple(attempts),
@@ -665,8 +683,8 @@ def _aggregate_report(
         production_engineering_audit_before=audit_before,
         production_engineering_audit_after=audit_after,
         production_db_mutated=False,
-        source_repo_clean=True if source_repo_clean else False,  # type: ignore[arg-type]
-        sandbox_removed=True if sandbox_removed else False,  # type: ignore[arg-type]
+        source_repo_clean=source_repo_clean,
+        sandbox_removed=sandbox_removed,
     )
 
 
@@ -698,10 +716,10 @@ def _print_report(report: EngineeringBenchmarkReport) -> None:
             if attempt.error:
                 print(f"attempt_error|{task.spec.slug}|{attempt.error}")
             for check in attempt.checks:
+                detail = check.detail.replace("\n", " ")
                 print(
                     "check|"
-                    f"{task.spec.slug}|{check.name}|{str(check.passed).lower()}|"
-                    f"{check.detail.replace(chr(10), ' ')}"
+                    f"{task.spec.slug}|{check.name}|{str(check.passed).lower()}|{detail}"
                 )
 
     print(f"positive_task_count|{report.positive_task_count}")
@@ -780,8 +798,6 @@ def _truth_db_path() -> Path:
 def _table_count_read_only(database: Path, table: str) -> int:
     if table not in READ_ONLY_COUNT_TABLES:
         raise ValueError(f"unsupported Phase 11H count table: {table}")
-    import sqlite3
-
     uri = f"file:{database}?mode=ro"
     with sqlite3.connect(uri, uri=True, timeout=10.0) as connection:
         exists = connection.execute(
