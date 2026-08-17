@@ -6,11 +6,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-RUFLO_CODEX_PACKAGE = "@claude-flow/codex"
-RUFLO_CODEX_PACKAGE_VERSION = "3.0.2"
-RUFLO_CODEX_CLI_SHA256 = (
+RUFLO_CODEX_PACKAGE: Literal["@claude-flow/codex"] = "@claude-flow/codex"
+RUFLO_CODEX_PACKAGE_VERSION: Literal["3.0.2"] = "3.0.2"
+RUFLO_CODEX_CLI_SHA256: Literal[
     "1df00b5aa26c6d76b354bbf2d80042c9c91e83b877c7bacc22f96ee098bea096"
-)
+] = "1df00b5aa26c6d76b354bbf2d80042c9c91e83b877c7bacc22f96ee098bea096"
 
 AdapterDisposition = Literal["accepted", "rejected"]
 AdapterCapability = Literal["generate_agents", "validate_agents"]
