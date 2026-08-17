@@ -121,6 +121,44 @@ class Phase11EngineeringGuardianBoundaryTestCase(unittest.TestCase):
         ):
             self.assertNotIn(forbidden_literal, source)
 
+    def test_remote_git_publisher_is_nonprivileged_and_dap_only(self) -> None:
+        source_path = (
+            self._repo_root()
+            / "platform/backend/engineering/remote_git_publisher.py"
+        )
+        imported_modules = self._imported_modules(source_path)
+        forbidden_prefixes = (
+            "guardian",
+            "platform.guardian",
+            "broker_client",
+            "root_authorization",
+        )
+        self.assertFalse(
+            any(
+                module.startswith(forbidden_prefixes)
+                for module in imported_modules
+            ),
+            imported_modules,
+        )
+
+        source = source_path.read_text(encoding="utf-8")
+        for forbidden_literal in (
+            "/run/dap/guardian",
+            "dap-guardian-broker.service",
+            "issue_backend_restart_authorization(",
+            "execute_authorized_backend_restart(",
+            "/usr/bin/systemctl",
+            "/var/run/docker.sock",
+            '"--force"',
+            '"GH_TOKEN"',
+            '"GITHUB_TOKEN"',
+        ):
+            self.assertNotIn(forbidden_literal, source)
+        self.assertIn("shell=False", source)
+        self.assertIn("git@github.com:dipenkalal/dipen-ai-platform.git", source)
+        self.assertIn('"--draft"', source)
+        self.assertNotIn('"merge",', source)
+
     def test_engineering_scope_protects_real_guardian_tree(self) -> None:
         source = (
             self._repo_root()
