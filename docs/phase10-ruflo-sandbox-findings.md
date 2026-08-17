@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict. Phase 10C standalone Codex adapter evaluation is now in progress; 10C.1 provisioning and 10C.2 first execution have passed.
+Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict. Phase 10C standalone Codex adapter evaluation is in progress; 10C.1 provisioning, 10C.2 first execution, and 10C.3 read-only capability testing have passed. A static initializer audit now blocks any direct `init` execution until additional containment is designed.
 
 ## Environment
 
@@ -88,6 +88,37 @@ Observed results:
 
 A second upstream version-drift issue was discovered. The npm package metadata installed as `3.0.2`, but the published executable reports `3.0.1` from its compiled `VERSION` constant. Upstream GitHub `main` currently exports `VERSION = '3.0.3'`. Therefore source, npm package metadata, and executable version identifiers are not synchronized. Phase 10 must pin artifacts by package version and integrity/hash rather than trusting the adapter's CLI-reported version alone.
 
+### Phase 10C.3 read-only capability gate
+
+The standalone adapter was exercised only through non-mutating commands in a fresh disposable workspace.
+
+Observed results:
+
+- package metadata reported `3.0.2` while the installed compiled artifact still embedded `VERSION = '3.0.1'`;
+- installed CLI SHA-256 was `1df00b5aa26c6d76b354bbf2d80042c9c91e83b877c7bacc22f96ee098bea096`;
+- `templates --json` exited `0` and exposed minimal/default/full/enterprise templates;
+- `skills --json` exited `0` and exposed the built-in skill catalog;
+- `validate --path <empty disposable project>` exited `0` and reported no files to validate;
+- the empty project remained unchanged;
+- no `.codex`, `.agents`, `.claude-flow`, or `AGENTS.md` state was created;
+- no adapter/Ruflo process or listener remained;
+- DAP source remained clean;
+- Guardian remained inactive and Telegram approvals remained disabled.
+
+This gate passes.
+
+### Initializer safety finding
+
+Static review of the upstream Codex initializer shows that `init` is not merely a project-file generator. It performs several actions that violate the current DAP evaluation boundary unless explicitly contained:
+
+- creates `.agents`, `.codex`, `.claude-flow`, `.claude-flow/data`, and `.claude-flow/logs`;
+- writes `AGENTS.md`, `.agents/config.toml`, `.codex/AGENTS.override.md`, `.codex/config.toml`, and updates `.gitignore`;
+- attempts to register a `ruflo` MCP server by invoking the host `codex` CLI;
+- attempts to add the `ruvnet/ruflo` Codex plugin marketplace and install `ruflo-core@ruflo` at user scope;
+- generates `.codex/config.toml` with `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and `web_search = "live"`.
+
+These defaults directly conflict with DAP's human-control and privileged-execution boundaries. Therefore direct `claude-flow-codex init` is **prohibited** in the current sandbox design. Any future write test must prevent discovery/execution of the real Codex CLI and must treat generated Codex configuration as untrusted test output only.
+
 ## 10B Decision
 
 Phase 10B passes as an isolation and feasibility evaluation, with the following constraint:
@@ -95,10 +126,11 @@ Phase 10B passes as an isolation and feasibility evaluation, with the following 
 - Do not install the full Ruflo CLI runtime on the DAP Acer host at this stage.
 - Continue Phase 10 by evaluating smaller Ruflo components independently.
 - The standalone Codex adapter is permitted for Phase 10C sandbox testing because its heavy CLI peer dependency is optional and remained absent during provisioning.
+- Do not execute the adapter's `init` command unless Codex discovery/execution is explicitly blocked and generated config is quarantined for inspection.
 
 ## Safety baseline
 
-Throughout 10B and completed Phase 10C.1-10C.2 steps:
+Throughout 10B and completed Phase 10C.1-10C.3 steps:
 
 - no Ruflo initialization was performed;
 - no Codex MCP registration was performed;
