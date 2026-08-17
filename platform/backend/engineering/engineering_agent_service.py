@@ -15,13 +15,17 @@ ENGINEERING_AGENT_ID: Literal["engineering-agent"] = "engineering-agent"
 PROTECTED_REPOSITORY_PREFIXES = (
     ".git/",
     ".github/workflows/",
+    "platform/guardian/",
     "platform/backend/guardian/",
+    "deploy/systemd/",
 )
 PROTECTED_REPOSITORY_EXACT_PATHS = frozenset(
     {
         ".git",
         ".github/workflows",
+        "platform/guardian",
         "platform/backend/guardian",
+        "deploy/systemd",
     }
 )
 
