@@ -54,6 +54,8 @@ jobs:
             engineering/engineering_workspace_smoke.py \
             engineering/engineering_workspace_bundle_smoke.py \
             engineering/engineering_benchmark.py \
+            engineering/engineering_owner_review.py \
+            engineering/engineering_owner_review_repository.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
@@ -72,7 +74,10 @@ jobs:
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
             tests/test_engineering_routes.py \
-            tests/test_engineering_benchmark.py
+            tests/test_engineering_benchmark.py \
+            tests/test_engineering_owner_review.py \
+            tests/test_engineering_owner_review_repository.py \
+            tests/test_engineering_owner_review_routes.py
       - name: Mypy
         run: |
           python -m mypy \
@@ -95,6 +100,8 @@ jobs:
             engineering/engineering_workspace_smoke.py \
             engineering/engineering_workspace_bundle_smoke.py \
             engineering/engineering_benchmark.py \
+            engineering/engineering_owner_review.py \
+            engineering/engineering_owner_review_repository.py \
             engineering/routes.py \
             --follow-imports=skip
       - name: Compile
@@ -119,6 +126,8 @@ jobs:
             engineering/engineering_workspace_smoke.py \
             engineering/engineering_workspace_bundle_smoke.py \
             engineering/engineering_benchmark.py \
+            engineering/engineering_owner_review.py \
+            engineering/engineering_owner_review_repository.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
@@ -137,7 +146,10 @@ jobs:
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
             tests/test_engineering_routes.py \
-            tests/test_engineering_benchmark.py
+            tests/test_engineering_benchmark.py \
+            tests/test_engineering_owner_review.py \
+            tests/test_engineering_owner_review_repository.py \
+            tests/test_engineering_owner_review_routes.py
       - name: Phase 11 engineering tests
         run: |
           python -m pytest -q \
@@ -158,7 +170,10 @@ jobs:
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
             tests/test_engineering_routes.py \
-            tests/test_engineering_benchmark.py
+            tests/test_engineering_benchmark.py \
+            tests/test_engineering_owner_review.py \
+            tests/test_engineering_owner_review_repository.py \
+            tests/test_engineering_owner_review_routes.py
 
   dashboard-engineering:
     runs-on: ubuntu-latest
