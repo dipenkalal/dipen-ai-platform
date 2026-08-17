@@ -52,6 +52,8 @@ jobs:
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
             engineering/engineering_workspace_smoke.py \
+            engineering/engineering_workspace_bundle_smoke.py \
+            engineering/engineering_benchmark.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
@@ -69,7 +71,8 @@ jobs:
             tests/test_engineering_audit_evidence.py \
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
-            tests/test_engineering_routes.py
+            tests/test_engineering_routes.py \
+            tests/test_engineering_benchmark.py
       - name: Mypy
         run: |
           python -m mypy \
@@ -90,6 +93,8 @@ jobs:
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
             engineering/engineering_workspace_smoke.py \
+            engineering/engineering_workspace_bundle_smoke.py \
+            engineering/engineering_benchmark.py \
             engineering/routes.py \
             --follow-imports=skip
       - name: Compile
@@ -112,6 +117,8 @@ jobs:
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
             engineering/engineering_workspace_smoke.py \
+            engineering/engineering_workspace_bundle_smoke.py \
+            engineering/engineering_benchmark.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
@@ -129,7 +136,8 @@ jobs:
             tests/test_engineering_audit_evidence.py \
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
-            tests/test_engineering_routes.py
+            tests/test_engineering_routes.py \
+            tests/test_engineering_benchmark.py
       - name: Phase 11 engineering tests
         run: |
           python -m pytest -q \
@@ -149,7 +157,8 @@ jobs:
             tests/test_engineering_audit_evidence.py \
             tests/test_engineering_audit_repository.py \
             tests/test_engineering_workspace.py \
-            tests/test_engineering_routes.py
+            tests/test_engineering_routes.py \
+            tests/test_engineering_benchmark.py
 
   dashboard-engineering:
     runs-on: ubuntu-latest
@@ -184,9 +193,11 @@ jobs:
         run: |
           python -m compileall -q \
             tests/test_phase10_ruflo_boundary.py \
-            tests/test_phase11_engineering_boundary.py
+            tests/test_phase11_engineering_boundary.py \
+            tests/test_phase11h_benchmark_boundary.py
       - name: Phase 10 and 11 Guardian regressions
         run: |
           python -m unittest -v \
             tests.test_phase10_ruflo_boundary \
-            tests.test_phase11_engineering_boundary
+            tests.test_phase11_engineering_boundary \
+            tests.test_phase11h_benchmark_boundary
