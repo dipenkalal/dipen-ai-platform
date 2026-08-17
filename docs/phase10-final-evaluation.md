@@ -16,12 +16,29 @@ This is deliberately narrower than either full adoption or full rejection: selec
 | 10B Isolated sandbox | COMPLETE | Full npm provisioning was unreliable/impractical on Acer; standalone Codex adapter was provisionable. |
 | 10C Codex adapter PoC | COMPLETE | Pure generator/validator seam works; ordinary initializer is blocked because it can mutate Codex/MCP/plugin state and generate unsafe config. |
 | 10D DAP ↔ Ruflo adapter | COMPLETE | Typed contract, candidate bridge, Executive Office handoff, and immutable evidence chain all keep execution authority false. |
-| 10E Guardian boundary | COMPLETE SUBJECT TO FINAL CI | Phase-10 regressions prove non-root callers fail before privileged execution and Guardian exposes no arbitrary Ruflo command surface. |
-| 10F Audit/task integration | COMPLETE SUBJECT TO FINAL CI | Additive immutable evidence persistence references canonical task IDs without mutating task-ledger truth. |
-| 10G Ollama compatibility | COMPLETE SUBJECT TO FINAL CI | Selected pure Ruflo seam needs no model runtime; DAP Ollama provider remains the only local-model boundary. |
+| 10E Guardian boundary | COMPLETE | Phase-10 regressions prove non-root callers fail before privileged execution and Guardian exposes no arbitrary Ruflo command surface. |
+| 10F Audit/task integration | COMPLETE | Additive immutable evidence persistence references canonical task IDs without mutating task-ledger truth. |
+| 10G Ollama compatibility | COMPLETE | Selected pure Ruflo seam needs no model runtime; DAP Ollama provider remains the only local-model boundary. |
 | 10H Engineering benchmark | COMPLETE — CONSTRAINED RESULT | Full Ruflo coding benchmark is not justified because the full runtime could not be provisioned reliably and the admitted seam does not execute code. DAP-native execution therefore remains the engineering executor baseline. |
 | 10I Acer resource/performance | COMPLETE — CONSTRAINED RESULT | Narrow adapter is lightweight enough for use; full Ruflo provisioning cost/reliability is unacceptable on the current host. No new peak-CPU claim is made. |
 | 10J Adoption decision | COMPLETE | Adapt/cherry-pick only; reject full runtime adoption now. |
+
+## Final CI evidence
+
+A dedicated `Phase 10 Ruflo Evaluation` workflow was added because the repository's older backend CI uses explicit file/test lists and did not automatically cover new Phase 10 engineering files.
+
+Final focused checkpoint before this documentation seal:
+
+- Guardian boundary job: **success**;
+- Phase 10 engineering Ruff: **success**;
+- Phase 10 engineering mypy: **success, 6 source files**;
+- Phase 10 compile gate: **success**;
+- Phase 10 backend tests: **63 passed, 1 existing `pytest-asyncio` deprecation warning**;
+- existing general backend CI on the evaluation branch: **241 passed**;
+- existing Guardian CI: **success**;
+- existing Owner Channel workflow: tests passed during the Phase 10 checkpoint.
+
+The final documentation-only commit must also pass the focused workflow before the temporary draft CI pull request is closed.
 
 ## 10E — Guardian enforcement boundary
 
