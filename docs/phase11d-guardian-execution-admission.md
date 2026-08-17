@@ -1,6 +1,6 @@
 # Phase 11D — Guardian Execution Admission
 
-Status: implementation and dedicated CI complete; final Acer disposable smoke pending.
+Status: **SEALED — dedicated CI and Acer disposable admission smoke passed.**
 
 ## Purpose
 
@@ -63,7 +63,7 @@ The bounded Codex runner refuses to start its preflight/subprocess unless the su
 
 ## Protected repository regions
 
-The Engineering Agent work-scope layer now rejects autonomous mutation of:
+The Engineering Agent work-scope layer rejects autonomous mutation of:
 
 - `.git`;
 - `.github/workflows`;
@@ -81,25 +81,29 @@ Changing a meaningful field such as the task objective still changes the authori
 
 ## Dedicated Phase 11 CI
 
-`.github/workflows/phase11-engineering-agent.yml` explicitly validates the new Engineering Agent surface with:
+`.github/workflows/phase11-engineering-agent.yml` explicitly validates the Engineering Agent surface with Ruff, mypy, Python compilation, Phase 11 backend engineering tests, and Phase 10/11 Guardian boundary regressions.
 
-- Ruff;
-- mypy;
-- Python compilation;
-- Phase 11 backend engineering tests;
-- Phase 10 Guardian boundary regression;
-- Phase 11 Guardian boundary regression.
+## Acer acceptance — 2026-08-17
 
-The Phase 11 Guardian regression also proves that the existing privileged executor remains a fixed backend-service restart action and has no arbitrary Engineering Agent/Codex command parameters.
+Source head: `fe22d0b0aadb492f21768ad6d332df7a07cedbbe`.
 
-## Exit criteria
+The disposable smoke passed with:
 
-11D is sealed only after:
+- ticket ID `codex-ticket-30278e949ab90164892e42d0`;
+- ticket SHA-256 `23c4181320887cfa11fc3f805468e3693abbb9eae7619484b6d291f5d5147326`;
+- Guardian admission ID `guardian-admission-3d7cf87247d592dbed299513`;
+- Guardian admission SHA-256 `2586576170eb4c7ed90ac53a0def7b280c987e7808c27ee0e3c8871ea1787af7`;
+- Guardian contact required `false` and contacted `false`;
+- root authorization required `false`;
+- Codex disposition `succeeded`, delivery allowed `true`, exit code `0`, timeout `false`;
+- exactly one changed file: `platform/backend/engineering/phase11c2_smoke_artifact.txt`;
+- exact artifact content verified;
+- Git commit/PR/main merge/deployment all `false`;
+- disposable workspace removed, no sandbox or Codex-process residue;
+- live source repository clean;
+- Guardian broker inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false`.
 
-1. dedicated Phase 11 CI is green;
-2. normal repository CI and Owner Channel checks are green;
-3. an Acer disposable Codex smoke succeeds with a bound `EngineeringGuardianAdmission`;
-4. smoke evidence reports Guardian contact not required/contacted and root authorization not required/granted;
-5. no sandbox residue or Codex process remains;
-6. live repository remains clean;
-7. Guardian remains inactive and Telegram approvals remain false.
+## Seal decision
+
+All 11D exit criteria passed. Phase 11D is complete. The next boundary is Phase 11E controlled Git delivery, where Git authority belongs to a DAP-owned post-execution delivery component rather than Codex or Ruflo.
