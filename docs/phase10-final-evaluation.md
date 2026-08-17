@@ -27,18 +27,19 @@ This is deliberately narrower than either full adoption or full rejection: selec
 
 A dedicated `Phase 10 Ruflo Evaluation` workflow was added because the repository's older backend CI uses explicit file/test lists and did not automatically cover new Phase 10 engineering files.
 
-Final focused checkpoint before this documentation seal:
+The final code checkpoint passed:
 
-- Guardian boundary job: **success**;
-- Phase 10 engineering Ruff: **success**;
-- Phase 10 engineering mypy: **success, 6 source files**;
-- Phase 10 compile gate: **success**;
-- Phase 10 backend tests: **63 passed, 1 existing `pytest-asyncio` deprecation warning**;
-- existing general backend CI on the evaluation branch: **241 passed**;
-- existing Guardian CI: **success**;
-- existing Owner Channel workflow: tests passed during the Phase 10 checkpoint.
+- focused Guardian boundary job: **success**;
+- focused Phase 10 engineering Ruff: **success**;
+- focused Phase 10 engineering mypy: **success, 6 source files**;
+- focused Phase 10 compile gate: **success**;
+- focused Phase 10 backend tests: **63 passed, 1 existing `pytest-asyncio` deprecation warning**;
+- general backend CI: **success**;
+- general Guardian CI: **success**;
+- dashboard lint, Guardian voice safety, and production build: **success**;
+- Owner Channel workflow: **success**.
 
-The final documentation-only commit must also pass the focused workflow before the temporary draft CI pull request is closed.
+The temporary draft pull request existed only to exercise pull-request CI and is closed without merge after the documentation-only seal is verified. Main remains untouched.
 
 ## 10E — Guardian enforcement boundary
 
