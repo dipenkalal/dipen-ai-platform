@@ -95,6 +95,18 @@ class RemoteGitPublisherConfig(BaseModel):
         return self
 
 
+class GitHubPullRequestSnapshot(BaseModel):
+    """Typed subset of gh PR JSON used by the DAP publisher."""
+
+    model_config = ConfigDict(frozen=True)
+
+    number: int = Field(ge=1)
+    is_draft: bool = Field(alias="isDraft")
+    base_ref_name: str = Field(alias="baseRefName", min_length=1)
+    head_ref_name: str = Field(alias="headRefName", min_length=1)
+    url: str = Field(min_length=8)
+
+
 class RemoteGitPublisherResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -189,7 +201,7 @@ class RemoteGitPublisher:
         if len(existing_prs) > 1:
             raise RuntimeError("multiple open pull requests exist for engineering branch")
         if existing_prs:
-            pr = self._validate_exact_draft_pr(plan=plan, payload=existing_prs[0])
+            pr = self._validate_exact_draft_pr(plan=plan, snapshot=existing_prs[0])
             pr_reused = True
         else:
             self._run_gh(
@@ -217,7 +229,7 @@ class RemoteGitPublisher:
             )
             if len(created_prs) != 1:
                 raise RuntimeError("draft pull request creation verification failed")
-            pr = self._validate_exact_draft_pr(plan=plan, payload=created_prs[0])
+            pr = self._validate_exact_draft_pr(plan=plan, snapshot=created_prs[0])
 
         observation = RemoteGitPublicationObservation(
             publication_id=plan.publication_id,
@@ -227,10 +239,10 @@ class RemoteGitPublisher:
             remote_commit_sha=remote_sha,
             draft_pull_request_created=pr_created,
             draft_pull_request_reused=pr_reused,
-            pull_request_number=pr["number"],
-            pull_request_is_draft=pr["isDraft"],
-            pull_request_base=pr["baseRefName"],
-            pull_request_head=pr["headRefName"],
+            pull_request_number=pr.number,
+            pull_request_is_draft=pr.is_draft,
+            pull_request_base=pr.base_ref_name,
+            pull_request_head=pr.head_ref_name,
         )
         receipt = remote_git_publication_service.validate_observation(
             plan=plan,
@@ -245,8 +257,8 @@ class RemoteGitPublisher:
             publication_plan_sha256=plan.canonical_hash(),
             delivery_branch=plan.delivery_branch,
             remote_commit_sha=remote_sha,
-            pull_request_number=pr["number"],
-            pull_request_url=pr["url"],
+            pull_request_number=pr.number,
+            pull_request_url=pr.url,
             branch_reused=branch_reused,
             draft_pull_request_reused=pr_reused,
             gh_version=gh_version,
@@ -317,7 +329,8 @@ class RemoteGitPublisher:
             cwd=repo,
             env=env,
         )
-        first_line = result.stdout.splitlines()[0] if result.stdout.splitlines() else ""
+        lines = result.stdout.splitlines()
+        first_line = lines[0] if lines else ""
         if first_line != EXPECTED_GH_VERSION:
             raise RuntimeError(
                 f"GitHub CLI version drift: expected {EXPECTED_GH_VERSION!r}, observed {first_line!r}"
@@ -369,7 +382,7 @@ class RemoteGitPublisher:
         repo: Path,
         env: Mapping[str, str],
         plan: RemoteGitPublicationPlan,
-    ) -> list[dict[str, object]]:
+    ) -> list[GitHubPullRequestSnapshot]:
         output = self._run_gh(
             repo,
             env,
@@ -390,30 +403,29 @@ class RemoteGitPublisher:
             payload = json.loads(output or "[]")
         except json.JSONDecodeError as exc:
             raise RuntimeError("GitHub CLI returned invalid pull request JSON") from exc
-        if not isinstance(payload, list) or any(not isinstance(item, dict) for item in payload):
+        if not isinstance(payload, list):
             raise RuntimeError("GitHub CLI returned an unexpected pull request payload")
-        return payload
+        try:
+            return [GitHubPullRequestSnapshot.model_validate(item) for item in payload]
+        except Exception as exc:
+            raise RuntimeError("GitHub CLI pull request payload failed validation") from exc
 
     @staticmethod
     def _validate_exact_draft_pr(
         *,
         plan: RemoteGitPublicationPlan,
-        payload: dict[str, object],
-    ) -> dict[str, object]:
-        number = payload.get("number")
-        is_draft = payload.get("isDraft")
-        base = payload.get("baseRefName")
-        head = payload.get("headRefName")
-        url = payload.get("url")
-        if not isinstance(number, int) or number < 1:
-            raise RuntimeError("GitHub pull request number is invalid")
-        if is_draft is not True:
+        snapshot: GitHubPullRequestSnapshot,
+    ) -> GitHubPullRequestSnapshot:
+        if not snapshot.is_draft:
             raise RuntimeError("existing engineering pull request is not draft")
-        if base != plan.base_branch or head != plan.delivery_branch:
+        if (
+            snapshot.base_ref_name != plan.base_branch
+            or snapshot.head_ref_name != plan.delivery_branch
+        ):
             raise RuntimeError("existing engineering pull request head/base changed")
-        if not isinstance(url, str) or not url.startswith("https://github.com/"):
+        if not snapshot.url.startswith("https://github.com/"):
             raise RuntimeError("GitHub pull request URL is invalid")
-        return payload
+        return snapshot
 
     def _environment(self) -> dict[str, str]:
         home = self.config.home_dir.resolve()
