@@ -404,7 +404,7 @@ class RemoteGitPublisher:
         except json.JSONDecodeError as exc:
             raise RuntimeError("GitHub CLI returned invalid pull request JSON") from exc
         if not isinstance(payload, list):
-            raise RuntimeError("GitHub CLI returned an unexpected pull request payload")
+            raise TypeError("GitHub CLI returned an unexpected pull request payload")
         try:
             return [GitHubPullRequestSnapshot.model_validate(item) for item in payload]
         except Exception as exc:
