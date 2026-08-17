@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 from engineering.git_delivery_contract import (
     GitDeliveryPlan,
@@ -13,7 +13,6 @@ from engineering.remote_git_publication import (
     RemoteGitPublicationPlan,
     remote_git_publication_service,
 )
-
 
 SOURCE_COMMIT = "1" * 40
 LOCAL_COMMIT = "2" * 40
