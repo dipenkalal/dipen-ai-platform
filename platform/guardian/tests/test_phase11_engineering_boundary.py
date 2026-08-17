@@ -159,6 +159,42 @@ class Phase11EngineeringGuardianBoundaryTestCase(unittest.TestCase):
         self.assertIn('"--draft"', source)
         self.assertNotIn('"merge",', source)
 
+    def test_phase11f_audit_modules_remain_nonprivileged(self) -> None:
+        engineering_root = self._repo_root() / "platform/backend/engineering"
+        module_names = (
+            "engineering_diff_evidence.py",
+            "engineering_audit_evidence.py",
+            "engineering_audit_repository.py",
+        )
+        forbidden_prefixes = (
+            "guardian",
+            "platform.guardian",
+            "broker_client",
+            "root_authorization",
+        )
+        forbidden_literals = (
+            "/run/dap/guardian",
+            "dap-guardian-broker.service",
+            "issue_backend_restart_authorization(",
+            "execute_authorized_backend_restart(",
+            "/usr/bin/systemctl",
+            "/var/run/docker.sock",
+        )
+
+        for module_name in module_names:
+            source_path = engineering_root / module_name
+            imported_modules = self._imported_modules(source_path)
+            self.assertFalse(
+                any(
+                    module.startswith(forbidden_prefixes)
+                    for module in imported_modules
+                ),
+                (module_name, imported_modules),
+            )
+            source = source_path.read_text(encoding="utf-8")
+            for forbidden_literal in forbidden_literals:
+                self.assertNotIn(forbidden_literal, source, module_name)
+
     def test_engineering_scope_protects_real_guardian_tree(self) -> None:
         source = (
             self._repo_root()
