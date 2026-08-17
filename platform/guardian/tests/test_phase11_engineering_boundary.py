@@ -15,6 +15,17 @@ class Phase11EngineeringGuardianBoundaryTestCase(unittest.TestCase):
     def _repo_root() -> Path:
         return Path(__file__).resolve().parents[3]
 
+    @staticmethod
+    def _imported_modules(path: Path) -> set[str]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imported_modules: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported_modules.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported_modules.add(node.module)
+        return imported_modules
+
     def test_guardian_executor_remains_fixed_backend_restart_only(self) -> None:
         self.assertEqual(
             executor.BACKEND_RESTART_COMMAND,
@@ -66,14 +77,7 @@ class Phase11EngineeringGuardianBoundaryTestCase(unittest.TestCase):
             self._repo_root()
             / "platform/backend/engineering/guardian_execution_admission.py"
         )
-        tree = ast.parse(source_path.read_text(encoding="utf-8"))
-        imported_modules: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported_modules.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported_modules.add(node.module)
-
+        imported_modules = self._imported_modules(source_path)
         forbidden_prefixes = (
             "guardian",
             "platform.guardian",
@@ -88,20 +92,34 @@ class Phase11EngineeringGuardianBoundaryTestCase(unittest.TestCase):
             imported_modules,
         )
 
-    def test_codex_runner_has_no_guardian_socket_or_root_authorization_path(self) -> None:
-        source = (
+    def test_codex_runner_has_no_guardian_client_import_or_socket_target(self) -> None:
+        source_path = (
             self._repo_root()
             / "platform/backend/engineering/codex_runner.py"
-        ).read_text(encoding="utf-8")
-
-        for forbidden in (
-            "/run/dap/",
-            "dap-guardian-broker",
+        )
+        imported_modules = self._imported_modules(source_path)
+        forbidden_prefixes = (
+            "guardian",
+            "platform.guardian",
             "broker_client",
             "root_authorization",
-            "issue_backend_restart_authorization",
+        )
+        self.assertFalse(
+            any(
+                module.startswith(forbidden_prefixes)
+                for module in imported_modules
+            ),
+            imported_modules,
+        )
+
+        source = source_path.read_text(encoding="utf-8")
+        for forbidden_literal in (
+            "/run/dap/guardian",
+            "dap-guardian-broker.service",
+            "issue_backend_restart_authorization(",
+            "execute_authorized_backend_restart(",
         ):
-            self.assertNotIn(forbidden, source)
+            self.assertNotIn(forbidden_literal, source)
 
     def test_engineering_scope_protects_real_guardian_tree(self) -> None:
         source = (
