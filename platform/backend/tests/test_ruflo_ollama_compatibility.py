@@ -1,7 +1,7 @@
-from gateway.providers.ollama import OllamaProvider
 from engineering.ruflo_ollama_compatibility import (
     evaluate_ruflo_ollama_compatibility,
 )
+from gateway.providers.ollama import OllamaProvider
 
 
 def test_selected_ruflo_surface_requires_no_model_runtime(monkeypatch) -> None:
