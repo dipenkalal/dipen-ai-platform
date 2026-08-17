@@ -4,7 +4,7 @@
 
 Phase 10C is complete. The standalone `@claude-flow/codex` adapter may be used only through selected pure generator and validator functions. Ruflo initializer, Codex CLI execution, MCP registration, plugin installation, upstream-generated Codex configuration, and privileged execution remain prohibited.
 
-Phase 10D starts with a DAP-owned typed contract that prevents Ruflo from expanding its own authority.
+Phase 10D now has a tested DAP-owned typed contract and a candidate bridge implementation ready for sandbox verification.
 
 ## Governing rule
 
@@ -15,7 +15,9 @@ Ruflo may provide non-executable engineering guidance. DAP owns task identity, p
 ## Contract location
 
 - `platform/backend/engineering/ruflo_adapter_contract.py`
-- tests: `platform/backend/tests/test_ruflo_adapter_contract.py`
+- contract tests: `platform/backend/tests/test_ruflo_adapter_contract.py`
+- candidate bridge: `platform/backend/engineering/ruflo_candidate_bridge.py`
+- bridge tests: `platform/backend/tests/test_ruflo_candidate_bridge.py`
 
 ## Allowed request surface
 
@@ -90,16 +92,40 @@ No Phase 10D contract object grants:
 
 ## 10D gates
 
-### 10D.1 — typed boundary
+### 10D.1 — typed boundary — COMPLETE
 
-- add the DAP-owned request/receipt schemas;
-- pin the evaluated Ruflo artifact;
-- reject authority expansion at schema validation;
-- add focused unit tests.
+The DAP-owned request/receipt schemas pin the evaluated Ruflo artifact and reject authority expansion at validation time.
 
-### 10D.2 — candidate bridge
+Acer verification used the backend virtual environment and completed:
 
-Build an adapter service that can invoke only the approved Phase 10C generator gate and convert its receipt into the typed DAP receipt. It must remain validation-only and disabled for production execution.
+```text
+11 passed, 1 warning in 0.09s
+pytest_exit|0
+```
+
+The warning was an existing `pytest-asyncio` deprecation warning under Python 3.14 and was unrelated to the Phase 10 contract. The import smoke also confirmed all execution-expansion flags remained false and produced a deterministic 64-character request SHA-256. DAP source remained clean, Guardian remained inactive, and Telegram approvals remained disabled.
+
+### 10D.2 — candidate bridge — CODE READY / SANDBOX TEST PENDING
+
+`RufloCandidateBridge` may invoke only `scripts/phase10-codex-adapter-gate.mjs`, the DAP-owned Phase 10C generator gate. It is not wired into the production API.
+
+The bridge:
+
+- requires an explicit absolute Node binary;
+- requires the evidence directory to be outside the DAP source tree;
+- enforces a maximum 30-second configured timeout and uses 15 seconds by default;
+- starts the gate with an argument vector rather than shell execution;
+- provides a reduced environment with an isolated HOME;
+- re-verifies npm package version and CLI SHA-256 from the gate receipt;
+- requires upstream validation success for the AGENTS candidate;
+- requires the upstream generated-config negative control to be rejected by DAP;
+- requires initializer, Codex CLI, MCP, plugin, and upstream-config-write evidence to remain false;
+- permits exactly `AGENTS.candidate.md` and `adapter-gate-receipt.json` as output files;
+- independently scans the candidate again in Python for DAP-denied execution patterns;
+- hashes the accepted candidate and binds that hash to the typed DAP receipt;
+- converts timeouts, process failures, evidence tampering, release drift, unsafe candidates, or unexpected output into rejected no-execution receipts.
+
+It does not call Ruflo `init`, Codex, MCP, plugins, Docker, systemd, Guardian, or any production executor.
 
 ### 10D.3 — Executive Office handoff
 
@@ -111,4 +137,4 @@ Persist or expose exact request hash, adapter artifact identity, generated candi
 
 ## Current boundary
 
-At completion of 10D.1, no Ruflo process is started by the backend and no production runtime path is changed. The new code only defines and tests the safe contract that later adapter code must obey.
+At the current 10D.2 checkpoint, no production runtime path has changed. The bridge exists only as backend library code plus focused tests. Phase 10 still prohibits Ruflo initializer execution, Codex CLI execution through Ruflo, MCP registration, plugin installation, upstream-generated Codex configuration, network access, and privileged execution.
