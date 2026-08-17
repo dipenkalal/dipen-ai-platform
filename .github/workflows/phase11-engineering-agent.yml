@@ -1,0 +1,104 @@
+name: Phase 11 Engineering Agent
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase11/autonomous-engineering-agent
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase11-engineering-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-engineering:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: |
+          python -m ruff check \
+            engineering/phase11_adoption.py \
+            engineering/engineering_agent_service.py \
+            engineering/codex_execution_contract.py \
+            engineering/codex_runner.py \
+            engineering/codex_smoke.py \
+            engineering/guardian_execution_admission.py \
+            tests/test_phase11_adoption.py \
+            tests/test_engineering_agent_service.py \
+            tests/test_codex_execution_contract.py \
+            tests/test_codex_runner.py \
+            tests/test_codex_smoke.py \
+            tests/test_guardian_execution_admission.py
+      - name: Mypy
+        run: |
+          python -m mypy \
+            engineering/phase11_adoption.py \
+            engineering/engineering_agent_service.py \
+            engineering/codex_execution_contract.py \
+            engineering/codex_runner.py \
+            engineering/codex_smoke.py \
+            engineering/guardian_execution_admission.py \
+            --follow-imports=skip
+      - name: Compile
+        run: |
+          python -m compileall -q \
+            engineering/phase11_adoption.py \
+            engineering/engineering_agent_service.py \
+            engineering/codex_execution_contract.py \
+            engineering/codex_runner.py \
+            engineering/codex_smoke.py \
+            engineering/guardian_execution_admission.py \
+            tests/test_phase11_adoption.py \
+            tests/test_engineering_agent_service.py \
+            tests/test_codex_execution_contract.py \
+            tests/test_codex_runner.py \
+            tests/test_codex_smoke.py \
+            tests/test_guardian_execution_admission.py
+      - name: Phase 11 engineering tests
+        run: |
+          python -m pytest -q \
+            tests/test_phase11_adoption.py \
+            tests/test_engineering_agent_service.py \
+            tests/test_codex_execution_contract.py \
+            tests/test_codex_runner.py \
+            tests/test_codex_smoke.py \
+            tests/test_guardian_execution_admission.py
+
+  guardian-boundary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Guardian boundaries
+        run: |
+          python -m compileall -q \
+            tests/test_phase10_ruflo_boundary.py \
+            tests/test_phase11_engineering_boundary.py
+      - name: Phase 10 and 11 Guardian regressions
+        run: |
+          python -m unittest -v \
+            tests.test_phase10_ruflo_boundary \
+            tests.test_phase11_engineering_boundary
