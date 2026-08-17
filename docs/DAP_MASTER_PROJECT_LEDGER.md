@@ -1,7 +1,7 @@
 # NAS Project Dipen / DAP — Master Progress Ledger
 
 **Canonical project:** `dipenkalal/dipen-ai-platform`  
-**Coverage:** Day 1 through Phase 10 owner acceptance  
+**Coverage:** Day 1 through Phase 11E current checkpoint  
 **Ledger date:** 2026-08-17  
 **Purpose:** Permanent progress-tracking companion to every future handover.
 
@@ -9,14 +9,14 @@
 
 ## Executive status
 
-DAP progressed from an initial frontend/backend `fetch failed` recovery into a governed local AI control plane with multi-agent orchestration, durable task truth, bounded owner-triggered execution, cooperative cancellation, Guardian security controls, Telegram owner-channel functionality, Unified Chat with attachment/Knowledge isolation, and a completed Ruflo evaluation.
+DAP progressed from an initial frontend/backend `fetch failed` recovery into a governed local AI control plane with multi-agent orchestration, durable task truth, bounded owner-triggered execution, cooperative cancellation, Guardian security controls, Telegram owner-channel functionality, Unified Chat with attachment/Knowledge isolation, a completed Ruflo evaluation, and an in-progress Phase 11 autonomous Engineering Agent integration.
 
-- Completed through: **Phase 10**
-- Phase 10 branch: `phase10/ruflo-evaluation`
-- Final Phase 10 SHA: `7bf3a68218ffaab934ffa980a3f6abbddd09a66a`
-- Phase 10 owner acceptance: **PASS**
+- Completed through: **Phase 11D**
+- Current branch: `phase11/autonomous-engineering-agent`
+- Phase 11D owner acceptance: **PASS**
+- Current milestone: **Phase 11E controlled Git delivery**
 - Production release observed before Phase 10: **DAP 0.18.1**
-- Phase 10 production merge: **NO**
+- Phase 10/11 production merge: **NO**
 - Ruflo decision: **ADAPT SELECTED COMPONENTS ONLY / REJECT FULL RUNTIME**
 
 ## Permanent architectural rules
@@ -31,6 +31,7 @@ DAP progressed from an initial frontend/backend `fetch failed` recovery into a g
 8. Knowledge/chat attachments are isolated by ownership/policy boundaries.
 9. Ruflo never becomes a peer control plane and receives no root/systemd/Docker/Guardian/task-ledger/direct-Ollama authority.
 10. Evaluation-only branches/PRs are not merged merely to prove a concept.
+11. Codex/Ruflo do not receive GitHub credentials, remote Git authority, main-merge authority, release authority, or deployment authority.
 
 ## Master milestone timeline
 
@@ -52,6 +53,9 @@ DAP progressed from an initial frontend/backend `fetch failed` recovery into a g
 | Phase 8 hardening/release baseline | COMPLETE | RECONSTRUCTED | Security/runtime hardening leading to deployed 0.18.1. |
 | Phase 9 Unified Chat Interface | COMPLETE | VERIFIED + handover | Chat persistence/history, attachments, Knowledge context and isolation gates. |
 | Phase 10 Ruflo Evaluation | COMPLETE — PASS | VERIFIED | Narrow adapter accepted; full Ruflo runtime rejected. |
+| Phase 11A–11C Engineering Agent + bounded Codex | COMPLETE | VERIFIED | DAP-owned work order, execution ticket, bounded Codex runner, Acer live smoke. |
+| Phase 11D Guardian execution admission | COMPLETE — PASS | VERIFIED | Non-privileged admission bound to Codex execution; Acer smoke passed without Guardian/root contact. |
+| Phase 11E controlled Git delivery | IN PROGRESS | VERIFIED to current code/CI gate | DAP-owned delivery contract + isolated local commit builder; remote publication still disabled. |
 
 ## Day-1 recovery and early Phase 2
 
@@ -216,9 +220,34 @@ Audit checkpoint: ~11 GiB RAM total, ~9.3 GiB available, swap unused, ~54–55 G
 
 No full Ruflo production runtime/init/MCP/plugin; no direct Ruflo Ollama; no Ruflo canonical memory/task ownership; no arbitrary shell; no Docker/systemd/root/Guardian authority; no automatic merge/release/deployment; no fabricated peak CPU/RSS; no Phase-10 merge to `main` merely for evaluation.
 
+## Phase 11 — Autonomous Engineering Agent adaptation
+
+Branch: `phase11/autonomous-engineering-agent`  
+Draft PR: #62, CI/review visibility only; do not merge without owner approval.
+
+### 11A–11C — bounded Engineering Agent and live Codex
+
+DAP owns immutable work-order and Codex-execution contracts, path scope, execution limits and post-run validation. Codex executes only in a disposable tracked-file snapshot with network disabled, no Git metadata, no remote repository access, no Guardian/root authority, no merge/deployment authority and owner review required.
+
+Acer 11C live smoke passed with exactly one allowlisted disposable file changed; exact content matched; no Git commit/PR/main merge/deployment; workspace removed; source checkout clean.
+
+### 11D — Guardian execution admission — COMPLETE
+
+A DAP-owned `EngineeringGuardianAdmission` binds the work-order and Codex-ticket hashes. Non-privileged Engineering Agent execution is rejected rather than escalated if it requests network, privilege, Git metadata, external repository, Guardian, secrets, main merge or deployment.
+
+Acer acceptance on source head `fe22d0b0aadb492f21768ad6d332df7a07cedbbe` passed with Guardian contact required/contacted false, root authorization required false, Codex success, exact one-file mutation, no Git/PR/merge/deploy effects, no residue, clean source repo, Guardian inactive and Telegram approvals false.
+
+### 11E — controlled Git delivery — IN PROGRESS
+
+11E.1 adds an immutable `GitDeliveryPlan` bound to the full work-order/ticket/Guardian-admission/execution-receipt chain. The repository is fixed, the base must be a non-main development branch, and the delivery branch is DAP-derived under `engineering/...`.
+
+11E.2 adds a network-free `LocalGitDeliveryBuilder` which clones from the local source commit into an isolated delivery root, removes `origin`, creates the deterministic delivery branch, applies only the exact changed-file allowlist, creates one local commit, verifies its parent and file set, and rejects any remote push/PR/force-push/main-merge/tag/release/deployment observation.
+
+Remote publication remains disabled until local Acer proof passes.
+
 ## PR index recovered for milestone history
 
-#5, #9, #12, #13, #23, #25, #26, #27, #32, #33, #34, #36, #37, #38, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #52, #53, #54, #55, #56, #57, #58, #59, #60, #61.
+#5, #9, #12, #13, #23, #25, #26, #27, #32, #33, #34, #36, #37, #38, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #52, #53, #54, #55, #56, #57, #58, #59, #60, #61, #62.
 
 This is not asserted to be every PR ever created; it is the positively recovered milestone-relevant set from this reconstruction.
 
@@ -229,25 +258,27 @@ This is not asserted to be every PR ever created; it is the positively recovered
 | Early project | Local DAP recovered from frontend/backend connectivity failure; exact version UNVERIFIED. |
 | 2026-08-09 | DAP `0.18.0` deployed healthy during Phase-7 work. |
 | 2026-08-16 | DAP `0.18.1` healthy during Phase-9 completion/recovery. |
-| 2026-08-17 | Phase 10 isolated; no Phase-10 production merge/release; Acer owner acceptance passed. |
+| 2026-08-17 | Phase 10 isolated and accepted; Phase 11 development/acceptance in progress; no production merge/release. |
 
-## Current architecture at Phase-10 close
+## Current architecture
 
 ```text
 Owner
   -> DAP UI/API
        -> Company / Executive Office / canonical task truth
        -> DAP local-model provider -> Ollama
-       -> bounded registered agents
+       -> Engineering Agent work-order
+            -> bounded Codex ticket
+            -> DAP Guardian admission
+            -> disposable Codex snapshot
+            -> validated Codex result
+            -> DAP Git delivery plan
+            -> isolated local Git commit (11E.2)
        -> Telegram owner channel (separately gated)
        -> Guardian privileged boundary -> fixed approved executor
-       -> optional future Ruflo seam
-            -> pinned pure generator/validator
-            -> DAP policy scan
-            -> DAP audit evidence
 ```
 
-Ruflo is not a peer and is not in the privileged execution chain.
+Ruflo is not a peer and is not in the privileged or Git authority chain.
 
 ## Honest metadata gaps
 
@@ -257,33 +288,20 @@ Ruflo is not a peer and is not in the privileged execution chain.
 
 Fill these only if new repository/handover evidence is recovered.
 
-## Proposed next milestone — not historical fact
-
-**Phase 11 — Ruflo Adaptation & DAP Integration**
-
-1. 11A change inventory: KEEP / DROP / EVALUATION-ONLY.
-2. 11B clean integration branch from approved base.
-3. 11C port only approved narrow components.
-4. 11D wire behind DAP-owned policy/control boundaries.
-5. 11E full regression/security gate.
-6. 11F Acer staging/owner acceptance.
-7. 11G GO / NO-GO integration decision.
-
-This Phase-11 numbering is a proposal made after Phase 10, not a previously ratified roadmap.
-
-## Handover protocol
-
-Attach this ledger with every future normal project handover. At each milestone close, append phase/sub-phase, objective, branch/SHA, PRs, implementation summary, security boundaries, CI/tests, Acer acceptance, production/release state, rejected/deferred work and exact continuation point. Preserve failures/constrained/rejected outcomes rather than rewriting history.
-
-## Canonical continuation checkpoint
+## Current continuation checkpoint
 
 ```text
 Project: dipenkalal/dipen-ai-platform
-Completed through: Phase 10
-Phase 10 branch: phase10/ruflo-evaluation
-Phase 10 final SHA: 7bf3a68218ffaab934ffa980a3f6abbddd09a66a
-Phase 10 owner acceptance: PASS
-Phase 10 production merge: NO
-Final Ruflo decision: ADAPT SELECTED COMPONENTS ONLY / REJECT FULL RUNTIME
-Next proposed milestone: Phase 11 — Ruflo Adaptation & DAP Integration
+Completed through: Phase 11D
+Current branch: phase11/autonomous-engineering-agent
+Draft PR: #62 (do not merge without explicit owner approval)
+Phase 11D owner acceptance: PASS
+Current milestone: Phase 11E controlled Git delivery
+11E.1: delivery contract implemented
+11E.2: isolated local Git commit builder implemented
+Remote Git/GitHub publication: disabled
+Main merge/release/deployment: prohibited
+Guardian broker: must remain inactive during current evaluation
+Telegram approvals: must remain false
+Next gate: CI + Acer end-to-end local Git delivery smoke
 ```
