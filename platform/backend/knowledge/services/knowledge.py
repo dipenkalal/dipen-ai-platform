@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException, UploadFile
 
+from history.database import history_database
 from knowledge.config import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
@@ -41,6 +42,24 @@ from knowledge.services.vector_store import (
 
 
 class KnowledgeService:
+    @staticmethod
+    def _chat_owned_document_ids() -> set[str]:
+        with history_database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT knowledge_document_id
+                FROM chat_attachments
+                WHERE ownership = 'chat_owned'
+                  AND knowledge_document_id IS NOT NULL
+                """
+            ).fetchall()
+
+        return {
+            str(row["knowledge_document_id"])
+            for row in rows
+            if row["knowledge_document_id"]
+        }
+
     async def health(
         self,
     ) -> KnowledgeHealthResponse:
@@ -321,6 +340,13 @@ class KnowledgeService:
                 .embed_query(request.query)
             )
 
+            excluded_document_ids = set()
+
+            if request.document_id is None:
+                excluded_document_ids = (
+                    self._chat_owned_document_ids()
+                )
+
             points = await vector_store.search(
                 query_vector=query_vector,
                 limit=request.limit,
@@ -329,6 +355,9 @@ class KnowledgeService:
                 ),
                 document_id=(
                     request.document_id
+                ),
+                excluded_document_ids=(
+                    excluded_document_ids
                 ),
             )
         except Exception as exc:
