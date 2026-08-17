@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -108,7 +108,7 @@ class Phase11AdoptionDecision(BaseModel):
 class Phase11AdoptionPolicy:
     """Fail-closed promotion gate from Phase 10 evaluation to Phase 11 wiring."""
 
-    _authority_flags = {
+    _authority_flags: ClassVar[dict[str, str]] = {
         "allow_full_ruflo_runtime": "full Ruflo runtime remains prohibited",
         "allow_initializer": "Ruflo/Codex initializer remains prohibited",
         "allow_direct_codex_cli": (
@@ -175,9 +175,7 @@ class Phase11AdoptionPolicy:
                 )
 
         blocked = any(finding.blocked for finding in findings)
-        selected_approved = tuple(
-            sorted(selected & APPROVED_PHASE10_COMPONENTS)
-        )
+        selected_approved = tuple(sorted(selected & APPROVED_PHASE10_COMPONENTS))
 
         return Phase11AdoptionDecision(
             disposition="rejected" if blocked else "accepted",
