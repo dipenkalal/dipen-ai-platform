@@ -195,7 +195,7 @@ class RufloAuditEvidenceService:
     @staticmethod
     def _evidence_id(*, handoff_sha256: str, receipt_sha256: str) -> str:
         digest = hashlib.sha256(
-            f"{handoff_sha256}|{receipt_sha256}".encode("utf-8")
+            f"{handoff_sha256}|{receipt_sha256}".encode()
         ).hexdigest()[:24]
         return f"ruflo-audit-{digest}"
 
