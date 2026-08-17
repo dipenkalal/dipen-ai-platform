@@ -1,10 +1,7 @@
 name: Phase 11G Dashboard Runtime Artifact
 
 on:
-  pull_request:
-  push:
-    branches:
-      - phase11/autonomous-engineering-agent
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,16 +10,11 @@ concurrency:
   group: phase11g-dashboard-artifact-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  PHASE11G_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-
 jobs:
   validate-bundle-smoke-helper:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.PHASE11G_SOURCE_COMMIT }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -46,8 +38,6 @@ jobs:
         working-directory: apps/dashboard
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ env.PHASE11G_SOURCE_COMMIT }}
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
@@ -61,7 +51,7 @@ jobs:
         run: npm run build
       - name: Package standalone runtime
         env:
-          SOURCE_COMMIT: ${{ env.PHASE11G_SOURCE_COMMIT }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           test -f .next/standalone/server.js
           mkdir -p .next/standalone/.next
