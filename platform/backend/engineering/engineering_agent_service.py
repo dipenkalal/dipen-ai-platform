@@ -143,11 +143,9 @@ class EngineeringAgentService:
         scope: EngineeringWorkScope,
     ) -> EngineeringWorkOrder:
         self._validate_source(task=task, admission=admission)
-        constraints = tuple(
-            dict.fromkeys([*scope.constraints, *self._hard_constraints])
-        )
-        task_sha256 = self._model_hash(task)
-        admission_sha256 = self._model_hash(admission)
+        constraints = tuple(dict.fromkeys([*scope.constraints, *self._hard_constraints]))
+        task_sha256 = self._task_authority_hash(task)
+        admission_sha256 = self._admission_authority_hash(admission)
 
         work_order_id = self._work_order_id(
             task=task,
@@ -240,10 +238,25 @@ class EngineeringAgentService:
         digest = hashlib.sha256(encoded).hexdigest()[:24]
         return f"engineering-work-{digest}"
 
+    @classmethod
+    def _task_authority_hash(cls, task: TaskLedgerRecord) -> str:
+        """Hash stable task authority, excluding lifecycle observation timestamps."""
+        payload = task.model_dump(
+            mode="json",
+            exclude={"created_at", "updated_at", "started_at", "completed_at"},
+        )
+        return cls._payload_hash(payload)
+
+    @classmethod
+    def _admission_authority_hash(cls, admission: ExecutiveExecutionResponse) -> str:
+        """Hash stable Executive admission authority, excluding generation time."""
+        payload = admission.model_dump(mode="json", exclude={"generated_at"})
+        return cls._payload_hash(payload)
+
     @staticmethod
-    def _model_hash(model: BaseModel) -> str:
+    def _payload_hash(payload: object) -> str:
         encoded = json.dumps(
-            model.model_dump(mode="json"),
+            payload,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
