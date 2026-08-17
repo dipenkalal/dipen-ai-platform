@@ -41,12 +41,16 @@ jobs:
             engineering/codex_runner.py \
             engineering/codex_smoke.py \
             engineering/guardian_execution_admission.py \
+            engineering/git_delivery_contract.py \
+            engineering/local_git_delivery.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
             tests/test_codex_execution_contract.py \
             tests/test_codex_runner.py \
             tests/test_codex_smoke.py \
-            tests/test_guardian_execution_admission.py
+            tests/test_guardian_execution_admission.py \
+            tests/test_git_delivery_contract.py \
+            tests/test_local_git_delivery.py
       - name: Mypy
         run: |
           python -m mypy \
@@ -56,6 +60,8 @@ jobs:
             engineering/codex_runner.py \
             engineering/codex_smoke.py \
             engineering/guardian_execution_admission.py \
+            engineering/git_delivery_contract.py \
+            engineering/local_git_delivery.py \
             --follow-imports=skip
       - name: Compile
         run: |
@@ -66,12 +72,16 @@ jobs:
             engineering/codex_runner.py \
             engineering/codex_smoke.py \
             engineering/guardian_execution_admission.py \
+            engineering/git_delivery_contract.py \
+            engineering/local_git_delivery.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
             tests/test_codex_execution_contract.py \
             tests/test_codex_runner.py \
             tests/test_codex_smoke.py \
-            tests/test_guardian_execution_admission.py
+            tests/test_guardian_execution_admission.py \
+            tests/test_git_delivery_contract.py \
+            tests/test_local_git_delivery.py
       - name: Phase 11 engineering tests
         run: |
           python -m pytest -q \
@@ -80,7 +90,9 @@ jobs:
             tests/test_codex_execution_contract.py \
             tests/test_codex_runner.py \
             tests/test_codex_smoke.py \
-            tests/test_guardian_execution_admission.py
+            tests/test_guardian_execution_admission.py \
+            tests/test_git_delivery_contract.py \
+            tests/test_local_git_delivery.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
