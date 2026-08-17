@@ -6,6 +6,19 @@ Branch: `phase11/autonomous-engineering-agent`
 
 Base checkpoint: `de990ec69d2f8210d1c29f987a3752d803e3f8a6`
 
+## Gate status
+
+- 11A — Phase 10 adoption boundary: **COMPLETE**
+- 11B — Engineering Agent service: **COMPLETE**
+- 11C — Controlled Codex executor: **COMPLETE**
+- 11D — Guardian execution admission: **COMPLETE**
+- 11E — Git delivery workflow: **COMPLETE / SEALED**
+- 11F — Audit + evidence persistence: **COMPLETE / SEALED**
+- 11G — Dashboard Engineering workspace: **IN PROGRESS**
+- 11H — Disposable engineering benchmark: **PENDING**
+- 11I — Owner review workflow: **PENDING**
+- 11J — Production-readiness decision: **PENDING**
+
 ## Mission
 
 Turn the Phase 10 Ruflo/Codex evaluation into a DAP-owned engineering capability that can prepare, execute, verify, and deliver bounded repository changes for owner review without transferring DAP control-plane authority to Ruflo, Codex, or any other external engineering runtime.
