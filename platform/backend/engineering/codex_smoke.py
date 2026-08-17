@@ -16,6 +16,9 @@ from engineering.engineering_agent_service import (
     EngineeringWorkScope,
     engineering_agent_service,
 )
+from engineering.guardian_execution_admission import (
+    engineering_guardian_admission_service,
+)
 from executive_office.schemas import ExecutiveExecutionResponse
 
 PHASE11_BRANCH = "phase11/autonomous-engineering-agent"
@@ -130,6 +133,10 @@ def main() -> int:
             max_output_bytes=262_144,
         ),
     )
+    guardian_admission = engineering_guardian_admission_service.admit(
+        work_order=order,
+        ticket=ticket,
+    )
     runner = BoundedCodexRunner(
         config=CodexRunnerConfig(
             codex_binary=Path(codex_path).resolve(),
@@ -142,7 +149,11 @@ def main() -> int:
 
     result = None
     try:
-        result = runner.execute(work_order=order, ticket=ticket)
+        result = runner.execute(
+            work_order=order,
+            ticket=ticket,
+            guardian_admission=guardian_admission,
+        )
         artifact = result.workspace / SMOKE_TARGET
         artifact_content = (
             artifact.read_text(encoding="utf-8") if artifact.is_file() else None
@@ -154,6 +165,11 @@ def main() -> int:
         print("bwrap_path|" + str(shutil.which("bwrap")))
         print(f"ticket_id|{ticket.ticket_id}")
         print(f"ticket_sha256|{ticket.canonical_hash()}")
+        print(f"guardian_admission_id|{guardian_admission.admission_id}")
+        print(f"guardian_admission_sha256|{guardian_admission.canonical_hash()}")
+        print("guardian_contact_required|false")
+        print("guardian_contacted|false")
+        print("root_authorization_required|false")
         print(f"command_sha256|{result.command_sha256}")
         print(f"disposition|{result.receipt.disposition}")
         print(f"delivery_allowed|{str(result.receipt.delivery_allowed).lower()}")
@@ -186,6 +202,8 @@ def main() -> int:
             and result.receipt.delivery_allowed
             and result.receipt.changed_files == (SMOKE_TARGET,)
             and artifact_content == SMOKE_CONTENT
+            and result.guardian_admission_id == guardian_admission.admission_id
+            and result.guardian_admission_sha256 == guardian_admission.canonical_hash()
             and not result.timed_out
         )
         if not passed:
