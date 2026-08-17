@@ -13,7 +13,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-bundle-smoke-helper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install helper validation tools
+        run: python -m pip install ruff==0.16.0 mypy==2.3.0
+      - name: Ruff bundle smoke helper
+        run: python -m ruff check platform/backend/engineering/engineering_workspace_bundle_smoke.py
+      - name: Mypy bundle smoke helper
+        run: >-
+          python -m mypy
+          platform/backend/engineering/engineering_workspace_bundle_smoke.py
+          --follow-imports=skip
+      - name: Compile bundle smoke helper
+        run: python -m compileall -q platform/backend/engineering/engineering_workspace_bundle_smoke.py
+
   build-dashboard-runtime:
+    needs: validate-bundle-smoke-helper
     runs-on: ubuntu-latest
     defaults:
       run:
