@@ -188,13 +188,8 @@ class EngineeringOwnerReviewService:
         request: EngineeringOwnerReviewDecisionRequest,
     ) -> EngineeringOwnerReviewDecision:
         review_sha256 = package.canonical_hash()
-        seed = "|".join(
-            (
-                review_sha256,
-                "dipen-owner",
-                request.decision,
-                request.reason,
-            )
+        seed = (
+            f"{review_sha256}|dipen-owner|{request.decision}|{request.reason}"
         )
         decision_id = "engineering-review-decision-" + hashlib.sha256(
             seed.encode("utf-8")
