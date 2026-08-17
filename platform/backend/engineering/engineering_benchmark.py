@@ -541,6 +541,7 @@ def _run_attempt(
     checks: tuple[BenchmarkCheck, ...] = ()
     workspace_bytes = 0
     error_text: str | None = None
+    disposition: str
     try:
         result = runner.execute(
             work_order=work_order,
