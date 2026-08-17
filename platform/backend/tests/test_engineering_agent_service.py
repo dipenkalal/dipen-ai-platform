@@ -85,6 +85,30 @@ def test_prepare_builds_deterministic_non_executing_work_order() -> None:
     assert first.deployment_allowed is False
 
 
+def test_authority_hashes_ignore_only_observation_timestamps() -> None:
+    first = engineering_agent_service.prepare(
+        task=source_task(),
+        admission=source_admission(),
+        scope=work_scope(),
+    )
+    second = engineering_agent_service.prepare(
+        task=source_task(),
+        admission=source_admission(),
+        scope=work_scope(),
+    )
+
+    assert first.source_task_sha256 == second.source_task_sha256
+    assert first.source_admission_sha256 == second.source_admission_sha256
+
+    changed = engineering_agent_service.prepare(
+        task=source_task(objective="Implement a different bounded backend change."),
+        admission=source_admission(),
+        scope=work_scope(),
+    )
+    assert changed.source_task_sha256 != first.source_task_sha256
+    assert changed.work_order_id != first.work_order_id
+
+
 def test_prepare_binds_task_and_admission_hashes() -> None:
     order = engineering_agent_service.prepare(
         task=source_task(),
