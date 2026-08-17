@@ -51,7 +51,7 @@ class RufloAdapterRequest(BaseModel):
     allow_upstream_config_write: bool = False
 
     @model_validator(mode="after")
-    def enforce_phase10_boundary(self) -> "RufloAdapterRequest":
+    def enforce_phase10_boundary(self) -> RufloAdapterRequest:
         prohibited = {
             "validation_only": not self.validation_only,
             "allow_initializer": self.allow_initializer,
@@ -107,7 +107,7 @@ class RufloAdapterReceipt(BaseModel):
     message: str = Field(min_length=4, max_length=2000)
 
     @model_validator(mode="after")
-    def prohibit_execution_side_effects(self) -> "RufloAdapterReceipt":
+    def prohibit_execution_side_effects(self) -> RufloAdapterReceipt:
         side_effects = {
             "initializer_invoked": self.initializer_invoked,
             "codex_cli_invoked": self.codex_cli_invoked,
