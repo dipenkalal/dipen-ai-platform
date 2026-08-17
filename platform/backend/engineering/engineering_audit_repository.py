@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -222,7 +223,7 @@ class EngineeringAuditRepository:
         return [self._row_to_record(row) for row in rows]
 
     @staticmethod
-    def _row_to_record(row: object) -> PersistedEngineeringAuditRecord:
+    def _row_to_record(row: sqlite3.Row) -> PersistedEngineeringAuditRecord:
         return PersistedEngineeringAuditRecord(
             evidence=EngineeringAuditEvidence.model_validate_json(
                 str(row["evidence_json"])
