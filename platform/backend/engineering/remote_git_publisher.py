@@ -19,7 +19,7 @@ from engineering.remote_git_publication import (
 )
 
 DAP_GITHUB_SSH_URL = "git@github.com:dipenkalal/dipen-ai-platform.git"
-EXPECTED_GH_VERSION = "gh version 2.97.0"
+EXPECTED_GH_VERSION = "2.97.0"
 EXPECTED_GIT_BINARY = Path("/usr/bin/git")
 EXPECTED_GH_BINARY = Path("/usr/bin/gh")
 _SAFE_PATH = "/usr/bin:/bin"
@@ -331,7 +331,11 @@ class RemoteGitPublisher:
         )
         lines = result.stdout.splitlines()
         first_line = lines[0] if lines else ""
-        if first_line != EXPECTED_GH_VERSION:
+        expected_prefix = f"gh version {EXPECTED_GH_VERSION}"
+        if not (
+            first_line == expected_prefix
+            or first_line.startswith(expected_prefix + " ")
+        ):
             raise RuntimeError(
                 f"GitHub CLI version drift: expected {EXPECTED_GH_VERSION!r}, observed {first_line!r}"
             )
