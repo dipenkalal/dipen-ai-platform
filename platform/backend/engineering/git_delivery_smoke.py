@@ -144,7 +144,7 @@ def main() -> int:
         print(f"commit_parent|{parent}")
         print("committed_files|" + ",".join(delivery_result.receipt.committed_files))
         print(f"delivery_disposition|{delivery_result.receipt.disposition}")
-        print(f"local_branch_created|true")
+        print("local_branch_created|true")
         print(f"remote_count|{delivery_result.remote_count}")
         print(f"remote_names|{remotes or 'NONE'}")
         print("remote_branch_pushed|false")
