@@ -50,6 +50,7 @@ def local_result(
         commit_sha=LOCAL_COMMIT,
         committed_files=plan.changed_files,
         findings=(),
+        message="Local Git delivery passed; remote publication remains separately disabled.",
     )
     payload = {
         "receipt": receipt,
