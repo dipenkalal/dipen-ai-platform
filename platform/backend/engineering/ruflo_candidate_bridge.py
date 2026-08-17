@@ -6,8 +6,8 @@ import os
 import re
 import subprocess
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from engineering.ruflo_adapter_contract import (
     RUFLO_CODEX_CLI_SHA256,
@@ -155,7 +155,7 @@ class RufloCandidateBridge:
                 output_dir=output_dir,
                 gate_receipt=gate_receipt,
             )
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             return self._rejected(
                 request,
                 "gate-evidence-invalid",
@@ -192,7 +192,7 @@ class RufloCandidateBridge:
         receipt_path = output_dir / "adapter-gate-receipt.json"
         payload = json.loads(receipt_path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
-            raise ValueError("gate receipt must be a JSON object")
+            raise TypeError("gate receipt must be a JSON object")
         return payload
 
     def _verify_gate_receipt(
@@ -265,7 +265,7 @@ class RufloCandidateBridge:
         candidate_path = (output_dir / "AGENTS.candidate.md").resolve()
         receipt_candidate_path = candidate.get("path")
         if not isinstance(receipt_candidate_path, str):
-            raise ValueError("candidate path is missing from gate receipt")
+            raise TypeError("candidate path is missing from gate receipt")
         if Path(receipt_candidate_path).resolve() != candidate_path:
             raise ValueError("gate receipt candidate path does not match output")
         if not self._is_within(candidate_path, output_dir):
@@ -279,7 +279,7 @@ class RufloCandidateBridge:
     def _mapping(payload: dict[str, object], key: str) -> dict[str, object]:
         value = payload.get(key)
         if not isinstance(value, dict):
-            raise ValueError(f"gate receipt field is not an object: {key}")
+            raise TypeError(f"gate receipt field is not an object: {key}")
         return value
 
     @staticmethod
