@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from engineering.engineering_diff_evidence import EngineeringDiffEvidenceCapture
 from engineering.git_delivery_contract import GitDeliveryReceipt
 from engineering.local_git_delivery import LocalGitDeliveryResult
-from engineering.engineering_diff_evidence import EngineeringDiffEvidenceCapture
 
 
 def git(repo: Path, *args: str, text: bool = True):
