@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict.
+Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict. Phase 10C standalone Codex adapter evaluation is now in progress.
 
 ## Environment
 
@@ -52,17 +52,36 @@ The Ruflo GitHub `main` source currently declares `@claude-flow/codex` version `
 
 For runtime evaluation, use the explicitly published npm version after verifying it with `npm view @claude-flow/codex version` instead of assuming the version declared on upstream `main` has been published.
 
+### Phase 10C.1 standalone Codex adapter provisioning
+
+The published `@claude-flow/codex@3.0.2` package was installed directly in the isolated sandbox with lifecycle scripts disabled and optional dependencies omitted.
+
+Observed results:
+
+- install completed successfully in approximately 3 seconds;
+- npm added 59 packages;
+- resulting `node_modules` footprint was approximately 18 MB;
+- the heavy `@claude-flow/cli` peer dependency was absent;
+- the `claude-flow-codex` executable symlink was present;
+- no `AGENTS.md`, `.agents`, `.codex`, or `.claude-flow` project state was created;
+- the isolated HOME did not gain `.codex` state;
+- DAP source remained clean;
+- Guardian remained inactive and Telegram approvals remained disabled;
+- the adapter had not yet been executed and no MCP registration or Ruflo initialization occurred.
+
+This makes the standalone Codex adapter the first Ruflo component in Phase 10 that is both lightweight and practical to provision on the Acer host.
+
 ## 10B Decision
 
 Phase 10B passes as an isolation and feasibility evaluation, with the following constraint:
 
 - Do not install the full Ruflo CLI runtime on the DAP Acer host at this stage.
 - Continue Phase 10 by evaluating smaller Ruflo components independently.
-- The Codex adapter is the next candidate because its CLI peer dependency is optional and its own direct dependency set is comparatively small.
+- The standalone Codex adapter is permitted for Phase 10C sandbox testing because its heavy CLI peer dependency is optional and remained absent during provisioning.
 
 ## Safety baseline
 
-Throughout 10B:
+Throughout 10B and the completed 10C.1 provisioning step:
 
 - no Ruflo initialization was performed;
 - no Codex MCP registration was performed;
