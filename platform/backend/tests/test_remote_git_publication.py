@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from engineering.git_delivery_contract import (
     GitDeliveryPlan,
