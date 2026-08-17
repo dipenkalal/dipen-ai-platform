@@ -51,6 +51,7 @@ jobs:
             engineering/engineering_audit_evidence.py \
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
+            engineering/engineering_workspace_smoke.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
@@ -88,6 +89,7 @@ jobs:
             engineering/engineering_audit_evidence.py \
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
+            engineering/engineering_workspace_smoke.py \
             engineering/routes.py \
             --follow-imports=skip
       - name: Compile
@@ -109,6 +111,7 @@ jobs:
             engineering/engineering_audit_evidence.py \
             engineering/engineering_audit_repository.py \
             engineering/engineering_workspace.py \
+            engineering/engineering_workspace_smoke.py \
             engineering/routes.py \
             tests/test_phase11_adoption.py \
             tests/test_engineering_agent_service.py \
