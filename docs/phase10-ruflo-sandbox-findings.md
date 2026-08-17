@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict. Phase 10C standalone Codex adapter evaluation is now in progress.
+Phase 10B isolated Ruflo sandbox evaluation is complete with a constrained-runtime verdict. Phase 10C standalone Codex adapter evaluation is now in progress; 10C.1 provisioning and 10C.2 first execution have passed.
 
 ## Environment
 
@@ -71,6 +71,23 @@ Observed results:
 
 This makes the standalone Codex adapter the first Ruflo component in Phase 10 that is both lightweight and practical to provision on the Acer host.
 
+### Phase 10C.2 first standalone adapter execution
+
+The installed adapter executable was run only with `--version` and `--help` from a fresh throwaway runtime workspace using the isolated sandbox HOME.
+
+Observed results:
+
+- `--version` exited `0`;
+- `--help` exited `0` and exposed the expected command surface (`init`, `generate-skill`, `validate`, `migrate`, `templates`, `skills`, `info`, `doctor`, `dual`, and `loop`);
+- the runtime workspace remained unchanged;
+- no `AGENTS.md`, `.agents`, `.codex`, or `.claude-flow` state was created;
+- no adapter/Ruflo background processes or listeners remained;
+- DAP source remained clean;
+- Guardian remained inactive and Telegram approvals remained disabled;
+- no initialization, MCP registration, or real Codex configuration access occurred.
+
+A second upstream version-drift issue was discovered. The npm package metadata installed as `3.0.2`, but the published executable reports `3.0.1` from its compiled `VERSION` constant. Upstream GitHub `main` currently exports `VERSION = '3.0.3'`. Therefore source, npm package metadata, and executable version identifiers are not synchronized. Phase 10 must pin artifacts by package version and integrity/hash rather than trusting the adapter's CLI-reported version alone.
+
 ## 10B Decision
 
 Phase 10B passes as an isolation and feasibility evaluation, with the following constraint:
@@ -81,11 +98,11 @@ Phase 10B passes as an isolation and feasibility evaluation, with the following 
 
 ## Safety baseline
 
-Throughout 10B and the completed 10C.1 provisioning step:
+Throughout 10B and completed Phase 10C.1-10C.2 steps:
 
 - no Ruflo initialization was performed;
 - no Codex MCP registration was performed;
-- no `.claude-flow`, `.codex`, or `.agents` project state was created;
+- no `.claude-flow`, `.codex`, or `.agents` project state was created by Ruflo;
 - DAP Guardian broker remained inactive;
 - Telegram approvals remained disabled;
 - no Docker or systemd integration was granted to Ruflo.
