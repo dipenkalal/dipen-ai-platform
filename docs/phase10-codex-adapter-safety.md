@@ -78,6 +78,25 @@ The gate is intentionally limited to pure adapter exports. It:
 - never writes the rejected upstream configuration as a usable `.toml` artifact;
 - never calls `CodexInitializer`, the adapter CLI, `child_process`, MCP registration, plugin installation, or Codex execution.
 
-## Current decision
+### Phase 10C.6 Acer result
 
-Proceed with the DAP-owned adapter gate and verify it on the Acer sandbox. Continue to block `init`, `dual`, `loop`, direct MCP registration, plugin installation, and any command that mutates real Codex state.
+The DAP-owned gate passed on the Acer sandbox with exit code `0`.
+
+Evidence:
+
+- adapter package version matched `3.0.2`;
+- adapter CLI hash matched the pinned SHA-256;
+- generated AGENTS candidate passed upstream validation and had zero DAP policy findings;
+- upstream-generated configuration passed the upstream validator but was rejected by DAP for `approval-never`, `danger-full-access`, `live-web-search`, `network-access`, `ruflo-mcp`, `unpinned-package`, and `npx-execution`;
+- the rejected upstream config was not written as a usable TOML artifact;
+- receipt reported initializer, Codex CLI, MCP registration, and plugin installation all false;
+- no adapter process or listener remained;
+- DAP source remained clean, Guardian remained inactive, and Telegram approvals remained disabled.
+
+## Phase 10C decision
+
+**Phase 10C is complete.**
+
+Adopt only the narrow library seam proven by the DAP-owned gate. Continue to block `init`, `dual`, `loop`, direct MCP registration, plugin installation, upstream-generated Codex configuration, and any command that mutates real Codex state.
+
+Proceed to Phase 10D using a DAP-owned typed request/receipt contract. Ruflo remains advisory and validation-only; DAP retains policy and execution authority.
