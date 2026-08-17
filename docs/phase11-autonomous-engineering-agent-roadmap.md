@@ -14,7 +14,7 @@ Base checkpoint: `de990ec69d2f8210d1c29f987a3752d803e3f8a6`
 - 11D — Guardian execution admission: **COMPLETE**
 - 11E — Git delivery workflow: **COMPLETE / SEALED**
 - 11F — Audit + evidence persistence: **COMPLETE / SEALED**
-- 11G — Dashboard Engineering workspace: **IN PROGRESS**
+- 11G — Dashboard Engineering workspace: **IMPLEMENTATION + CI COMPLETE / ACER DISPOSABLE RUNTIME SMOKE PENDING**
 - 11H — Disposable engineering benchmark: **PENDING**
 - 11I — Owner review workflow: **PENDING**
 - 11J — Production-readiness decision: **PENDING**
