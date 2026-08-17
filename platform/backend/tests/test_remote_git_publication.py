@@ -3,23 +3,20 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from engineering.git_delivery_contract import (
-    GitDeliveryPlan,
-    GitDeliveryReceipt,
-)
+from engineering.git_delivery_contract import GitDeliveryPlan, GitDeliveryReceipt
 from engineering.local_git_delivery import LocalGitDeliveryResult
 from engineering.remote_git_publication import (
     RemoteGitPublicationObservation,
+    RemoteGitPublicationPlan,
     remote_git_publication_service,
 )
 
 
 SOURCE_COMMIT = "1" * 40
 LOCAL_COMMIT = "2" * 40
-PLAN_HASH = "a" * 64
 
 
-def delivery_plan(**overrides) -> GitDeliveryPlan:
+def delivery_plan(**overrides: object) -> GitDeliveryPlan:
     payload = {
         "delivery_id": "git-delivery-phase11e-test",
         "base_branch": "phase11/autonomous-engineering-agent",
@@ -39,7 +36,10 @@ def delivery_plan(**overrides) -> GitDeliveryPlan:
     return GitDeliveryPlan(**payload)
 
 
-def local_result(plan: GitDeliveryPlan, **overrides) -> LocalGitDeliveryResult:
+def local_result(
+    plan: GitDeliveryPlan,
+    **overrides: object,
+) -> LocalGitDeliveryResult:
     receipt = GitDeliveryReceipt(
         delivery_id=plan.delivery_id,
         delivery_plan_sha256=plan.canonical_hash(),
@@ -61,7 +61,7 @@ def local_result(plan: GitDeliveryPlan, **overrides) -> LocalGitDeliveryResult:
     return LocalGitDeliveryResult(**payload)
 
 
-def publication_plan():
+def publication_plan() -> RemoteGitPublicationPlan:
     plan = delivery_plan()
     result = local_result(plan)
     return remote_git_publication_service.prepare(
@@ -70,7 +70,10 @@ def publication_plan():
     )
 
 
-def success_observation(plan, **overrides) -> RemoteGitPublicationObservation:
+def success_observation(
+    plan: RemoteGitPublicationPlan,
+    **overrides: object,
+) -> RemoteGitPublicationObservation:
     payload = {
         "publication_id": plan.publication_id,
         "publication_plan_sha256": plan.canonical_hash(),
@@ -211,7 +214,11 @@ def test_validate_accepts_exact_idempotent_branch_and_draft_pr_reuse() -> None:
         ("github_credentials_exposed_to_ruflo", True, "credentials-to-ruflo"),
     ],
 )
-def test_validate_rejects_remote_boundary_violation(field: str, value, rule_id: str) -> None:
+def test_validate_rejects_remote_boundary_violation(
+    field: str,
+    value: object,
+    rule_id: str,
+) -> None:
     plan = publication_plan()
     receipt = remote_git_publication_service.validate_observation(
         plan=plan,
