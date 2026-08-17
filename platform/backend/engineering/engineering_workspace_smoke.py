@@ -16,6 +16,7 @@ PHASE11_BRANCH = "phase11/autonomous-engineering-agent"
 BACKEND_PORT = 8112
 DASHBOARD_PORT = 3112
 DEFAULT_TRUTH_DB = Path("/home/dipen/dap/data/agent-history/agent-truth.db")
+READ_ONLY_COUNT_TABLES = frozenset({"task_ledger", "engineering_audit_evidence"})
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -39,6 +40,8 @@ def _truth_db_path() -> Path:
 
 
 def _table_count_read_only(database: Path, table: str) -> int:
+    if table not in READ_ONLY_COUNT_TABLES:
+        raise ValueError(f"unsupported Phase 11G count table: {table}")
     uri = f"file:{database}?mode=ro"
     with sqlite3.connect(uri, uri=True, timeout=10.0) as connection:
         exists = connection.execute(
@@ -53,9 +56,11 @@ def _table_count_read_only(database: Path, table: str) -> int:
 
 def _copy_truth_database_read_only(source: Path, destination: Path) -> None:
     uri = f"file:{source}?mode=ro"
-    with sqlite3.connect(uri, uri=True, timeout=10.0) as source_connection:
-        with sqlite3.connect(destination, timeout=10.0) as destination_connection:
-            source_connection.backup(destination_connection)
+    with (
+        sqlite3.connect(uri, uri=True, timeout=10.0) as source_connection,
+        sqlite3.connect(destination, timeout=10.0) as destination_connection,
+    ):
+        source_connection.backup(destination_connection)
 
 
 def _request(
