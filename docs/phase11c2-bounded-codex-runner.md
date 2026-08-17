@@ -1,6 +1,6 @@
 # Phase 11C.2 — Bounded Codex Runner
 
-Status: implementation and CI complete; Acer disposable smoke pending.
+Status: COMPLETE and sealed by CI plus Acer disposable smoke.
 
 ## Purpose
 
@@ -45,11 +45,18 @@ DAP independently:
 
 Codex sandboxing is defense-in-depth. DAP policy remains authoritative.
 
-## Acer smoke
+## Acer smoke evidence
 
-The smoke harness is `python -m engineering.codex_smoke` from `platform/backend` using the backend virtual environment. It requires the Phase 11 branch to be clean and creates a temporary workspace beneath `/home/dipen/dap/sandboxes`.
+The first live bounded smoke ran on the Phase 11 branch at source commit:
 
-The synthetic task allows exactly one new disposable file:
+`80093b824d106a89f53024f88691e76cb2eda0aa`
+
+Observed platform prerequisites:
+
+- Codex `/home/dipen/.local/bin/codex` — `codex-cli 0.146.0`;
+- Bubblewrap `/usr/bin/bwrap` — `bubblewrap 0.11.1`.
+
+The synthetic task allowed exactly one new disposable file:
 
 `platform/backend/engineering/phase11c2_smoke_artifact.txt`
 
@@ -57,19 +64,24 @@ with exact content:
 
 `PHASE11C_CODEX_SMOKE_OK\n`
 
-The live repository is used only as the read source for `git archive`. The smoke removes its temporary workspace before returning and verifies that the source repository remains clean.
+Observed result:
 
-## Exit criteria
-
-Phase 11C.2 is sealed only after the Acer smoke demonstrates:
-
-- correct pinned Codex version;
-- Bubblewrap present;
 - disposition `succeeded`;
-- exactly one allowlisted changed file;
-- exact expected artifact content;
+- delivery allowed true;
+- exit code `0`;
 - no timeout;
-- no Git commit or PR;
-- no merge or deployment;
+- exactly the allowlisted file changed;
+- exact artifact content matched;
+- no Git commit created;
+- no pull request created;
+- no main merge performed;
+- no deployment performed;
 - disposable workspace removed;
-- live source repository still clean.
+- no residual Codex process;
+- live source repository remained clean;
+- Guardian remained inactive;
+- Telegram approvals remained false.
+
+## Phase 11D evolution
+
+After 11C sealed, Phase 11D added an additional required `EngineeringGuardianAdmission` before this runner can start. That later admission does not contact Guardian for ordinary non-privileged engineering work; it proves that the execution remains below the privileged boundary. See `docs/phase11d-guardian-execution-admission.md`.
