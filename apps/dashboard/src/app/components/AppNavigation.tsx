@@ -13,6 +13,7 @@ import {
   Network,
   ServerCog,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 
 
@@ -58,6 +59,11 @@ const navigationItems: NavigationItem[] = [
     label: "Agents",
     href: "/agents",
     icon: Bot,
+  },
+  {
+    label: "Engineering",
+    href: "/engineering",
+    icon: Wrench,
   },
   {
     label: "History",
