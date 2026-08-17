@@ -153,8 +153,7 @@ class GitArchiveWorkspaceMaterializer:
             cwd=source_repo,
             env=dict(env),
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
             timeout=15,
         )
@@ -169,8 +168,7 @@ class GitArchiveWorkspaceMaterializer:
                 cwd=source_repo,
                 env=dict(env),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 check=False,
                 timeout=60,
             )
