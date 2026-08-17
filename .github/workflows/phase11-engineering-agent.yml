@@ -209,10 +209,12 @@ jobs:
           python -m compileall -q \
             tests/test_phase10_ruflo_boundary.py \
             tests/test_phase11_engineering_boundary.py \
-            tests/test_phase11h_benchmark_boundary.py
+            tests/test_phase11h_benchmark_boundary.py \
+            tests/test_phase11i_owner_review_boundary.py
       - name: Phase 10 and 11 Guardian regressions
         run: |
           python -m unittest -v \
             tests.test_phase10_ruflo_boundary \
             tests.test_phase11_engineering_boundary \
-            tests.test_phase11h_benchmark_boundary
+            tests.test_phase11h_benchmark_boundary \
+            tests.test_phase11i_owner_review_boundary
