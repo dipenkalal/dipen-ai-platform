@@ -14,6 +14,9 @@ from engineering.engineering_agent_service import (
     EngineeringWorkScope,
     engineering_agent_service,
 )
+from engineering.guardian_execution_admission import (
+    engineering_guardian_admission_service,
+)
 from executive_office.schemas import ExecutiveExecutionResponse
 
 
@@ -126,6 +129,21 @@ def ticket(order, *, workspace_id: str = "phase11c2-workspace"):
     )
 
 
+def guardian_admission(order, issued):
+    return engineering_guardian_admission_service.admit(
+        work_order=order,
+        ticket=issued,
+    )
+
+
+def run(runner: BoundedCodexRunner, order, issued):
+    return runner.execute(
+        work_order=order,
+        ticket=issued,
+        guardian_admission=guardian_admission(order, issued),
+    )
+
+
 def test_command_uses_pinned_safe_codex_0146_surface(tmp_path: Path) -> None:
     runner = BoundedCodexRunner(
         config=runner_config(tmp_path),
@@ -177,6 +195,7 @@ def test_parent_environment_does_not_forward_dap_secrets(
 
 def test_successful_run_mutates_only_allowed_snapshot_file(tmp_path: Path) -> None:
     order = work_order()
+    issued = ticket(order)
     executor = FakeExecutor(mutate="platform/backend/engineering/example.py")
     runner = BoundedCodexRunner(
         config=runner_config(tmp_path),
@@ -184,7 +203,7 @@ def test_successful_run_mutates_only_allowed_snapshot_file(tmp_path: Path) -> No
         materializer=FakeMaterializer(),
     )
 
-    result = runner.execute(work_order=order, ticket=ticket(order))
+    result = run(runner, order, issued)
 
     assert result.receipt.disposition == "succeeded"
     assert result.receipt.delivery_allowed is True
@@ -193,6 +212,8 @@ def test_successful_run_mutates_only_allowed_snapshot_file(tmp_path: Path) -> No
     )
     assert result.source_commit == "a" * 40
     assert len(result.command_sha256) == 64
+    assert result.guardian_admission_id.startswith("guardian-admission-")
+    assert len(result.guardian_admission_sha256) == 64
     assert result.timed_out is False
     assert result.workspace.exists()
     assert len(executor.calls) == 2
@@ -200,13 +221,14 @@ def test_successful_run_mutates_only_allowed_snapshot_file(tmp_path: Path) -> No
 
 def test_out_of_scope_snapshot_change_is_rejected(tmp_path: Path) -> None:
     order = work_order()
+    issued = ticket(order)
     runner = BoundedCodexRunner(
         config=runner_config(tmp_path),
         executor=FakeExecutor(mutate="README.md"),
         materializer=FakeMaterializer(),
     )
 
-    result = runner.execute(work_order=order, ticket=ticket(order))
+    result = run(runner, order, issued)
 
     assert result.receipt.disposition == "rejected"
     assert result.receipt.delivery_allowed is False
@@ -218,13 +240,14 @@ def test_out_of_scope_snapshot_change_is_rejected(tmp_path: Path) -> None:
 
 def test_guardian_snapshot_mutation_is_explicitly_rejected(tmp_path: Path) -> None:
     order = work_order()
+    issued = ticket(order)
     runner = BoundedCodexRunner(
         config=runner_config(tmp_path),
         executor=FakeExecutor(mutate="platform/guardian/broker.py"),
         materializer=FakeMaterializer(),
     )
 
-    result = runner.execute(work_order=order, ticket=ticket(order))
+    result = run(runner, order, issued)
 
     assert result.receipt.disposition == "rejected"
     assert any(
@@ -235,6 +258,7 @@ def test_guardian_snapshot_mutation_is_explicitly_rejected(tmp_path: Path) -> No
 
 def test_version_drift_fails_before_materialized_execution(tmp_path: Path) -> None:
     order = work_order()
+    issued = ticket(order)
     runner = BoundedCodexRunner(
         config=runner_config(tmp_path),
         executor=FakeExecutor(version="codex-cli 0.147.0"),
@@ -242,7 +266,7 @@ def test_version_drift_fails_before_materialized_execution(tmp_path: Path) -> No
     )
 
     with pytest.raises(RuntimeError, match="version drift"):
-        runner.execute(work_order=order, ticket=ticket(order))
+        run(runner, order, issued)
 
 
 def test_work_order_hash_mismatch_fails_closed(tmp_path: Path) -> None:
@@ -255,7 +279,34 @@ def test_work_order_hash_mismatch_fails_closed(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="work order hash"):
-        runner.execute(work_order=order, ticket=issued)
+        runner.execute(
+            work_order=order,
+            ticket=issued,
+            guardian_admission=guardian_admission(order, ticket(order)),
+        )
+
+
+def test_guardian_admission_hash_mismatch_fails_before_codex(tmp_path: Path) -> None:
+    order = work_order()
+    issued = ticket(order)
+    admission = guardian_admission(order, issued).model_copy(
+        update={"ticket_sha256": "0" * 64}
+    )
+    executor = FakeExecutor(mutate="platform/backend/engineering/example.py")
+    runner = BoundedCodexRunner(
+        config=runner_config(tmp_path),
+        executor=executor,
+        materializer=FakeMaterializer(),
+    )
+
+    with pytest.raises(ValueError, match="ticket hash mismatch"):
+        runner.execute(
+            work_order=order,
+            ticket=issued,
+            guardian_admission=admission,
+        )
+
+    assert executor.calls == []
 
 
 def test_cleanup_refuses_paths_outside_workspace_root(tmp_path: Path) -> None:
