@@ -8,6 +8,7 @@ import {
   Bot,
   BrainCircuit,
   Building2,
+  ClipboardCheck,
   History,
   Mic,
   Network,
@@ -64,6 +65,12 @@ const navigationItems: NavigationItem[] = [
     label: "Engineering",
     href: "/engineering",
     icon: Wrench,
+    exact: true,
+  },
+  {
+    label: "Reviews",
+    href: "/engineering/reviews",
+    icon: ClipboardCheck,
   },
   {
     label: "History",
