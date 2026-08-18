@@ -142,12 +142,14 @@ async def test_explicit_research_urls_add_one_bounded_internet_tool_step(monkeyp
         "knowledge.search",
         "internet.research.retrieve",
     ]
-    assert "Only explicit research_urls supplied by" in executor.system_prompt
+    assert "research_urls supplied by DAP/owner input" in executor.system_prompt
     assert "DAP UNTRUSTED INTERNET EVIDENCE" in executor.user_content
     assert "https://evil.invalid/" in executor.user_content
     assert len(internet.calls) == 1
     assert any(source.get("document_id") == "doc-1" for source in response.sources)
-    public_sources = [source for source in response.sources if source.get("source_kind") == "public_web"]
+    public_sources = [
+        source for source in response.sources if source.get("source_kind") == "public_web"
+    ]
     assert len(public_sources) == 1
     assert public_sources[0]["source_url"] == "https://example.com/"
     assert public_sources[0]["evidence_sha256"] == "a" * 64
