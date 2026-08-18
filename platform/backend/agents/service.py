@@ -43,6 +43,13 @@ class AgentService:
             }
         )
 
+    @staticmethod
+    def _validate_research_url_scope(request: AgentRunRequest) -> None:
+        if request.research_urls and request.agent_id != "research-agent":
+            raise ValueError(
+                "research_urls are admitted only when the resolved agent is research-agent"
+            )
+
     def resolve_request(
         self,
         request: AgentRunRequest,
@@ -76,6 +83,7 @@ class AgentService:
                     "routing": routing,
                 }
             )
+            self._validate_research_url_scope(resolved_request)
 
             return resolved_request, route
 
@@ -96,6 +104,7 @@ class AgentService:
                 "routing": routing,
             }
         )
+        self._validate_research_url_scope(resolved_request)
 
         return resolved_request, None
 
