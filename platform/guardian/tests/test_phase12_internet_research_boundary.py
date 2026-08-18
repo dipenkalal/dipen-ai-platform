@@ -21,12 +21,6 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
         cls.transport_source = (
             cls.repo_root / "platform/backend/gateway/internet_transport.py"
         ).read_text(encoding="utf-8")
-        cls.agent_registry_source = (
-            cls.repo_root / "platform/backend/agents/registry.py"
-        ).read_text(encoding="utf-8")
-        cls.tool_registry_source = (
-            cls.repo_root / "platform/backend/tools/registry.py"
-        ).read_text(encoding="utf-8")
 
     def test_phase12_contracts_have_no_network_or_process_transport(self) -> None:
         prohibited_imports = (
@@ -124,26 +118,29 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
         for token in prohibited_tokens:
             self.assertNotIn(token, combined)
 
-    def test_research_agent_has_no_internet_tool_during_transport_gate(self) -> None:
-        research_block = self.agent_registry_source.split(
-            'id="research-agent"', maxsplit=1
-        )[1].split("agent_registry.register(", maxsplit=1)[0]
+    def test_12d_transport_does_not_self_register_or_import_agent_registry(self) -> None:
+        self.assertNotIn("tools.registry", self.transport_source)
+        self.assertNotIn("agents.registry", self.transport_source)
+        self.assertNotIn("tool_registry.register", self.transport_source)
+        self.assertNotIn("agent_registry.register", self.transport_source)
 
-        self.assertIn('"knowledge.search"', research_block)
-        self.assertNotIn('"internet.', research_block)
-        self.assertNotIn('"web.', research_block)
+    def test_source_registry_keeps_search_disabled_and_public_web_explicitly_bounded(self) -> None:
+        public_web_block = self.contract_source.split(
+            'source_id="public-web"', maxsplit=1
+        )[1].split("ResearchSourceDefinition(", maxsplit=1)[0]
+        web_search_block = self.contract_source.split(
+            'source_id="web-search"', maxsplit=1
+        )[1].split(")", maxsplit=1)[0]
 
-    def test_tool_registry_registers_no_internet_transport_during_12d(self) -> None:
-        self.assertNotIn("Internet", self.tool_registry_source)
-        self.assertNotIn("WebSearch", self.tool_registry_source)
-        self.assertNotIn("WebFetch", self.tool_registry_source)
-        self.assertNotIn("internet_tools", self.tool_registry_source)
+        self.assertIn('provider_id="dap-public-http"', public_web_block)
+        self.assertIn('tool_id="internet.research.retrieve"', public_web_block)
+        self.assertIn("execution_enabled=True", public_web_block)
+        self.assertIn("untrusted_content=True", public_web_block)
 
-    def test_public_web_and_search_sources_remain_contract_only(self) -> None:
-        self.assertIn('source_id="public-web"', self.contract_source)
-        self.assertIn('source_id="web-search"', self.contract_source)
-        self.assertGreaterEqual(self.contract_source.count("execution_enabled=False"), 2)
-        self.assertGreaterEqual(self.contract_source.count("tool_id=None"), 2)
+        self.assertIn('provider_id="unconfigured-search-provider"', web_search_block)
+        self.assertIn("tool_id=None", web_search_block)
+        self.assertIn("execution_enabled=False", web_search_block)
+        self.assertIn("untrusted_content=True", web_search_block)
 
 
 if __name__ == "__main__":
