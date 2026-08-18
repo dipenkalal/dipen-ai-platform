@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   Building2,
   ClipboardCheck,
+  Globe2,
   History,
   Mic,
   Network,
@@ -55,6 +56,11 @@ const navigationItems: NavigationItem[] = [
     label: "Knowledge",
     href: "/knowledge",
     icon: BrainCircuit,
+  },
+  {
+    label: "Research",
+    href: "/research",
+    icon: Globe2,
   },
   {
     label: "Agents",
