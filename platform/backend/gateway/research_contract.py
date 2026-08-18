@@ -44,9 +44,9 @@ class ResearchSourceRegistry:
                 source_id="public-web",
                 source_kind="public_web",
                 provider_id="dap-public-http",
-                tool_id=None,
+                tool_id="internet.research.retrieve",
                 network_required=True,
-                execution_enabled=False,
+                execution_enabled=True,
                 untrusted_content=True,
             ),
             ResearchSourceDefinition(
