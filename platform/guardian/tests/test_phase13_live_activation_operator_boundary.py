@@ -11,7 +11,11 @@ class Phase13LiveActivationOperatorBoundaryTests(unittest.TestCase):
         cls.source = (
             cls.repo_root / "scripts/phase13-provider-specific-research-live-activate.sh"
         ).read_text(encoding="utf-8")
+        cls.resume_source = (
+            cls.repo_root / "scripts/phase13-provider-specific-research-live-resume.sh"
+        ).read_text(encoding="utf-8")
         cls.lower = cls.source.lower()
+        cls.resume_lower = cls.resume_source.lower()
 
     def test_operator_uses_only_fixed_backend_restart_and_diagnostic_journal(self) -> None:
         self.assertEqual(
@@ -72,6 +76,50 @@ class Phase13LiveActivationOperatorBoundaryTests(unittest.TestCase):
             "systemctl enable",
         ):
             self.assertNotIn(token, self.lower)
+
+    def test_resume_path_never_repeats_research_or_restarts_backend(self) -> None:
+        self.assertNotIn("/api/v1/agents/run", self.resume_source)
+        self.assertNotIn("systemctl restart dap-backend.service", self.resume_lower)
+        self.assertNotIn("journalctl", self.resume_lower)
+        self.assertIn('[[ "$EVIDENCE_FINAL" == "$EXPECTED_EVIDENCE_TOTAL" ]]', self.resume_source)
+        self.assertIn('[[ "$PID_FINAL" == "$EXPECTED_BACKEND_PID" ]]', self.resume_source)
+        self.assertIn("phase13_resume_without_duplicate_research|PASS", self.resume_source)
+
+    def test_resume_cleanup_is_fixed_to_generated_next_tree(self) -> None:
+        self.assertEqual(
+            self.resume_source.count('sudo rm -rf -- "$DASH/.next"'),
+            1,
+        )
+        self.assertIn('--user "$(id -u):$(id -g)"', self.resume_source)
+        self.assertIn("docker run --rm --network none", self.resume_source)
+        self.assertIn("docker build --pull=false --network=none", self.resume_source)
+        self.assertNotIn("sudo rm -rf /", self.resume_lower)
+        self.assertNotIn("npm ci", self.resume_lower)
+        self.assertNotIn("npm install", self.resume_lower)
+
+    def test_resume_recreates_only_dashboard_and_preserves_authority_boundaries(self) -> None:
+        self.assertIn(
+            "docker compose up -d --no-deps --no-build --force-recreate dashboard",
+            self.resume_source,
+        )
+        for token in (
+            "docker compose down",
+            "docker system prune",
+            "docker restart",
+            "/var/run/docker.sock",
+            "--privileged",
+            "git merge",
+            "git push",
+            "gh pr merge",
+            "git tag",
+            "github release",
+            "dap_telegram_approvals_enabled=true",
+            "systemctl enable",
+            "systemctl restart docker",
+            "systemctl restart dap-guardian",
+            "systemctl start dap-guardian",
+        ):
+            self.assertNotIn(token, self.resume_lower)
 
 
 if __name__ == "__main__":
