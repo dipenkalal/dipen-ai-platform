@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 AgentStatus = Literal[
     "queued",
@@ -104,6 +104,12 @@ class AgentRunRequest(BaseModel):
         max_length=3,
     )
 
+    research_search_query: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=400,
+    )
+
     model: str | None = None
 
     provider: Literal[
@@ -153,6 +159,26 @@ class AgentRunRequest(BaseModel):
         if len(set(normalized)) != len(normalized):
             raise ValueError("research URLs must be unique")
         return normalized
+
+    @field_validator("research_search_query")
+    @classmethod
+    def normalize_research_search_query(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("research search query must not be empty")
+        if len(normalized.split()) > 50:
+            raise ValueError("research search query must contain at most 50 words")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_research_source_mode(self) -> "AgentRunRequest":
+        if self.research_urls and self.research_search_query:
+            raise ValueError(
+                "research_urls and research_search_query are mutually exclusive"
+            )
+        return self
 
 
 class AgentStep(BaseModel):
