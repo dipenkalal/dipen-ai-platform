@@ -44,16 +44,33 @@ Fetched content is always evidence, never instructions or authority.
 
 ## Gate status
 
-- 12A — Architecture + threat boundary: **IN PROGRESS**
-- 12B — Research request + source/tool registry contract: **PENDING**
-- 12C — URL, DNS, redirect, and SSRF policy: **PENDING**
-- 12D — Bounded public fetch transport: **PENDING**
+- 12A — Architecture + threat boundary: **COMPLETE / SEALED**
+- 12B — Research request + source/tool registry contract: **COMPLETE / SEALED**
+- 12C — URL, DNS, redirect, and SSRF policy: **COMPLETE / SEALED**
+- 12D — Bounded public fetch transport: **NEXT / IN PROGRESS**
 - 12E — Untrusted-content / prompt-injection boundary: **PENDING**
 - 12F — Citation + retrieval evidence persistence: **PENDING**
 - 12G — Research Agent integration: **PENDING**
 - 12H — Search/provider adapters + optional Agent-Reach-inspired components: **PENDING**
 - 12I — Dashboard Research workspace: **PENDING**
 - 12J — Empirical benchmark + production-readiness decision: **PENDING**
+
+## Sealed boundary checkpoint
+
+12A–12C are sealed on the Phase 12 branch with the following invariants:
+
+- `research-agent` still exposes only `knowledge.search`.
+- `tools.registry` still registers no `internet.*` or `web.*` capability.
+- The source registry can represent `public_web` and `web_search`, but both remain execution-disabled and have no tool IDs.
+- A research request may express web intent without granting network authority.
+- URL preflight occurs before DNS resolution is permitted.
+- DNS resolution and HTTP transport are absent from the 12A–12C policy modules.
+- Final destination admission requires every resolver-supplied IPv4/IPv6 address to be public.
+- Mixed public/private DNS answers fail closed.
+- Redirect depth is bounded and cryptographically bound into destination admission.
+- The final destination admission binds the canonical URL, method, hostname, exact approved address set, and redirect depth by SHA-256.
+
+Dedicated Phase 12, repository CI, Phase 10 regression, and Phase 11 regression all passed on the hardened 12C checkpoint.
 
 ## 12A — Architecture + threat boundary
 
@@ -90,26 +107,34 @@ Exit: research intent can be represented without performing network I/O.
 
 ## 12C — URL, DNS, redirect, and SSRF policy
 
-- Parse and canonicalize destinations.
-- Allow only explicitly supported schemes.
+- Parse and canonicalize destinations before DNS resolution is permitted.
+- Allow only explicitly supported schemes and methods.
 - Reject URL user-info and credential-bearing URLs.
-- Resolve hostnames and reject every non-public address class.
+- Reject local/internal/container/metadata hostname forms before DNS.
+- Validate hostname syntax before DNS.
+- Validate resolver-supplied addresses and reject every non-public address class.
 - Reject localhost, private RFC1918, loopback, link-local, multicast, unspecified, reserved, metadata, container and DAP-local targets.
-- Re-resolve/revalidate redirects and cap redirect depth.
-- Pin request destination to the validated address set as far as the chosen client permits.
-- Add IPv4/IPv6 and DNS-rebinding-focused tests.
+- Fail closed if any DNS answer is non-public.
+- Re-run preflight, resolution, and final admission for every redirect and cap redirect depth.
+- Bind the approved address set to the immutable destination admission so the chosen transport can connect only to validated IPs.
+- Add IPv4/IPv6, mixed-answer, IP-literal, and DNS-rebinding-oriented tests.
 
-Exit: a request cannot use DAP as an SSRF tunnel into host or private infrastructure.
+Exit: a request cannot use DAP as an SSRF tunnel into host or private infrastructure, and unsafe URLs are rejected before the resolver is called.
 
 ## 12D — Bounded public fetch transport
 
 - Fixed GET/HEAD-only command/API surface initially.
+- Resolve only after a successful 12C preflight.
+- Connect to an exact 12C-approved IP while validating TLS for the canonical hostname.
+- Do not let the HTTP client silently re-resolve the hostname after admission.
 - Fixed connect/read/total timeouts.
 - Response-byte and header-size caps.
-- Controlled content types.
-- No ambient proxy/cookie/browser/session inheritance unless a future provider adapter explicitly requires and isolates it.
+- Controlled content types and content encodings.
+- No automatic redirects; return redirect metadata so each destination is re-admitted through 12C.
+- No ambient proxy/cookie/browser/session inheritance.
 - No arbitrary request headers supplied by model output.
 - Cancellation-aware operation.
+- Do not register the transport as an agent-visible tool during 12D.
 
 Exit: harmless public content can be retrieved without giving the Research Agent generic network authority.
 
