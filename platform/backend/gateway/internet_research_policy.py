@@ -12,7 +12,7 @@ PHASE12_ALLOWED_SCHEMES = ("https",)
 class Phase12InternetBoundaryRequest(BaseModel):
     """Requested Phase 12 wiring and authority before any network transport exists."""
 
-    agent_id: Literal["research-agent"] = PHASE12_AGENT_ID
+    agent_id: Literal["research-agent"] = "research-agent"
     requested_methods: tuple[str, ...] = PHASE12_ALLOWED_METHODS
     requested_schemes: tuple[str, ...] = PHASE12_ALLOWED_SCHEMES
 
@@ -74,8 +74,8 @@ class Phase12InternetBoundaryConstraints(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    allowed_methods: tuple[Literal["GET", "HEAD"], ...] = PHASE12_ALLOWED_METHODS
-    allowed_schemes: tuple[Literal["https"], ...] = PHASE12_ALLOWED_SCHEMES
+    allowed_methods: tuple[Literal["GET", "HEAD"], ...] = ("GET", "HEAD")
+    allowed_schemes: tuple[Literal["https"], ...] = ("https",)
     public_destinations_only: Literal[True] = True
     dns_public_address_validation_required: Literal[True] = True
     redirect_revalidation_required: Literal[True] = True
@@ -102,7 +102,7 @@ class Phase12InternetBoundaryDecision(BaseModel):
 
     phase: Literal["12A"] = "12A"
     disposition: Literal["accepted", "rejected"]
-    agent_id: Literal["research-agent"] = PHASE12_AGENT_ID
+    agent_id: Literal["research-agent"] = "research-agent"
     findings: tuple[Phase12InternetBoundaryFinding, ...]
     constraints: Phase12InternetBoundaryConstraints = Field(
         default_factory=Phase12InternetBoundaryConstraints
