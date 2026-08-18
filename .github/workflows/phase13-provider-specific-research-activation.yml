@@ -110,6 +110,8 @@ jobs:
           cache-dependency-path: apps/dashboard/package-lock.json
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Research activation authority boundary
+        run: node scripts/check-provider-specific-research-activation.mjs
       - name: Lint dashboard
         run: npm run lint
       - name: Build dashboard
