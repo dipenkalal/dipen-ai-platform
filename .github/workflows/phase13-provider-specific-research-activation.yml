@@ -55,6 +55,7 @@ jobs:
             agents/service.py \
             agents/research_executor.py \
             tests/test_phase13_provider_specific_research_activation.py
+          bash -n ../../scripts/phase13-provider-specific-research-live-activate.sh
       - name: Phase 13 activation tests
         run: |
           python -m pytest -q \
@@ -89,12 +90,14 @@ jobs:
         run: |
           python -m compileall -q \
             tests/test_phase12h_searxng_provider_boundary.py \
-            tests/test_phase13_provider_specific_research_activation_boundary.py
+            tests/test_phase13_provider_specific_research_activation_boundary.py \
+            tests/test_phase13_live_activation_operator_boundary.py
       - name: Provider-specific activation Guardian boundary
         run: |
           python -m unittest -v \
             tests.test_phase12h_searxng_provider_boundary \
-            tests.test_phase13_provider_specific_research_activation_boundary
+            tests.test_phase13_provider_specific_research_activation_boundary \
+            tests.test_phase13_live_activation_operator_boundary
 
   dashboard-activation:
     runs-on: ubuntu-latest
