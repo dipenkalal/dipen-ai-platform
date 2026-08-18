@@ -1,10 +1,7 @@
 name: Phase 11I Owner Review Runtime Artifact
 
 on:
-  pull_request:
-  push:
-    branches:
-      - phase11/autonomous-engineering-agent
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -43,8 +38,6 @@ jobs:
         working-directory: apps/dashboard
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
@@ -58,7 +51,7 @@ jobs:
         run: npm run build
       - name: Package standalone runtime
         env:
-          SOURCE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           test -f .next/standalone/server.js
           mkdir -p .next/standalone/.next
