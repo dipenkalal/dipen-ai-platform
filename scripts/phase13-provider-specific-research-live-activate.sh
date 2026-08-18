@@ -25,6 +25,56 @@ cleanup_tmp() {
 }
 trap cleanup_tmp EXIT
 
+validate_research_task_ledger() {
+  "$PY" - "$TRUTH_DB" "$RUN_ID" "$TASKS_BEFORE" <<'PY'
+import json
+import sqlite3
+import sys
+
+path, run_id, before_raw = sys.argv[1:]
+before = int(before_raw)
+
+with sqlite3.connect(path) as connection:
+    connection.row_factory = sqlite3.Row
+    total = int(connection.execute("SELECT COUNT(*) FROM task_ledger").fetchone()[0])
+    rows = connection.execute(
+        """
+        SELECT
+            task_id,
+            task_type,
+            status,
+            requested_by,
+            assigned_agent_ids_json,
+            source_run_id,
+            current_step,
+            progress_percent,
+            error,
+            completed_at
+        FROM task_ledger
+        WHERE source_run_id = ?
+        """,
+        (run_id,),
+    ).fetchall()
+
+assert total == before + 1, (before, total)
+assert len(rows) == 1, (run_id, len(rows))
+row = rows[0]
+assigned = json.loads(row["assigned_agent_ids_json"])
+assert row["task_type"] == "agent", dict(row)
+assert row["status"] == "completed", dict(row)
+assert row["requested_by"] == "agent-api", dict(row)
+assert assigned == ["research-agent"], assigned
+assert row["source_run_id"] == run_id, dict(row)
+assert row["current_step"] == "Agent execution completed", dict(row)
+assert float(row["progress_percent"]) == 100.0, dict(row)
+assert row["error"] is None, dict(row)
+assert row["completed_at"], dict(row)
+print(f"research_task_id|{row['task_id']}")
+print("research_task_ledger_delta|1")
+print("research_task_ledger_proof|PASS")
+PY
+}
+
 echo "============================================================"
 echo " PHASE 13 — PROVIDER-SPECIFIC RESEARCH LIVE ACTIVATION"
 echo "============================================================"
@@ -181,6 +231,9 @@ print(f"public_web_source_count|{len(public_sources)}", file=sys.stderr)
 PY
 )"
 echo "research_run_id|$RUN_ID"
+TASKS_AFTER_RUN="$(sqlite3 "$TRUTH_DB" 'SELECT COUNT(*) FROM task_ledger;')"
+echo "task_ledger_after_run|$TASKS_AFTER_RUN"
+validate_research_task_ledger
 echo "manual_provider_specific_search|PASS"
 
 echo
@@ -217,8 +270,19 @@ docker image inspect node:24-alpine >/dev/null 2>&1 || { echo "node_base_image|M
 ROLLBACK_TAG="dap-dashboard-phase13-rollback:$(date -u +%Y%m%dT%H%M%SZ)"
 docker tag "$DASHBOARD_IMAGE_ID_BEFORE" "$ROLLBACK_TAG"
 echo "rollback_image|$ROLLBACK_TAG"
-rm -rf "$DASH/.next"
+if [[ -e "$DASH/.next" ]]; then
+  if rm -rf "$DASH/.next" 2>/dev/null; then
+    echo "dashboard_build_tree_cleanup|user"
+  else
+    echo "dashboard_build_tree_cleanup|sudo_fixed_path"
+    sudo rm -rf -- "$DASH/.next"
+  fi
+fi
+[[ ! -e "$DASH/.next" ]] || { echo "dashboard_build_tree_cleanup|FAIL"; exit 1; }
+echo "dashboard_build_tree_cleanup|PASS"
 docker run --rm --network none \
+  --user "$(id -u):$(id -g)" \
+  -e HOME=/tmp \
   -e NEXT_TELEMETRY_DISABLED=1 \
   -v "$DASH:/app" -w /app node:24-alpine \
   sh -lc 'npm run build'
@@ -327,7 +391,7 @@ echo "searxng_binding_final|$SEARX_BINDING_FINAL"
 echo "HEAD_final|$HEAD_FINAL"
 echo "source_final|$SOURCE_FINAL"
 
-[[ "$TASKS_AFTER" == "$TASKS_BEFORE" ]] || exit 1
+validate_research_task_ledger
 [[ "$EVIDENCE_FINAL" -gt "$EVIDENCE_BEFORE" ]] || exit 1
 [[ "$PID_FINAL" == "$PID_ACTIVATED" ]] || exit 1
 [[ "$BACKEND_FINAL" == "active" ]] || exit 1
