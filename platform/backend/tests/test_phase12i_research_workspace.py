@@ -7,7 +7,11 @@ from pathlib import Path
 from agents.schemas import AgentStep, AgentUsage
 from agents.truth_repository import AgentTruthRepository
 from gateway.internet_transport import InternetRetrievalHop, InternetRetrievalResult
-from gateway.research_contract import ResearchRequest, ResearchRequestFactory, ResearchRequestIntent
+from gateway.research_contract import (
+    ResearchRequest,
+    ResearchRequestFactory,
+    ResearchRequestIntent,
+)
 from gateway.research_retrieval_evidence import ResearchRetrievalEvidenceFactory
 from gateway.research_retrieval_repository import ResearchRetrievalRepository
 from gateway.research_workspace import ResearchWorkspaceService
