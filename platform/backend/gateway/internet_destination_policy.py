@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -255,11 +255,10 @@ class InternetDestinationPolicy:
         )
 
     @staticmethod
-    def _canonical_url(*, parsed: object, hostname: str) -> str:
-        split = parsed
-        scheme = getattr(split, "scheme").lower()
-        path = getattr(split, "path") or "/"
-        query = getattr(split, "query")
+    def _canonical_url(*, parsed: SplitResult, hostname: str) -> str:
+        scheme = parsed.scheme.lower()
+        path = parsed.path or "/"
+        query = parsed.query
         netloc = f"[{hostname}]" if ":" in hostname else hostname
         return urlunsplit((scheme, netloc, path, query, ""))
 
