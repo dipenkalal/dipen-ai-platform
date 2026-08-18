@@ -7,6 +7,7 @@ from gateway.research_operations import (
     ResearchRetentionPlan,
 )
 from gateway.research_operations_repository import ResearchOperationsRepository
+from gateway.research_provider_health import ResearchProviderHealth, check_searxng_health
 from gateway.research_retrieval_repository import ResearchRetrievalRepository
 from gateway.research_workspace import (
     ResearchWorkspaceEvidenceItem,
@@ -82,6 +83,14 @@ async def get_research_operations(
         evidence_limit=evidence_limit,
         event_limit=event_limit,
     )
+
+
+@router.get(
+    "/operations/provider-health",
+    response_model=ResearchProviderHealth,
+)
+async def get_research_provider_health() -> ResearchProviderHealth:
+    return await check_searxng_health()
 
 
 @router.get(
