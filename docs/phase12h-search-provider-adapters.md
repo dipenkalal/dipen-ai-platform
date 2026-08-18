@@ -1,6 +1,6 @@
 # Phase 12H — Search/provider adapters
 
-Status: **ZERO-COST SEARXNG PATH — CODE/CI COMPLETE; ACER DEPLOYMENT + LIVE SMOKE PENDING**
+Status: **COMPLETE / SEALED — ZERO-COST SEARXNG ACER LIVE PROOF PASSED**
 
 Phase 12H gives DAP bounded search discovery without giving the Research Agent a generic search client, provider credential, or authority to treat search snippets as evidence.
 
@@ -105,26 +105,60 @@ The SearXNG application secret is local instance hardening and is not a paid pro
 - selects at most three URLs;
 - verifies selected URLs are HTTPS;
 - captures the downstream sealed-retrieval invocation without actually fetching public pages;
-- verifies snippets/titles are excluded;
+- verifies provider snippets/titles are excluded from provider evidence;
 - performs no model call, database write, Knowledge mutation, task mutation, Guardian contact, or privileged action;
 - uses no paid provider or provider credential.
 
 ## CI evidence
 
-At head `827eb2f1dd18c660fc9e574b3659f72063166706`, all four workflows pass:
+At code checkpoint `63bff214ffe04703e46fd5784f1089ee61207e41`, all relevant workflows passed:
 
 - Phase 12 Internet Research Gateway;
 - repository CI;
 - Phase 11 regression;
 - Phase 10 regression.
 
-The dedicated Phase 12 gate includes Ruff, mypy, compile, behavior tests, Guardian SearXNG provider isolation, deployment-template isolation, and the live-smoke helper static checks.
+The dedicated Phase 12 gate passed both `backend-boundary` and `guardian-boundary`, including Ruff, mypy, compile, behavior tests, Guardian SearXNG provider isolation, deployment-template isolation, and live-smoke helper checks.
+
+## Acer live proof
+
+The pinned SearXNG image was deployed successfully on the Acer:
+
+`ghcr.io/searxng/searxng:2026.7.28-c01178d03@sha256:80622959f0f3512e6623d6bdbcea9f13c8d22c8d9715c498d0ae2be1c8535930`
+
+Live runtime checks passed:
+
+- container `dap-searxng` started successfully;
+- publication is exactly `127.0.0.1:8888->8080/tcp`;
+- loopback-only check passed;
+- privileged mode is false;
+- host networking is not used;
+- all Linux capabilities are dropped;
+- `no-new-privileges:true` is enabled;
+- JSON API returned HTTP `200` and valid JSON;
+- final SearXNG root HTTP check returned `200`.
+
+The final zero-cost DAP search smoke returned four candidate URLs, selected three HTTPS URLs, and passed every provider/search/retrieval boundary assertion with `smoke_disposition|succeeded` and `smoke_exit|0`.
+
+Production safety remained unchanged across the final smoke:
+
+- `task_ledger`: `11` before and `11` after;
+- backend MainPID: `2856` before and `2856` after;
+- task-ledger mutation: false;
+- backend restart: false;
+- backend: active;
+- Guardian broker: inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false`.
+
+Detailed live evidence is recorded in `docs/phase12h-searxng-live-evidence-2026-08-18.md`.
 
 ## Activation state
 
-Search discovery is **not yet registered as Research Agent authority**.
+Search discovery is **not registered as live Research Agent authority yet**.
 
-`research-agent` still exposes only its sealed Knowledge/public-web capabilities. The local SearXNG provider and search pipeline remain internal DAP components until the Acer deployment and live zero-cost smoke pass.
+The zero-cost local provider and search-to-retrieval boundary are now proven. The deliberate Phase 12H exit decision is to keep search discovery internal while Phase 12I adds owner-visible research inspection and Phase 12J performs empirical benchmarking and the final production-readiness decision.
+
+This is a least-authority decision, not a runtime limitation.
 
 ## Still prohibited
 
@@ -147,12 +181,15 @@ Phase 12H does not authorize:
 
 ## Exit state
 
-**Code/CI exit is satisfied.**
+**Phase 12H is complete and sealed.**
 
-Remaining 12H runtime exit:
+Runtime exit evidence:
 
-1. deploy pinned SearXNG locally on Acer;
-2. prove it is reachable only on `127.0.0.1:8888`;
-3. run the credential-free SearXNG live smoke successfully;
-4. verify source/task/Guardian/Telegram safety invariants;
-5. only then decide whether to activate search discovery for the Research Agent.
+1. deploy pinned SearXNG locally on Acer — **PASS**;
+2. prove it is reachable only on `127.0.0.1:8888` — **PASS**;
+3. run the credential-free SearXNG live smoke successfully — **PASS**;
+4. verify source/task/Guardian/Telegram safety invariants — **PASS**;
+5. record live evidence — **PASS**;
+6. activation decision — **DEFER LIVE RESEARCH-AGENT REGISTRATION UNTIL 12I/12J**.
+
+Next gate: **12I — Dashboard Research workspace**.
