@@ -46,8 +46,14 @@ class Phase12HSearXNGProviderBoundaryTests(unittest.TestCase):
             "getenv(",
         ):
             self.assertNotIn(token, lower)
-        self.assertIn("provider_credential_required: Literal[False] = False", self.provider_source)
-        self.assertIn("provider_is_local_only: Literal[True] = True", self.provider_source)
+        self.assertIn(
+            "provider_credential_required: Literal[False] = False",
+            self.provider_source,
+        )
+        self.assertIn(
+            "provider_is_local_only: Literal[True] = True",
+            self.provider_source,
+        )
 
     def test_search_results_remain_untrusted_and_require_public_retrieval(self) -> None:
         self.assertIn("WebSearchCandidate", self.provider_source)
@@ -56,13 +62,18 @@ class Phase12HSearXNGProviderBoundaryTests(unittest.TestCase):
             "candidate_urls_require_full_dap_retrieval: Literal[True] = True",
             self.provider_source,
         )
-        self.assertIn("generic_network_client_exposed: Literal[False] = False", self.provider_source)
+        self.assertIn(
+            "generic_network_client_exposed: Literal[False] = False",
+            self.provider_source,
+        )
 
     def test_local_provider_has_no_privileged_or_runtime_control_dependency(self) -> None:
         imported_roots: set[str] = set()
         for node in ast.walk(self.provider_tree):
             if isinstance(node, ast.Import):
-                imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+                imported_roots.update(
+                    alias.name.split(".", 1)[0] for alias in node.names
+                )
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported_roots.add(node.module.split(".", 1)[0])
         self.assertTrue({"guardian", "docker", "subprocess"}.isdisjoint(imported_roots))
@@ -83,12 +94,14 @@ class Phase12HSearXNGProviderBoundaryTests(unittest.TestCase):
         ):
             self.assertNotIn(token, lower)
 
-    def test_searxng_is_not_registered_live_before_runtime_smoke(self) -> None:
+    def test_searxng_activation_remains_internal_not_generic_tool_registration(self) -> None:
         research_block = self.agent_registry_source.split(
             'id="research-agent"', maxsplit=1
         )[1].split("agent_registry.register(", maxsplit=1)[0]
-        self.assertNotIn("searxng", research_block.lower())
+        self.assertIn("Local SearXNG URL discovery", research_block)
+        self.assertNotIn("internet.research.search", research_block)
         self.assertNotIn("SearXNG", self.tool_registry_source)
+        self.assertNotIn("internet.research.search", self.tool_registry_source)
 
 
 if __name__ == "__main__":

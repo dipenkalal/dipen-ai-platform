@@ -111,8 +111,9 @@ agent_registry.register(
         id="research-agent",
         name="Research Agent",
         description=(
-            "Investigate a topic using indexed knowledge and explicit bounded "
-            "public-web evidence, compare sources, and produce a cited research summary."
+            "Investigate a topic using indexed knowledge, explicit bounded public-web "
+            "evidence, or owner-requested local SearXNG discovery followed by sealed "
+            "DAP retrieval."
         ),
         category="research",
         icon="search",
@@ -126,6 +127,7 @@ agent_registry.register(
             "Evidence synthesis",
             "Source comparison",
             "Bounded public-web retrieval",
+            "Local SearXNG URL discovery",
             "Research citations",
         ],
         recommended_model="qwen3:1.7b",

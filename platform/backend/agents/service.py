@@ -44,10 +44,22 @@ class AgentService:
         )
 
     @staticmethod
-    def _validate_research_url_scope(request: AgentRunRequest) -> None:
-        if request.research_urls and request.agent_id != "research-agent":
+    def _validate_research_scope(request: AgentRunRequest) -> None:
+        has_public_research = bool(
+            request.research_urls or request.research_search_query
+        )
+        if has_public_research and request.agent_id != "research-agent":
             raise ValueError(
-                "research_urls are admitted only when the resolved agent is research-agent"
+                "public research inputs are admitted only when the resolved agent "
+                "is research-agent"
+            )
+        if request.research_search_query and request.mode != "manual":
+            raise ValueError(
+                "research_search_query requires manual research-agent mode"
+            )
+        if request.research_search_query and request.supplemental_context:
+            raise ValueError(
+                "research_search_query cannot be combined with supplemental_context"
             )
 
     def resolve_request(
@@ -83,7 +95,7 @@ class AgentService:
                     "routing": routing,
                 }
             )
-            self._validate_research_url_scope(resolved_request)
+            self._validate_research_scope(resolved_request)
 
             return resolved_request, route
 
@@ -104,7 +116,7 @@ class AgentService:
                 "routing": routing,
             }
         )
-        self._validate_research_url_scope(resolved_request)
+        self._validate_research_scope(resolved_request)
 
         return resolved_request, None
 

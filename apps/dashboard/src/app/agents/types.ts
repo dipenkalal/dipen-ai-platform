@@ -84,7 +84,12 @@ export type UsageMetrics = {
 };
 
 export type AgentRunStatus =
-  "idle" | "queued" | "running" | "completed" | "failed" | "cancelled";
+  | "idle"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export type AgentRun = {
   run_id: string;
@@ -105,6 +110,7 @@ export type AgentRunRequest = {
   mode: AgentExecutionMode;
   agent_id: string | null;
   objective: string;
+  research_search_query?: string | null;
   model: string;
   provider: "auto" | "ollama";
 };
@@ -159,7 +165,11 @@ export type ModelsResponse = {
 };
 
 export type AgentRunHistoryStatus =
-  "queued" | "running" | "completed" | "failed" | "cancelled";
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export type AgentRunSummary = {
   run_id: string;
@@ -212,6 +222,7 @@ export type AgentRunRecord = {
     routing?: RoutingMetadata;
     agent_id: string;
     objective: string;
+    research_search_query?: string | null;
     model: string | null;
     provider: string;
     temperature: number;
@@ -248,7 +259,10 @@ export type OrchestrationExecutionMode = "sequential" | "parallel";
 export type OrchestrationHistoryStatus = "running" | "completed" | "failed";
 
 export type OrchestrationValidationStatus =
-  "passed" | "corrected" | "warning" | "failed";
+  | "passed"
+  | "corrected"
+  | "warning"
+  | "failed";
 
 export type OrchestrationTaskRole = "lead" | "specialist" | "formatter";
 

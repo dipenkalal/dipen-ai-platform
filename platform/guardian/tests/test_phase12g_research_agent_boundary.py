@@ -44,10 +44,11 @@ class Phase12GResearchAgentBoundaryTests(unittest.TestCase):
         self.assertIn('"knowledge.search"', block)
         self.assertIn('"internet.research.retrieve"', block)
         self.assertNotIn('"web.search"', block)
+        self.assertNotIn('"internet.research.search"', block)
         self.assertNotIn('"web.fetch"', block)
         self.assertNotIn('"system.status"', block)
 
-    def test_public_web_is_promoted_but_search_remains_disabled(self) -> None:
+    def test_public_web_tool_contract_remains_bounded(self) -> None:
         public_web = self.contract_source.split('source_id="public-web"', maxsplit=1)[1].split(
             "ResearchSourceDefinition(", maxsplit=1
         )[0]
@@ -56,6 +57,8 @@ class Phase12GResearchAgentBoundaryTests(unittest.TestCase):
         )[0]
         self.assertIn('tool_id="internet.research.retrieve"', public_web)
         self.assertIn("execution_enabled=True", public_web)
+        # Phase 13 activates search inside the deterministic Research executor,
+        # not by registering a generic model-callable search source/tool.
         self.assertIn("tool_id=None", web_search)
         self.assertIn("execution_enabled=False", web_search)
 
@@ -86,18 +89,33 @@ class Phase12GResearchAgentBoundaryTests(unittest.TestCase):
         ):
             self.assertNotIn(token, lower)
 
-    def test_research_executor_invokes_internet_tool_only_from_explicit_request_field(self) -> None:
+    def test_research_executor_supports_only_explicit_urls_or_fixed_local_search(self) -> None:
         self.assertIn("if request.research_urls:", self.research_executor_source)
         self.assertIn('tool_registry.get("internet.research.retrieve")', self.research_executor_source)
         self.assertIn('"urls": list(request.research_urls)', self.research_executor_source)
-        self.assertIn("Only explicit research_urls supplied by", self.research_executor_source)
+        self.assertIn("elif request.research_search_query:", self.research_executor_source)
+        self.assertIn(
+            "WebSearchRetrievalPipeline.searxng_local()",
+            self.research_executor_source,
+        )
+        self.assertIn("research_urls supplied by DAP/owner input", self.research_executor_source)
+        self.assertIn("URL candidates selected by DAP", self.research_executor_source)
         self.assertIn("remote content", self.research_executor_source.lower())
         self.assertNotIn("urljoin(", self.research_executor_source)
+        self.assertNotIn("internet.research.search", self.research_executor_source)
 
-    def test_service_fails_closed_if_urls_route_to_non_research_agent(self) -> None:
-        self.assertIn("_validate_research_url_scope", self.service_source)
+    def test_service_fails_closed_for_non_research_or_non_manual_search_scope(self) -> None:
+        self.assertIn("_validate_research_scope", self.service_source)
         self.assertIn('request.agent_id != "research-agent"', self.service_source)
-        self.assertIn("research_urls are admitted only", self.service_source)
+        self.assertIn("public research inputs are admitted only", self.service_source)
+        self.assertIn(
+            'request.research_search_query and request.mode != "manual"',
+            self.service_source,
+        )
+        self.assertIn(
+            "research_search_query requires manual research-agent mode",
+            self.service_source,
+        )
 
     def test_direct_and_instrumented_runtime_use_same_research_enabled_executor(self) -> None:
         self.assertIn(
