@@ -40,10 +40,12 @@ jobs:
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
             gateway/internet_transport_smoke.py \
+            gateway/untrusted_internet_content.py \
             tests/test_phase12_internet_research_policy.py \
             tests/test_phase12_research_contract.py \
             tests/test_phase12_internet_destination_policy.py \
-            tests/test_phase12_internet_transport.py
+            tests/test_phase12_internet_transport.py \
+            tests/test_phase12_untrusted_internet_content.py
       - name: Mypy Phase 12 boundary
         run: |
           python -m mypy \
@@ -52,6 +54,7 @@ jobs:
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
             gateway/internet_transport_smoke.py \
+            gateway/untrusted_internet_content.py \
             --follow-imports=skip
       - name: Compile Phase 12 boundary
         run: |
@@ -61,17 +64,20 @@ jobs:
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
             gateway/internet_transport_smoke.py \
+            gateway/untrusted_internet_content.py \
             tests/test_phase12_internet_research_policy.py \
             tests/test_phase12_research_contract.py \
             tests/test_phase12_internet_destination_policy.py \
-            tests/test_phase12_internet_transport.py
+            tests/test_phase12_internet_transport.py \
+            tests/test_phase12_untrusted_internet_content.py
       - name: Phase 12 boundary tests
         run: |
           python -m pytest -q \
             tests/test_phase12_internet_research_policy.py \
             tests/test_phase12_research_contract.py \
             tests/test_phase12_internet_destination_policy.py \
-            tests/test_phase12_internet_transport.py
+            tests/test_phase12_internet_transport.py \
+            tests/test_phase12_untrusted_internet_content.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
@@ -84,6 +90,12 @@ jobs:
         with:
           python-version: "3.14"
       - name: Compile Phase 12 Guardian boundary
-        run: python -m compileall -q tests/test_phase12_internet_research_boundary.py
+        run: |
+          python -m compileall -q \
+            tests/test_phase12_internet_research_boundary.py \
+            tests/test_phase12e_untrusted_content_boundary.py
       - name: Phase 12 Guardian boundary
-        run: python -m unittest -v tests.test_phase12_internet_research_boundary
+        run: |
+          python -m unittest -v \
+            tests.test_phase12_internet_research_boundary \
+            tests.test_phase12e_untrusted_content_boundary
