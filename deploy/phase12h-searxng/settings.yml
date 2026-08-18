@@ -1,0 +1,25 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - brave
+      - startpage
+
+general:
+  debug: false
+  instance_name: "DAP Local Search"
+  enable_metrics: false
+
+search:
+  safe_search: 2
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: false
+  public_instance: false
+  image_proxy: false
