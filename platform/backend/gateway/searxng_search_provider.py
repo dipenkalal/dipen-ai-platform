@@ -19,7 +19,7 @@ from gateway.internet_transport import InternetTransportLimits, PinnedHTTPSFetch
 from gateway.web_search_provider import WebSearchCandidate, WebSearchQuery
 
 SEARXNG_PROVIDER_ID: Literal["searxng-local-v1"] = "searxng-local-v1"
-SEARXNG_HOST = "127.0.0.1"
+SEARXNG_HOST: Literal["127.0.0.1"] = "127.0.0.1"
 SEARXNG_PORT = 8888
 SEARXNG_PATH = "/search"
 SEARXNG_ENDPOINT = f"http://{SEARXNG_HOST}:{SEARXNG_PORT}{SEARXNG_PATH}"
