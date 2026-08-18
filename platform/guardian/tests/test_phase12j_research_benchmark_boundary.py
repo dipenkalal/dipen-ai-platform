@@ -17,7 +17,6 @@ class Phase12JResearchBenchmarkBoundaryTests(unittest.TestCase):
     def test_benchmark_has_no_privileged_or_service_control_surface(self) -> None:
         for token in (
             "systemctl",
-            "sudo ",
             "docker.sock",
             "/var/run/docker.sock",
             "guardian_client",
@@ -27,6 +26,14 @@ class Phase12JResearchBenchmarkBoundaryTests(unittest.TestCase):
             "github_token",
         ):
             self.assertNotIn(token, self.lower)
+
+        # Adversarial benchmark data intentionally contains the word "sudo".
+        # Reject executable privilege paths rather than hostile quoted content.
+        compact = self.lower.replace(" ", "")
+        self.assertNotIn('["sudo",', self.lower)
+        self.assertNotIn("('sudo',", self.lower)
+        self.assertNotIn("os.system(", self.lower)
+        self.assertNotIn("shell=true", compact)
 
     def test_benchmark_does_not_gain_task_or_knowledge_mutation_authority(self) -> None:
         for token in (
