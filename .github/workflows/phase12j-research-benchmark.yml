@@ -60,6 +60,8 @@ jobs:
             gateway/research_benchmark_bootstrap.py \
             tests/test_phase12j_research_benchmark.py \
             tests/test_phase12j_research_benchmark_bootstrap.py
+          python -m py_compile \
+            ../../scripts/phase12j-final-live-seal.py
       - name: Frozen Phase 12J benchmark tests
         run: |
           python -m pytest -q \
@@ -90,9 +92,11 @@ jobs:
         run: |
           python -m compileall -q \
             tests/test_phase12j_research_benchmark_boundary.py \
-            tests/test_phase12j_research_benchmark_bootstrap_boundary.py
+            tests/test_phase12j_research_benchmark_bootstrap_boundary.py \
+            tests/test_phase12j_final_live_seal_boundary.py
       - name: Phase 12J Guardian boundary
         run: |
           python -m unittest -v \
             tests.test_phase12j_research_benchmark_boundary \
-            tests.test_phase12j_research_benchmark_bootstrap_boundary
+            tests.test_phase12j_research_benchmark_bootstrap_boundary \
+            tests.test_phase12j_final_live_seal_boundary
