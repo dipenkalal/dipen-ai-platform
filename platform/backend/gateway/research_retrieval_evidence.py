@@ -287,7 +287,7 @@ class ResearchRetrievalEvidenceFactory:
         self._require_public_web_request(request)
         self._require_aware_timestamp(observed_at)
         source = research_source_registry.get("public_web")
-        payload = {
+        payload: dict[str, object] = {
             "request_id": request.request_id,
             "request_sha256": request.request_sha256,
             "source_registry_sha256": request.source_registry_sha256,
