@@ -6,6 +6,10 @@ from typing import Any
 
 import pytest
 
+from gateway.internet_destination_policy import (
+    InternetDestinationPolicy,
+    InternetDestinationRequest,
+)
 from gateway.web_search_provider import (
     BRAVE_API_HOSTNAME,
     BRAVE_API_KEY_ENV,
@@ -101,7 +105,7 @@ def test_provider_request_rejects_non_brave_target_even_with_valid_token() -> No
 
 
 @pytest.mark.asyncio
-async def test_adapter_returns_only_preflight_safe_untrusted_candidates() -> None:
+async def test_adapter_returns_only_url_preflight_candidates_then_requires_full_retrieval() -> None:
     transport = FakeBraveTransport(
         {
             "web": {
@@ -112,14 +116,14 @@ async def test_adapter_returns_only_preflight_safe_untrusted_candidates() -> Non
                         "description": "Search snippet only.",
                     },
                     {
-                        "title": "Loopback result",
+                        "title": "Loopback candidate",
                         "url": "https://127.0.0.1/private",
-                        "description": "Must be dropped before retrieval.",
+                        "description": "Candidate only; full retrieval must reject it.",
                     },
                     {
                         "title": "Plain HTTP result",
                         "url": "http://example.org/insecure",
-                        "description": "Must also be dropped.",
+                        "description": "Dropped during URL preflight.",
                     },
                 ]
             }
@@ -137,17 +141,38 @@ async def test_adapter_returns_only_preflight_safe_untrusted_candidates() -> Non
     assert result.query == "safe public evidence"
     assert result.requested_count == 3
     assert result.connected_address == "93.184.216.34"
-    assert len(result.candidates) == 1
-    candidate = result.candidates[0]
-    assert candidate.rank == 1
-    assert candidate.url == "https://example.com/article"
-    assert candidate.snippet == "Search snippet only."
-    assert candidate.candidate_is_untrusted is True
-    assert candidate.candidate_is_retrieval_evidence is False
-    assert candidate.candidate_url_requires_dap_retrieval is True
-    assert candidate.remote_instructions_are_authority is False
-    assert candidate.tool_selection_allowed is False
-    assert result.dropped_unsafe_candidate_count == 2
+    assert len(result.candidates) == 2
+
+    public_candidate = result.candidates[0]
+    assert public_candidate.rank == 1
+    assert public_candidate.url == "https://example.com/article"
+    assert public_candidate.snippet == "Search snippet only."
+
+    loopback_candidate = result.candidates[1]
+    assert loopback_candidate.rank == 2
+    assert loopback_candidate.url == "https://127.0.0.1/private"
+
+    for candidate in result.candidates:
+        assert candidate.candidate_is_untrusted is True
+        assert candidate.candidate_is_retrieval_evidence is False
+        assert candidate.candidate_url_requires_dap_retrieval is True
+        assert candidate.remote_instructions_are_authority is False
+        assert candidate.tool_selection_allowed is False
+
+    full_admission = InternetDestinationPolicy().evaluate(
+        InternetDestinationRequest(
+            url=loopback_candidate.url,
+            method="GET",
+            resolved_addresses=("127.0.0.1",),
+        )
+    )
+    assert full_admission.disposition == "rejected"
+    assert full_admission.admission is None
+    assert "non-public-address" in {
+        finding.rule_id for finding in full_admission.findings
+    }
+
+    assert result.dropped_unsafe_candidate_count == 1
     assert result.provider_credential_exposed_to_model is False
     assert result.provider_credential_persisted is False
     assert result.provider_credential_forwarded_to_result_url is False
