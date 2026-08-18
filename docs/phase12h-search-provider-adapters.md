@@ -1,46 +1,69 @@
 # Phase 12H — Search/provider adapters
 
-Status: **IMPLEMENTATION / CI COMPLETE — LIVE PROVIDER ACTIVATION PENDING**
+Status: **ZERO-COST SEARXNG PATH — CODE/CI COMPLETE; ACER DEPLOYMENT + LIVE SMOKE PENDING**
 
-Phase 12H adds a provider-specific search discovery layer without giving the Research Agent a generic search client, provider credential, or authority to treat search snippets as evidence.
+Phase 12H gives DAP bounded search discovery without giving the Research Agent a generic search client, provider credential, or authority to treat search snippets as evidence.
 
 ## Governing rule
 
 > Search may discover candidate URLs. Only the sealed DAP public-web pipeline may turn a candidate URL into research evidence.
 
-## 12H.1 — Brave Search provider adapter
+## Owner budget decision
 
-The initial approved adapter is `brave-web-search-v1`.
+The production search path must have **zero paid API cost and no billing/card exposure**.
 
-DAP fixes the provider destination and credential scope:
+Therefore:
 
-- hostname: `api.search.brave.com`;
-- endpoint path: `/res/v1/web/search`;
+- the earlier Brave adapter remains dormant optional code only;
+- no Brave credential is configured or required;
+- the selected production discovery provider is self-hosted SearXNG on the Acer;
+- SearXNG is bound only to `127.0.0.1:8888`;
+- no provider credential is used by the DAP SearXNG adapter;
+- search-result URLs remain untrusted candidates and must still pass the full DAP retrieval/evidence pipeline.
+
+## Provider-neutral search → retrieval pipeline
+
+`WebSearchRetrievalPipeline` accepts a bounded provider protocol and performs deterministic max-three URL selection.
+
+Flow:
+
+```text
+DAP research objective + bounded search query
+  ↓
+local SearXNG discovery
+  ↓ untrusted candidate URLs only
+rank-order deterministic selection, max 3
+  ↓ URLs only — snippets/titles excluded
+internet.research.retrieve
+  ↓
+12C URL/DNS/address/redirect admission
+  ↓
+12D pinned public HTTPS transport
+  ↓
+12E untrusted-content normalization
+  ↓
+12F immutable evidence + citation
+```
+
+The pipeline identity binds objective SHA-256, provider/discovery identity, selected URLs, and the sealed retrieval tool ID.
+
+## SearXNG adapter
+
+Provider identity: `searxng-local-v1`.
+
+The DAP adapter is fixed to:
+
+- host: `127.0.0.1`;
+- port: `8888`;
+- path: `/search`;
 - method: GET;
-- credential env name: `DAP_BRAVE_SEARCH_API_KEY`;
-- provider redirects: rejected;
-- request encoding: identity;
-- TLS: system trust with minimum TLS 1.2;
-- transport: exact DAP-admitted numeric IP with `AI_NUMERICHOST` and SNI for the fixed Brave hostname.
+- response: JSON;
+- no DNS resolution for the provider hop;
+- no credential/header/token surface;
+- no configurable endpoint;
+- exact peer check requiring `127.0.0.1`.
 
-The provider token is DAP-owned. It is accepted only from the backend environment, sent only to the fixed Brave endpoint, and is never included in discovery models, model context, candidate URLs, citations, task truth, Knowledge, or retrieval evidence.
-
-The adapter is fail-closed when the credential is absent or malformed.
-
-## Search query ceiling
-
-The adapter currently enforces:
-
-- query length: at most 400 characters;
-- query words: at most 50;
-- result count: 1–10;
-- SafeSearch: strict.
-
-No arbitrary provider endpoint or arbitrary request-header surface is accepted from the model or caller.
-
-## Search candidates are not evidence
-
-Provider results are converted into `WebSearchCandidate` values with explicit fail-closed flags:
+Search candidates retain fail-closed semantics:
 
 - `candidate_is_untrusted=True`;
 - `candidate_is_retrieval_evidence=False`;
@@ -48,91 +71,88 @@ Provider results are converted into `WebSearchCandidate` values with explicit fa
 - `remote_instructions_are_authority=False`;
 - `tool_selection_allowed=False`.
 
-Search discovery performs URL preflight only. Any candidate selected for use must still pass the full 12C/12D address admission, DNS, pinned TLS transport, redirect, content-type, timeout, and byte-limit pipeline. A candidate IP literal that survives URL syntax/preflight remains inert data and is rejected later if the address is non-public.
+Provider snippets and titles are not forwarded into retrieval arguments or the model evidence path.
 
-## 12H.2 — Search discovery → sealed retrieval orchestration
+## Local deployment boundary
 
-`WebSearchRetrievalPipeline` is provider-neutral at its orchestration boundary.
+Tracked deployment templates live under `deploy/phase12h-searxng/`.
 
-Flow:
+The deployment is constrained to:
 
-```text
-DAP research objective + bounded search query
-  ↓
-credential-gated search provider
-  ↓ untrusted URL candidates only
-rank-order deterministic selection, max 3
-  ↓ URLs only — no provider snippets/titles
-internet.research.retrieve
-  ↓
-12C destination admission
-  ↓
-12D pinned public HTTPS
-  ↓
-12E untrusted-content normalization
-  ↓
-12F immutable evidence + citation
-```
+- an exact pinned SearXNG image tag + digest;
+- `linux/amd64`;
+- host publication only on `127.0.0.1:8888`;
+- no host networking;
+- no privileged mode;
+- no Docker socket;
+- `cap_drop: ALL`;
+- `no-new-privileges`;
+- bounded CPU/memory/PID resources;
+- JSON output enabled;
+- strict safe search;
+- a small no-paid-key engine allowlist;
+- a locally generated SearXNG application secret only.
 
-The pipeline:
-
-- selects at most three unique candidate URLs in rank order;
-- ignores provider snippets and titles when constructing retrieval arguments;
-- never treats provider candidates as retrieval evidence;
-- invokes only the already sealed `internet.research.retrieve` tool;
-- binds its deterministic identity to the research objective SHA-256, discovery identity, selected URLs, and retrieval tool ID;
-- preserves bounded retrieval failure instead of promoting a failed candidate;
-- exposes no provider credential or generic network client;
-- performs no automatic Knowledge/task-ledger mutation and no Guardian/privileged host action.
-
-## Live activation state
-
-The Search Agent / Research Agent does **not** currently expose a `web.search` tool.
-
-`web_search` in the research source registry remains execution-disabled and has no tool ID. The Brave adapter and orchestration pipeline are internal DAP components only until the owner explicitly activates a configured provider.
-
-No Brave credential has been stored or used during implementation/CI.
+The SearXNG application secret is local instance hardening and is not a paid provider/API credential.
 
 ## Live smoke helper
 
-`gateway/web_search_provider_smoke.py` is a credential-safe runtime proof prepared for provider activation. It:
+`gateway/searxng_search_provider_smoke.py` is a DB-free, model-free live proof. It:
 
-- uses one hardcoded query (`Example Domain`);
-- performs one bounded Brave search request;
-- prints no provider credential or search snippets;
-- makes no model call;
-- writes no task, Knowledge, or retrieval evidence;
-- verifies the provider-connected address is public;
-- verifies candidate URLs remain untrusted non-evidence requiring full DAP retrieval;
-- verifies the credential does not appear in serialized output.
-
-The helper itself is included in Phase 12 Ruff, mypy, and compile gates before any live run.
+- uses the hardcoded query `Example Domain`;
+- connects only to the fixed local SearXNG endpoint;
+- requires at least one candidate;
+- selects at most three URLs;
+- verifies selected URLs are HTTPS;
+- captures the downstream sealed-retrieval invocation without actually fetching public pages;
+- verifies snippets/titles are excluded;
+- performs no model call, database write, Knowledge mutation, task mutation, Guardian contact, or privileged action;
+- uses no paid provider or provider credential.
 
 ## CI evidence
 
-At the 12H.1 implementation checkpoint `eb0dc8a5f3c89926e270e9d33b0f99c862581dc9`, the dedicated Phase 12 workflow passed Ruff, mypy, compile, 133 Phase 12 behavior tests, and Guardian 12A–12H provider regressions, with repository CI plus Phase 10/11 regressions also green.
+At head `827eb2f1dd18c660fc9e574b3659f72063166706`, all four workflows pass:
 
-12H.2 then added the search-to-retrieval orchestration, objective-bound pipeline identity, provider-snippet exclusion tests, and Guardian discovery-boundary regression. The final credential-safe live-smoke helper is also statically gated.
+- Phase 12 Internet Research Gateway;
+- repository CI;
+- Phase 11 regression;
+- Phase 10 regression.
+
+The dedicated Phase 12 gate includes Ruff, mypy, compile, behavior tests, Guardian SearXNG provider isolation, deployment-template isolation, and the live-smoke helper static checks.
+
+## Activation state
+
+Search discovery is **not yet registered as Research Agent authority**.
+
+`research-agent` still exposes only its sealed Knowledge/public-web capabilities. The local SearXNG provider and search pipeline remain internal DAP components until the Acer deployment and live zero-cost smoke pass.
 
 ## Still prohibited
 
 Phase 12H does not authorize:
 
-- provider activation without owner configuration;
-- provider credentials in model context, task truth, Knowledge, citations, or result URLs;
-- provider snippets as source evidence;
+- paid provider activation;
+- provider credentials in model context or evidence;
+- provider snippets as evidence;
 - using a candidate URL without full DAP retrieval admission;
 - arbitrary search endpoints or arbitrary HTTP headers;
 - arbitrary sockets/HTTP clients for the Research Agent;
 - search-result-driven tool selection or scope expansion;
-- private/internal/metadata network access;
-- Guardian/root/systemd/Docker;
+- private/internal/metadata public-retrieval destinations;
+- exposing SearXNG beyond Acer loopback;
+- Guardian/root/systemd authority;
+- Docker socket/privileged container access;
 - full Agent-Reach runtime adoption;
 - MCP/plugin auto-registration;
 - merge, release, or deployment authority.
 
 ## Exit state
 
-**Code/CI exit is satisfied.** Search discovery can deterministically feed candidate URLs into the same sealed DAP retrieval/evidence pipeline without exposing snippets, provider credentials, or generic network authority.
+**Code/CI exit is satisfied.**
 
-**Live provider activation is intentionally pending owner choice and local credential configuration.** A successful credential-safe Brave smoke is required before calling the external provider activated.
+Remaining 12H runtime exit:
+
+1. deploy pinned SearXNG locally on Acer;
+2. prove it is reachable only on `127.0.0.1:8888`;
+3. run the credential-free SearXNG live smoke successfully;
+4. verify source/task/Guardian/Telegram safety invariants;
+5. only then decide whether to activate search discovery for the Research Agent.
