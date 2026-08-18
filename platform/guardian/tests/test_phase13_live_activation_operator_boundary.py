@@ -41,9 +41,14 @@ class Phase13LiveActivationOperatorBoundaryTests(unittest.TestCase):
         self.assertNotIn("/var/run/docker.sock", self.lower)
         self.assertNotIn("--privileged", self.lower)
 
-    def test_dashboard_application_build_is_offline(self) -> None:
+    def test_dashboard_application_build_is_offline_and_owned_by_operator(self) -> None:
         self.assertIn("docker run --rm --network none", self.source)
         self.assertIn("docker build --pull=false --network=none", self.source)
+        self.assertIn('--user "$(id -u):$(id -g)"', self.source)
+        self.assertEqual(
+            self.source.count('sudo rm -rf -- "$DASH/.next"'),
+            1,
+        )
         self.assertNotIn("npm ci", self.lower)
         self.assertNotIn("npm install", self.lower)
 
@@ -63,6 +68,17 @@ class Phase13LiveActivationOperatorBoundaryTests(unittest.TestCase):
         self.assertIn('"agent_id":"coding-agent"', self.source)
         self.assertIn('[[ "$SMART_HTTP" == "400" ]]', self.source)
         self.assertIn('[[ "$AGENT_HTTP" == "400" ]]', self.source)
+
+    def test_live_operator_requires_exact_single_instrumented_task_delta(self) -> None:
+        self.assertIn("validate_research_task_ledger", self.source)
+        self.assertIn('WHERE source_run_id = ?', self.source)
+        self.assertIn('assert total == before + 1', self.source)
+        self.assertIn('assert row["task_type"] == "agent"', self.source)
+        self.assertIn('assert row["status"] == "completed"', self.source)
+        self.assertIn('assert row["requested_by"] == "agent-api"', self.source)
+        self.assertIn('assert assigned == ["research-agent"]', self.source)
+        self.assertIn("research_task_ledger_proof|PASS", self.source)
+        self.assertNotIn('[[ "$TASKS_AFTER" == "$TASKS_BEFORE" ]]', self.source)
 
     def test_operator_cannot_merge_release_or_change_approval_authority(self) -> None:
         for token in (
@@ -84,6 +100,19 @@ class Phase13LiveActivationOperatorBoundaryTests(unittest.TestCase):
         self.assertIn('[[ "$EVIDENCE_FINAL" == "$EXPECTED_EVIDENCE_TOTAL" ]]', self.resume_source)
         self.assertIn('[[ "$PID_FINAL" == "$EXPECTED_BACKEND_PID" ]]', self.resume_source)
         self.assertIn("phase13_resume_without_duplicate_research|PASS", self.resume_source)
+
+    def test_resume_requires_proven_single_research_task_delta(self) -> None:
+        self.assertIn('PRE_ACTIVATION_TASK_LEDGER="11"', self.resume_source)
+        self.assertIn('EXPECTED_TASK_LEDGER="12"', self.resume_source)
+        self.assertIn("validate_research_task_ledger", self.resume_source)
+        self.assertIn('WHERE source_run_id = ?', self.resume_source)
+        self.assertIn('assert expected_count == pre_count + 1', self.resume_source)
+        self.assertIn('assert total == expected_count', self.resume_source)
+        self.assertIn('assert row["task_type"] == "agent"', self.resume_source)
+        self.assertIn('assert row["status"] == "completed"', self.resume_source)
+        self.assertIn('assert row["requested_by"] == "agent-api"', self.resume_source)
+        self.assertIn('assert assigned == ["research-agent"]', self.resume_source)
+        self.assertIn("research_task_ledger_proof|PASS", self.resume_source)
 
     def test_resume_cleanup_is_fixed_to_generated_next_tree(self) -> None:
         self.assertEqual(
