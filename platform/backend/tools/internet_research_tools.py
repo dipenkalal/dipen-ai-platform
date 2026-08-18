@@ -7,8 +7,15 @@ from typing import Any
 from agents.cancellation import CooperativeCancellationRequested
 from agents.truth_repository import agent_truth_repository
 from gateway.internet_transport import BoundedInternetRetriever, InternetTransportError
-from gateway.research_contract import ResearchRequestIntent, research_request_factory, research_source_registry
-from gateway.research_retrieval_evidence import ResearchRetrievalEvidenceFactory
+from gateway.research_contract import (
+    ResearchRequestIntent,
+    research_request_factory,
+    research_source_registry,
+)
+from gateway.research_retrieval_evidence import (
+    ExcludeCancelledStage,
+    ResearchRetrievalEvidenceFactory,
+)
 from gateway.research_retrieval_repository import ResearchRetrievalRepository
 from gateway.untrusted_internet_content import (
     InternetContentLimits,
@@ -220,7 +227,7 @@ class InternetResearchRetrieveTool(BaseTool):
         return value
 
     @staticmethod
-    def _transport_stage(code: str) -> str:
+    def _transport_stage(code: str) -> ExcludeCancelledStage:
         if code == "destination-preflight-rejected":
             return "preflight"
         if code.startswith("dns-"):
