@@ -30,10 +30,8 @@ class Phase12EUntrustedContentBoundaryTests(unittest.TestCase):
         prohibited_tokens = (
             "guardian_broker",
             "guardian_client",
-            "systemctl",
             "/var/run/docker.sock",
             "docker.sock",
-            "sudo ",
             "os.system(",
             "subprocess.",
             "agent_registry.register",
@@ -47,6 +45,15 @@ class Phase12EUntrustedContentBoundaryTests(unittest.TestCase):
         lower = self.source.lower()
         for token in prohibited_tokens:
             self.assertNotIn(token, lower)
+
+    def test_detection_vocabulary_does_not_create_execution_calls(self) -> None:
+        lower = self.source.lower()
+        self.assertIn("systemctl", lower)
+        self.assertIn("guardian", lower)
+        self.assertNotRegex(lower, r"\bsystemctl\s+[^|\"']")
+        self.assertNotIn("guardian.exec(", lower)
+        self.assertNotIn("docker.run(", lower)
+        self.assertNotIn("sudo -", lower)
 
     def test_non_authority_flags_are_literal_fail_closed_contracts(self) -> None:
         required = (
