@@ -159,7 +159,8 @@ jobs:
             tests/test_phase12g_research_agent_boundary.py \
             tests/test_phase12h_search_provider_boundary.py \
             tests/test_phase12h_search_discovery_boundary.py \
-            tests/test_phase12h_searxng_provider_boundary.py
+            tests/test_phase12h_searxng_provider_boundary.py \
+            tests/test_phase12h_searxng_deployment_boundary.py
       - name: Phase 12 Guardian boundary
         run: |
           python -m unittest -v \
@@ -169,4 +170,5 @@ jobs:
             tests.test_phase12g_research_agent_boundary \
             tests.test_phase12h_search_provider_boundary \
             tests.test_phase12h_search_discovery_boundary \
-            tests.test_phase12h_searxng_provider_boundary
+            tests.test_phase12h_searxng_provider_boundary \
+            tests.test_phase12h_searxng_deployment_boundary
