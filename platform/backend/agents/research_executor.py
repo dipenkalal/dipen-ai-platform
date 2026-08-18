@@ -59,9 +59,8 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
             steps=steps,
         )
 
-    @classmethod
     def _collect_internet_output(
-        cls,
+        self,
         internet_output: dict[str, Any],
         *,
         sources: list[dict[str, Any]],
@@ -71,7 +70,7 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
         internet_success_count = int(
             internet_output.get("successful_url_count", 0) or 0
         )
-        for item in cls._as_list_of_dicts(internet_output.get("sources")):
+        for item in self._as_list_of_dicts(internet_output.get("sources")):
             status_item = {
                 key: value for key, value in item.items() if key != "model_context"
             }
@@ -81,7 +80,7 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
             context = item.get("model_context")
             if isinstance(context, str) and context:
                 internet_contexts.append(context)
-            citation = cls._as_dict(item.get("citation"))
+            citation = self._as_dict(item.get("citation"))
             if citation:
                 sources.append(
                     {
