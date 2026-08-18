@@ -39,6 +39,7 @@ jobs:
             gateway/research_contract.py \
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
+            gateway/internet_transport_smoke.py \
             tests/test_phase12_internet_research_policy.py \
             tests/test_phase12_research_contract.py \
             tests/test_phase12_internet_destination_policy.py \
@@ -50,6 +51,7 @@ jobs:
             gateway/research_contract.py \
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
+            gateway/internet_transport_smoke.py \
             --follow-imports=skip
       - name: Compile Phase 12 boundary
         run: |
@@ -58,6 +60,7 @@ jobs:
             gateway/research_contract.py \
             gateway/internet_destination_policy.py \
             gateway/internet_transport.py \
+            gateway/internet_transport_smoke.py \
             tests/test_phase12_internet_research_policy.py \
             tests/test_phase12_research_contract.py \
             tests/test_phase12_internet_destination_policy.py \
