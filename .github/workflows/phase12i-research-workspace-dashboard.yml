@@ -36,3 +36,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: 1
         run: npm run build
+      - name: Build production dashboard image
+        env:
+          DOCKER_BUILDKIT: 1
+        run: docker build --progress=plain -t dap-dashboard-phase12i-ci .
