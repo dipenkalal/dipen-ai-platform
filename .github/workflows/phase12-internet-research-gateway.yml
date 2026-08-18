@@ -1,0 +1,66 @@
+name: Phase 12 Internet Research Gateway
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase12/internet-research-gateway
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12-internet-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-boundary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff Phase 12 boundary
+        run: |
+          python -m ruff check \
+            gateway/internet_research_policy.py \
+            tests/test_phase12_internet_research_policy.py
+      - name: Mypy Phase 12 boundary
+        run: |
+          python -m mypy \
+            gateway/internet_research_policy.py \
+            --follow-imports=skip
+      - name: Compile Phase 12 boundary
+        run: |
+          python -m compileall -q \
+            gateway/internet_research_policy.py \
+            tests/test_phase12_internet_research_policy.py
+      - name: Phase 12 boundary tests
+        run: python -m pytest -q tests/test_phase12_internet_research_policy.py
+
+  guardian-boundary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Phase 12 Guardian boundary
+        run: python -m compileall -q tests/test_phase12_internet_research_boundary.py
+      - name: Phase 12 Guardian boundary
+        run: python -m unittest -v tests.test_phase12_internet_research_boundary
