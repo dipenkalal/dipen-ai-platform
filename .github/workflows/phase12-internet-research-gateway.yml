@@ -47,6 +47,7 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/web_search_provider_smoke.py \
             gateway/searxng_search_provider.py \
+            gateway/searxng_search_provider_smoke.py \
             tools/internet_research_tools.py \
             tools/registry.py \
             agents/research_executor.py \
@@ -82,6 +83,7 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/web_search_provider_smoke.py \
             gateway/searxng_search_provider.py \
+            gateway/searxng_search_provider_smoke.py \
             tools/internet_research_tools.py \
             agents/research_executor.py \
             agents/schemas.py \
@@ -103,6 +105,7 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/web_search_provider_smoke.py \
             gateway/searxng_search_provider.py \
+            gateway/searxng_search_provider_smoke.py \
             tools/internet_research_tools.py \
             tools/registry.py \
             agents/research_executor.py \
