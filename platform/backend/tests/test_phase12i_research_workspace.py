@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from agents.schemas import AgentStep, AgentUsage
 from agents.truth_repository import AgentTruthRepository
