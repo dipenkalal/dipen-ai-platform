@@ -5,7 +5,7 @@ import ipaddress
 import json
 import re
 from typing import Literal
-from urllib.parse import SplitResult, urlsplit, urlunsplit
+from urllib.parse import SplitResult, quote, urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -20,6 +20,8 @@ _BLOCKED_HOSTS = frozenset(
 )
 _BLOCKED_HOST_SUFFIXES = (".localhost", ".local", ".internal")
 _HOST_LABEL_RE = re.compile(r"^[a-z0-9-]+$")
+_PATH_SAFE = "/:@-._~!$&'()*+,;=%"
+_QUERY_SAFE = "/?:@-._~!$&'()*+,;=%"
 
 
 class InternetDestinationIntent(BaseModel):
@@ -37,6 +39,8 @@ class InternetDestinationIntent(BaseModel):
         normalized = value.strip()
         if not normalized:
             raise ValueError("destination URL must not be empty")
+        if any(ord(char) < 0x20 or ord(char) == 0x7F for char in normalized):
+            raise ValueError("destination URL must not contain raw control characters")
         return normalized
 
     @field_validator("method")
@@ -355,8 +359,8 @@ class InternetDestinationPolicy:
     @staticmethod
     def _canonical_url(*, parsed: SplitResult, hostname: str) -> str:
         scheme = parsed.scheme.lower()
-        path = parsed.path or "/"
-        query = parsed.query
+        path = quote(parsed.path or "/", safe=_PATH_SAFE, encoding="utf-8", errors="strict")
+        query = quote(parsed.query, safe=_QUERY_SAFE, encoding="utf-8", errors="strict")
         netloc = f"[{hostname}]" if ":" in hostname else hostname
         return urlunsplit((scheme, netloc, path, query, ""))
 
