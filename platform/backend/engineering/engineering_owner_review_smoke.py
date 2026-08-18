@@ -18,6 +18,7 @@ from typing import cast
 
 from agents.truth_repository import AgentTruthRepository
 from agents.truth_schemas import TaskLedgerRecord
+
 from engineering.engineering_audit_evidence import (
     EngineeringAuditEvidence,
     EngineeringCheckResult,
