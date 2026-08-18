@@ -44,6 +44,7 @@ jobs:
             gateway/research_retrieval_evidence.py \
             gateway/research_retrieval_repository.py \
             gateway/web_search_provider.py \
+            gateway/web_search_discovery.py \
             tools/internet_research_tools.py \
             tools/registry.py \
             agents/research_executor.py \
@@ -60,7 +61,8 @@ jobs:
             tests/test_phase12_research_retrieval_repository.py \
             tests/test_phase12_internet_research_tool.py \
             tests/test_phase12_research_agent_integration.py \
-            tests/test_phase12_web_search_provider.py
+            tests/test_phase12_web_search_provider.py \
+            tests/test_phase12_web_search_discovery.py
       - name: Mypy Phase 12 boundary
         run: |
           python -m mypy \
@@ -73,6 +75,7 @@ jobs:
             gateway/research_retrieval_evidence.py \
             gateway/research_retrieval_repository.py \
             gateway/web_search_provider.py \
+            gateway/web_search_discovery.py \
             tools/internet_research_tools.py \
             agents/research_executor.py \
             agents/schemas.py \
@@ -91,6 +94,7 @@ jobs:
             gateway/research_retrieval_evidence.py \
             gateway/research_retrieval_repository.py \
             gateway/web_search_provider.py \
+            gateway/web_search_discovery.py \
             tools/internet_research_tools.py \
             tools/registry.py \
             agents/research_executor.py \
@@ -107,7 +111,8 @@ jobs:
             tests/test_phase12_research_retrieval_repository.py \
             tests/test_phase12_internet_research_tool.py \
             tests/test_phase12_research_agent_integration.py \
-            tests/test_phase12_web_search_provider.py
+            tests/test_phase12_web_search_provider.py \
+            tests/test_phase12_web_search_discovery.py
       - name: Phase 12 boundary tests
         run: |
           python -m pytest -q \
@@ -120,7 +125,8 @@ jobs:
             tests/test_phase12_research_retrieval_repository.py \
             tests/test_phase12_internet_research_tool.py \
             tests/test_phase12_research_agent_integration.py \
-            tests/test_phase12_web_search_provider.py
+            tests/test_phase12_web_search_provider.py \
+            tests/test_phase12_web_search_discovery.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
@@ -139,7 +145,8 @@ jobs:
             tests/test_phase12e_untrusted_content_boundary.py \
             tests/test_phase12f_retrieval_evidence_boundary.py \
             tests/test_phase12g_research_agent_boundary.py \
-            tests/test_phase12h_search_provider_boundary.py
+            tests/test_phase12h_search_provider_boundary.py \
+            tests/test_phase12h_search_discovery_boundary.py
       - name: Phase 12 Guardian boundary
         run: |
           python -m unittest -v \
@@ -147,4 +154,5 @@ jobs:
             tests.test_phase12e_untrusted_content_boundary \
             tests.test_phase12f_retrieval_evidence_boundary \
             tests.test_phase12g_research_agent_boundary \
-            tests.test_phase12h_search_provider_boundary
+            tests.test_phase12h_search_provider_boundary \
+            tests.test_phase12h_search_discovery_boundary
