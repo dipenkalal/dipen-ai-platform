@@ -35,19 +35,24 @@ class InternetResearchToolProtocol(Protocol):
 
 
 class WebSearchRetrievalPipelineResult(BaseModel):
-    """Search discovery plus sealed DAP retrieval; provider snippets never enter model context."""
+    """Search discovery plus sealed DAP retrieval with provider snippets excluded."""
 
     model_config = ConfigDict(frozen=True)
 
     pipeline_id: str = Field(pattern=r"^web-search-pipeline-[0-9a-f]{24}$")
     pipeline_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    objective_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     provider_id: str
     discovery_id: str
     discovery_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     query: str
     candidate_count: int = Field(ge=0)
-    selected_urls: tuple[str, ...] = Field(max_length=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL)
-    retrieval_tool_id: Literal["internet.research.retrieve"] = "internet.research.retrieve"
+    selected_urls: tuple[str, ...] = Field(
+        max_length=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
+    )
+    retrieval_tool_id: Literal["internet.research.retrieve"] = (
+        "internet.research.retrieve"
+    )
     retrieval_success: bool
     retrieval_output: dict[str, Any] | None = None
     retrieval_error: str | None = None
@@ -68,7 +73,7 @@ class WebSearchRetrievalPipelineResult(BaseModel):
 
 
 class WebSearchRetrievalPipeline:
-    """Discover URL candidates, then route selected URLs through the sealed retrieval tool."""
+    """Discover URL candidates, then route selected URLs through sealed retrieval."""
 
     def __init__(
         self,
@@ -102,6 +107,9 @@ class WebSearchRetrievalPipeline:
                 "objective-required",
                 "A research objective is required for search discovery retrieval.",
             )
+        objective_sha256 = hashlib.sha256(
+            normalized_objective.encode("utf-8")
+        ).hexdigest()
 
         discovery = await self._provider.search(query)
         selected_urls = self._select_urls(discovery)
@@ -119,12 +127,14 @@ class WebSearchRetrievalPipeline:
         )
         retrieval_output = retrieval.output if isinstance(retrieval.output, dict) else None
         pipeline_sha256 = self._pipeline_sha256(
+            objective_sha256=objective_sha256,
             discovery=discovery,
             selected_urls=selected_urls,
         )
         return WebSearchRetrievalPipelineResult(
             pipeline_id=f"web-search-pipeline-{pipeline_sha256[:24]}",
             pipeline_sha256=pipeline_sha256,
+            objective_sha256=objective_sha256,
             provider_id=discovery.provider_id,
             discovery_id=discovery.discovery_id,
             discovery_sha256=discovery.discovery_sha256,
@@ -156,10 +166,12 @@ class WebSearchRetrievalPipeline:
     @staticmethod
     def _pipeline_sha256(
         *,
+        objective_sha256: str,
         discovery: WebSearchDiscoveryResult,
         selected_urls: tuple[str, ...],
     ) -> str:
         payload = {
+            "objective_sha256": objective_sha256,
             "provider_id": discovery.provider_id,
             "discovery_id": discovery.discovery_id,
             "discovery_sha256": discovery.discovery_sha256,
