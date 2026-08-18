@@ -9,7 +9,6 @@ from gateway.research_workspace import (
 )
 from history.repository import agent_run_repository
 
-
 router = APIRouter(
     prefix="/api/v1/research",
     tags=["Research Workspace"],
