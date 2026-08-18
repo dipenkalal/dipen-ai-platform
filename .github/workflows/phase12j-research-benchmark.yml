@@ -32,10 +32,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -r requirements-dev.txt
-      - name: Ruff benchmark boundary
+      - name: Ruff benchmark harness
+        run: |
+          # BLE001 is intentional: one unexpected source failure must become a
+          # per-case benchmark result instead of aborting the remaining matrix.
+          # UP012 is limited to the frozen adversarial byte fixture.
+          python -m ruff check \
+            --ignore BLE001,UP012 \
+            gateway/research_benchmark.py
+      - name: Ruff benchmark tests
         run: |
           python -m ruff check \
-            gateway/research_benchmark.py \
             tests/test_phase12j_research_benchmark.py
       - name: Mypy benchmark boundary
         run: |
