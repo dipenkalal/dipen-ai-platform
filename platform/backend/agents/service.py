@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
-from agents.executor import agent_executor
+from agents.research_executor import research_enabled_agent_executor as agent_executor
 from agents.registry import agent_registry
 from agents.router import AgentRoute, agent_router
 from agents.runtime import instrumented_agent_executor
