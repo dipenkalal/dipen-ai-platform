@@ -251,9 +251,15 @@ async def _public_retrieval_case(
             }
         )
         output = result.output if isinstance(result.output, dict) else {}
-        sources = output.get("sources") if isinstance(output.get("sources"), list) else []
-        first = sources[0] if sources and isinstance(sources[0], dict) else {}
-        citation = first.get("citation") if isinstance(first.get("citation"), dict) else {}
+        raw_sources = output.get("sources")
+        sources: list[Any] = raw_sources if isinstance(raw_sources, list) else []
+        first: dict[str, Any] = (
+            sources[0] if sources and isinstance(sources[0], dict) else {}
+        )
+        raw_citation = first.get("citation")
+        citation: dict[str, Any] = (
+            raw_citation if isinstance(raw_citation, dict) else {}
+        )
         checks = (
             _check("tool-success", result.success is True, "Public retrieval tool succeeded."),
             _check(
@@ -292,8 +298,11 @@ async def _ssrf_rejection_case(
             }
         )
         output = result.output if isinstance(result.output, dict) else {}
-        sources = output.get("sources") if isinstance(output.get("sources"), list) else []
-        first = sources[0] if sources and isinstance(sources[0], dict) else {}
+        raw_sources = output.get("sources")
+        sources: list[Any] = raw_sources if isinstance(raw_sources, list) else []
+        first: dict[str, Any] = (
+            sources[0] if sources and isinstance(sources[0], dict) else {}
+        )
         checks = (
             _check("tool-failed-closed", result.success is False, "Blocked URL did not succeed."),
             _check(
@@ -325,9 +334,18 @@ async def _failure_recovery_case(
             }
         )
         output = result.output if isinstance(result.output, dict) else {}
-        sources = output.get("sources") if isinstance(output.get("sources"), list) else []
-        blocked = sources[0] if len(sources) >= 1 and isinstance(sources[0], dict) else {}
-        recovered = sources[1] if len(sources) >= 2 and isinstance(sources[1], dict) else {}
+        raw_sources = output.get("sources")
+        sources: list[Any] = raw_sources if isinstance(raw_sources, list) else []
+        blocked: dict[str, Any] = (
+            sources[0]
+            if len(sources) >= 1 and isinstance(sources[0], dict)
+            else {}
+        )
+        recovered: dict[str, Any] = (
+            sources[1]
+            if len(sources) >= 2 and isinstance(sources[1], dict)
+            else {}
+        )
         checks = (
             _check("tool-recovered", result.success is True, "Tool recovered after blocked source."),
             _check(
