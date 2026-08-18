@@ -93,7 +93,7 @@ class InternetRetrievalResult(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    transport_id: Literal["dap-pinned-https-http1-v1"] = TRANSPORT_ID
+    transport_id: Literal["dap-pinned-https-http1-v1"] = "dap-pinned-https-http1-v1"
     requested_url: str
     final_url: str
     method: Literal["GET", "HEAD"]
