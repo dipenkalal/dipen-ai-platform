@@ -21,12 +21,15 @@ class Phase12HSearXNGProviderBoundaryTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_searxng_transport_is_fixed_to_one_loopback_socket(self) -> None:
-        self.assertIn('SEARXNG_HOST = "127.0.0.1"', self.provider_source)
+        self.assertIn(
+            'SEARXNG_HOST: Literal["127.0.0.1"] = "127.0.0.1"',
+            self.provider_source,
+        )
         self.assertIn("SEARXNG_PORT = 8888", self.provider_source)
         self.assertIn('SEARXNG_PATH = "/search"', self.provider_source)
         self.assertIn("family=socket.AF_INET", self.provider_source)
         self.assertIn("flags=socket.AI_NUMERICHOST", self.provider_source)
-        self.assertIn('peer[0] != SEARXNG_HOST', self.provider_source)
+        self.assertIn("peer[0] != SEARXNG_HOST", self.provider_source)
 
     def test_searxng_provider_has_no_credential_or_configurable_endpoint_surface(self) -> None:
         lower = self.provider_source.lower()
@@ -49,7 +52,10 @@ class Phase12HSearXNGProviderBoundaryTests(unittest.TestCase):
     def test_search_results_remain_untrusted_and_require_public_retrieval(self) -> None:
         self.assertIn("WebSearchCandidate", self.provider_source)
         self.assertIn("InternetDestinationPolicy", self.provider_source)
-        self.assertIn("candidate_urls_require_full_dap_retrieval: Literal[True] = True", self.provider_source)
+        self.assertIn(
+            "candidate_urls_require_full_dap_retrieval: Literal[True] = True",
+            self.provider_source,
+        )
         self.assertIn("generic_network_client_exposed: Literal[False] = False", self.provider_source)
 
     def test_local_provider_has_no_privileged_or_runtime_control_dependency(self) -> None:
