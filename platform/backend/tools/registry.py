@@ -3,6 +3,7 @@ from tools.base import (
     CancellationAwareTool,
     ToolDefinition,
 )
+from tools.internet_research_tools import InternetResearchRetrieveTool
 from tools.knowledge_tools import (
     KnowledgeAskTool,
     KnowledgeSearchTool,
@@ -54,3 +55,4 @@ tool_registry = ToolRegistry()
 tool_registry.register(SystemStatusTool())
 tool_registry.register(KnowledgeSearchTool())
 tool_registry.register(KnowledgeAskTool())
+tool_registry.register(InternetResearchRetrieveTool())

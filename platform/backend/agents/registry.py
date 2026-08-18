@@ -111,21 +111,22 @@ agent_registry.register(
         id="research-agent",
         name="Research Agent",
         description=(
-            "Investigate a topic using indexed "
-            "knowledge, compare evidence, and produce "
-            "a structured research summary."
+            "Investigate a topic using indexed knowledge and explicit bounded "
+            "public-web evidence, compare sources, and produce a cited research summary."
         ),
         category="research",
         icon="search",
         accent="emerald",
         tools=[
             "knowledge.search",
+            "internet.research.retrieve",
         ],
         capabilities=[
             "Topic investigation",
             "Evidence synthesis",
             "Source comparison",
-            "Research summaries",
+            "Bounded public-web retrieval",
+            "Research citations",
         ],
         recommended_model="qwen3:1.7b",
         safe=True,

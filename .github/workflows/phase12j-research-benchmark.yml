@@ -1,0 +1,102 @@
+name: Phase 12J Research Benchmark
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase12/internet-research-gateway
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12j-research-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-benchmark:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff benchmark harness
+        run: |
+          # BLE001 is intentional: one unexpected source failure must become a
+          # per-case benchmark result instead of aborting the remaining matrix.
+          # UP012 is limited to the frozen adversarial byte fixture.
+          python -m ruff check \
+            --ignore BLE001,UP012 \
+            gateway/research_benchmark.py
+          python -m ruff check \
+            gateway/research_benchmark_bootstrap.py
+      - name: Ruff benchmark tests
+        run: |
+          python -m ruff check \
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
+      - name: Mypy benchmark boundary
+        run: |
+          python -m mypy \
+            gateway/research_benchmark.py \
+            gateway/research_benchmark_bootstrap.py \
+            --follow-imports=skip
+      - name: Compile benchmark boundary
+        run: |
+          python -m compileall -q \
+            gateway/research_benchmark.py \
+            gateway/research_benchmark_bootstrap.py \
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
+          python -m py_compile \
+            ../../scripts/phase12j-final-live-seal.py
+      - name: Frozen Phase 12J benchmark tests
+        run: |
+          python -m pytest -q \
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
+      - name: Phase 12 safety regression matrix
+        run: |
+          python -m pytest -q \
+            tests/test_phase12_internet_destination_policy.py \
+            tests/test_phase12_internet_transport.py \
+            tests/test_phase12_untrusted_internet_content.py \
+            tests/test_phase12_research_retrieval_evidence.py \
+            tests/test_phase12_internet_research_tool.py \
+            tests/test_phase12_searxng_search_discovery.py \
+            tests/test_phase12i_research_workspace.py
+
+  guardian-benchmark:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Phase 12J Guardian boundary
+        run: |
+          python -m compileall -q \
+            tests/test_phase12j_research_benchmark_boundary.py \
+            tests/test_phase12j_research_benchmark_bootstrap_boundary.py \
+            tests/test_phase12j_final_live_seal_boundary.py
+      - name: Phase 12J Guardian boundary
+        run: |
+          python -m unittest -v \
+            tests.test_phase12j_research_benchmark_boundary \
+            tests.test_phase12j_research_benchmark_bootstrap_boundary \
+            tests.test_phase12j_final_live_seal_boundary

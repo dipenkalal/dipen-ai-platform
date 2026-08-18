@@ -1,4 +1,4 @@
-from agents.executor import agent_executor
+from agents.research_executor import research_enabled_agent_executor
 from agents.runtime_instrumentation import (
     InstrumentedAgentExecutor,
     RuntimeInstrumentation,
@@ -10,6 +10,6 @@ runtime_instrumentation = RuntimeInstrumentation(
 )
 
 instrumented_agent_executor = InstrumentedAgentExecutor(
-    agent_executor,
+    research_enabled_agent_executor,
     runtime_instrumentation,
 )

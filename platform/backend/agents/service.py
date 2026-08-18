@@ -3,8 +3,8 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
-from agents.executor import agent_executor
 from agents.registry import agent_registry
+from agents.research_executor import research_enabled_agent_executor as agent_executor
 from agents.router import AgentRoute, agent_router
 from agents.runtime import instrumented_agent_executor
 from agents.schemas import (
@@ -43,6 +43,13 @@ class AgentService:
             }
         )
 
+    @staticmethod
+    def _validate_research_url_scope(request: AgentRunRequest) -> None:
+        if request.research_urls and request.agent_id != "research-agent":
+            raise ValueError(
+                "research_urls are admitted only when the resolved agent is research-agent"
+            )
+
     def resolve_request(
         self,
         request: AgentRunRequest,
@@ -76,6 +83,7 @@ class AgentService:
                     "routing": routing,
                 }
             )
+            self._validate_research_url_scope(resolved_request)
 
             return resolved_request, route
 
@@ -96,6 +104,7 @@ class AgentService:
                 "routing": routing,
             }
         )
+        self._validate_research_url_scope(resolved_request)
 
         return resolved_request, None
 
@@ -176,9 +185,9 @@ class AgentService:
                             "model": route.model,
                             "confidence": (route.confidence),
                             "reason": route.reason,
-                            "matched_terms": (route.matched_terms),
-                            "candidate_scores": (route.candidate_scores),
-                            "routing_latency_ms": (route.routing_latency_ms),
+                            "matched_terms": route.matched_terms,
+                            "candidate_scores": route.candidate_scores,
+                            "routing_latency_ms": route.routing_latency_ms,
                         },
                         default=str,
                     )
