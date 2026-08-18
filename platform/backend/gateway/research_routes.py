@@ -1,4 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+)
 
 from agents.truth_repository import agent_truth_repository
 from gateway.research_retrieval_repository import ResearchRetrievalRepository
