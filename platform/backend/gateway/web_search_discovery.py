@@ -6,9 +6,10 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gateway.searxng_search_provider import SearXNGWebSearchProvider
 from gateway.web_search_provider import (
     BraveWebSearchProvider,
-    WebSearchDiscoveryResult,
+    WebSearchCandidate,
     WebSearchQuery,
 )
 from tools.base import ToolExecutionResult
@@ -26,8 +27,16 @@ class WebSearchDiscoveryError(RuntimeError):
         self.detail = detail
 
 
+class WebSearchDiscoveryProtocol(Protocol):
+    provider_id: str
+    discovery_id: str
+    discovery_sha256: str
+    query: str
+    candidates: tuple[WebSearchCandidate, ...]
+
+
 class WebSearchProviderProtocol(Protocol):
-    async def search(self, query: WebSearchQuery) -> WebSearchDiscoveryResult: ...
+    async def search(self, query: WebSearchQuery) -> WebSearchDiscoveryProtocol: ...
 
 
 class InternetResearchToolProtocol(Protocol):
@@ -95,6 +104,17 @@ class WebSearchRetrievalPipeline:
             retrieval_tool=retrieval_tool,
         )
 
+    @classmethod
+    def searxng_local(
+        cls,
+        *,
+        retrieval_tool: InternetResearchToolProtocol | None = None,
+    ) -> WebSearchRetrievalPipeline:
+        return cls(
+            provider=SearXNGWebSearchProvider(),
+            retrieval_tool=retrieval_tool,
+        )
+
     async def run(
         self,
         *,
@@ -148,7 +168,7 @@ class WebSearchRetrievalPipeline:
         )
 
     @staticmethod
-    def _select_urls(discovery: WebSearchDiscoveryResult) -> tuple[str, ...]:
+    def _select_urls(discovery: WebSearchDiscoveryProtocol) -> tuple[str, ...]:
         ordered = sorted(discovery.candidates, key=lambda candidate: candidate.rank)
         selected: list[str] = []
         for candidate in ordered:
@@ -167,7 +187,7 @@ class WebSearchRetrievalPipeline:
     def _pipeline_sha256(
         *,
         objective_sha256: str,
-        discovery: WebSearchDiscoveryResult,
+        discovery: WebSearchDiscoveryProtocol,
         selected_urls: tuple[str, ...],
     ) -> str:
         payload = {
