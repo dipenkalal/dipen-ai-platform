@@ -65,7 +65,8 @@ jobs:
             tests/test_phase12_research_agent_integration.py \
             tests/test_phase12_web_search_provider.py \
             tests/test_phase12_web_search_discovery.py \
-            tests/test_phase12_searxng_search_provider.py
+            tests/test_phase12_searxng_search_provider.py \
+            tests/test_phase12_searxng_search_discovery.py
       - name: Mypy Phase 12 boundary
         run: |
           python -m mypy \
@@ -120,7 +121,8 @@ jobs:
             tests/test_phase12_research_agent_integration.py \
             tests/test_phase12_web_search_provider.py \
             tests/test_phase12_web_search_discovery.py \
-            tests/test_phase12_searxng_search_provider.py
+            tests/test_phase12_searxng_search_provider.py \
+            tests/test_phase12_searxng_search_discovery.py
       - name: Phase 12 boundary tests
         run: |
           python -m pytest -q \
@@ -135,7 +137,8 @@ jobs:
             tests/test_phase12_research_agent_integration.py \
             tests/test_phase12_web_search_provider.py \
             tests/test_phase12_web_search_discovery.py \
-            tests/test_phase12_searxng_search_provider.py
+            tests/test_phase12_searxng_search_provider.py \
+            tests/test_phase12_searxng_search_discovery.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
