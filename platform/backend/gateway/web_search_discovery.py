@@ -6,6 +6,11 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gateway.research_source_quality import (
+    SOURCE_SELECTION_POLICY_ID,
+    ResearchSourceSelectionResult,
+    select_source_diverse_candidates,
+)
 from gateway.searxng_search_provider import SearXNGWebSearchProvider
 from gateway.web_search_provider import (
     BraveWebSearchProvider,
@@ -59,6 +64,13 @@ class WebSearchRetrievalPipelineResult(BaseModel):
     selected_urls: tuple[str, ...] = Field(
         max_length=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
     )
+    source_selection_policy_id: str = SOURCE_SELECTION_POLICY_ID
+    unique_source_family_count: int = Field(default=0, ge=0)
+    selected_source_families: tuple[str, ...] = ()
+    selected_quality_scores: tuple[int, ...] = ()
+    skipped_exact_duplicate_count: int = Field(default=0, ge=0)
+    duplicate_family_fallback_count: int = Field(default=0, ge=0)
+    selection_quality_is_factual_credibility: Literal[False] = False
     retrieval_tool_id: Literal["internet.research.retrieve"] = (
         "internet.research.retrieve"
     )
@@ -132,8 +144,8 @@ class WebSearchRetrievalPipeline:
         ).hexdigest()
 
         discovery = await self._provider.search(query)
-        selected_urls = self._select_urls(discovery)
-        if not selected_urls:
+        selection = self._select_urls(discovery)
+        if not selection.selected_urls:
             raise WebSearchDiscoveryError(
                 "no-search-candidates",
                 "Search provider returned no URL candidate eligible for bounded DAP retrieval.",
@@ -142,14 +154,14 @@ class WebSearchRetrievalPipeline:
         retrieval = await self._retrieval_tool.execute(
             {
                 "objective": normalized_objective,
-                "urls": list(selected_urls),
+                "urls": list(selection.selected_urls),
             }
         )
         retrieval_output = retrieval.output if isinstance(retrieval.output, dict) else None
         pipeline_sha256 = self._pipeline_sha256(
             objective_sha256=objective_sha256,
             discovery=discovery,
-            selected_urls=selected_urls,
+            selection=selection,
         )
         return WebSearchRetrievalPipelineResult(
             pipeline_id=f"web-search-pipeline-{pipeline_sha256[:24]}",
@@ -160,7 +172,13 @@ class WebSearchRetrievalPipeline:
             discovery_sha256=discovery.discovery_sha256,
             query=discovery.query,
             candidate_count=len(discovery.candidates),
-            selected_urls=selected_urls,
+            selected_urls=selection.selected_urls,
+            source_selection_policy_id=selection.policy_id,
+            unique_source_family_count=selection.unique_source_family_count,
+            selected_source_families=selection.selected_source_families,
+            selected_quality_scores=selection.selected_quality_scores,
+            skipped_exact_duplicate_count=selection.skipped_exact_duplicate_count,
+            duplicate_family_fallback_count=selection.duplicate_family_fallback_count,
             retrieval_success=retrieval.success,
             retrieval_output=retrieval_output,
             retrieval_error=retrieval.error,
@@ -168,27 +186,20 @@ class WebSearchRetrievalPipeline:
         )
 
     @staticmethod
-    def _select_urls(discovery: WebSearchDiscoveryProtocol) -> tuple[str, ...]:
-        ordered = sorted(discovery.candidates, key=lambda candidate: candidate.rank)
-        selected: list[str] = []
-        for candidate in ordered:
-            if not candidate.candidate_url_requires_dap_retrieval:
-                continue
-            if candidate.candidate_is_retrieval_evidence:
-                continue
-            if candidate.url in selected:
-                continue
-            selected.append(candidate.url)
-            if len(selected) >= MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL:
-                break
-        return tuple(selected)
+    def _select_urls(
+        discovery: WebSearchDiscoveryProtocol,
+    ) -> ResearchSourceSelectionResult:
+        return select_source_diverse_candidates(
+            discovery.candidates,
+            limit=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL,
+        )
 
     @staticmethod
     def _pipeline_sha256(
         *,
         objective_sha256: str,
         discovery: WebSearchDiscoveryProtocol,
-        selected_urls: tuple[str, ...],
+        selection: ResearchSourceSelectionResult,
     ) -> str:
         payload = {
             "objective_sha256": objective_sha256,
@@ -196,7 +207,10 @@ class WebSearchRetrievalPipeline:
             "discovery_id": discovery.discovery_id,
             "discovery_sha256": discovery.discovery_sha256,
             "query": discovery.query,
-            "selected_urls": list(selected_urls),
+            "source_selection_policy_id": selection.policy_id,
+            "selected_urls": list(selection.selected_urls),
+            "selected_source_families": list(selection.selected_source_families),
+            "selected_quality_scores": list(selection.selected_quality_scores),
             "retrieval_tool_id": "internet.research.retrieve",
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
