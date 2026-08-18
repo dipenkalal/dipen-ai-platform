@@ -337,8 +337,10 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
             sections.extend(
                 [
                     "",
-                    "Provider-specific search discovery metadata "
-                    "(DAP-owned; provider titles/snippets excluded):",
+                    (
+                        "Provider-specific search discovery metadata "
+                        "(DAP-owned; provider titles/snippets excluded):"
+                    ),
                     json.dumps(search_metadata or {}, indent=2, default=str),
                 ]
             )
