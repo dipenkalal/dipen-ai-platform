@@ -1,6 +1,7 @@
 name: Temporary Phase 12 Ruff Preview
 
 on:
+  pull_request:
   push:
     branches:
       - phase12/internet-research-gateway
