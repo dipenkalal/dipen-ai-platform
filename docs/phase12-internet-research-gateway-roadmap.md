@@ -1,6 +1,6 @@
 # Phase 12 — DAP Internet / Research Capability Gateway
 
-Status: **IN PROGRESS**
+Status: **IN PROGRESS — 12A–12G SEALED; 12H NEXT**
 
 Branch: `phase12/internet-research-gateway`
 
@@ -47,30 +47,34 @@ Fetched content is always evidence, never instructions or authority.
 - 12A — Architecture + threat boundary: **COMPLETE / SEALED**
 - 12B — Research request + source/tool registry contract: **COMPLETE / SEALED**
 - 12C — URL, DNS, redirect, and SSRF policy: **COMPLETE / SEALED**
-- 12D — Bounded public fetch transport: **NEXT / IN PROGRESS**
-- 12E — Untrusted-content / prompt-injection boundary: **PENDING**
-- 12F — Citation + retrieval evidence persistence: **PENDING**
-- 12G — Research Agent integration: **PENDING**
-- 12H — Search/provider adapters + optional Agent-Reach-inspired components: **PENDING**
+- 12D — Bounded public fetch transport: **COMPLETE / SEALED — LIVE ACER PROOF PASSED**
+- 12E — Untrusted-content / prompt-injection boundary: **COMPLETE / SEALED**
+- 12F — Citation + retrieval evidence persistence: **COMPLETE / SEALED**
+- 12G — Research Agent integration: **COMPLETE / SEALED**
+- 12H — Search/provider adapters + optional Agent-Reach-inspired components: **NEXT / IN PROGRESS**
 - 12I — Dashboard Research workspace: **PENDING**
 - 12J — Empirical benchmark + production-readiness decision: **PENDING**
 
-## Sealed boundary checkpoint
+## Current sealed capability checkpoint
 
-12A–12C are sealed on the Phase 12 branch with the following invariants:
+12A–12G establish these live invariants:
 
-- `research-agent` still exposes only `knowledge.search`.
-- `tools.registry` still registers no `internet.*` or `web.*` capability.
-- The source registry can represent `public_web` and `web_search`, but both remain execution-disabled and have no tool IDs.
-- A research request may express web intent without granting network authority.
-- URL preflight occurs before DNS resolution is permitted.
-- DNS resolution and HTTP transport are absent from the 12A–12C policy modules.
-- Final destination admission requires every resolver-supplied IPv4/IPv6 address to be public.
-- Mixed public/private DNS answers fail closed.
-- Redirect depth is bounded and cryptographically bound into destination admission.
-- The final destination admission binds the canonical URL, method, hostname, exact approved address set, and redirect depth by SHA-256.
+- DAP remains the sole task/policy/credential/privilege authority.
+- Public-web URLs enter through the inbound DAP/owner `AgentRunRequest.research_urls` field, bounded to at most three explicit URLs.
+- `AgentService` fails closed if research URLs resolve to any agent other than `research-agent`.
+- The Research executor constructs the internet tool call directly from the resolved request before model synthesis; there is no generic model tool-calling path for internet retrieval.
+- `research-agent` exposes `knowledge.search` plus exactly one bounded internet tool: `internet.research.retrieve`.
+- Search discovery remains disabled and unconfigured.
+- Every explicit URL passes 12C preflight, public-address admission, redirect revalidation, and 12D pinned-IP/TLS transport.
+- Private, loopback, link-local, multicast, reserved, unspecified, metadata, container, and DAP-local destinations remain prohibited.
+- The live 12D Acer smoke retrieved `https://example.com/` through an admitted public address while `localhost` and `127.0.0.1` were blocked by the expected SSRF layers.
+- 12E strips active web content, preserves visible remote text as untrusted data, and wraps model context in a fixed DAP-owned quoted-evidence envelope.
+- Remote instructions, role changes, policy claims, credential requests, tool requests, or URL-expansion requests never become authority.
+- 12F persists immutable success/failure/cancellation retrieval evidence and DAP-owned citations additively without rewriting canonical task truth or Knowledge.
+- Remote page content cannot add retrieval URLs or select tools.
+- No generic HTTP/socket client, browser session, cookie jar, provider credential, Guardian/root/systemd/Docker surface, MCP/plugin runtime, merge, release, or deployment authority is exposed to the Research Agent.
 
-Dedicated Phase 12, repository CI, Phase 10 regression, and Phase 11 regression all passed on the hardened 12C checkpoint.
+Historical tests for earlier gates remain stage-local. For example, 12A still proves its policy grants no live network/tool authority and 12D still proves its transport does not self-register. Separate 12G regressions prove the later explicit bounded tool registration.
 
 ## 12A — Architecture + threat boundary
 
@@ -113,69 +117,62 @@ Exit: research intent can be represented without performing network I/O.
 - Reject local/internal/container/metadata hostname forms before DNS.
 - Validate hostname syntax before DNS.
 - Validate resolver-supplied addresses and reject every non-public address class.
-- Reject localhost, private RFC1918, loopback, link-local, multicast, unspecified, reserved, metadata, container and DAP-local targets.
 - Fail closed if any DNS answer is non-public.
 - Re-run preflight, resolution, and final admission for every redirect and cap redirect depth.
-- Bind the approved address set to the immutable destination admission so the chosen transport can connect only to validated IPs.
-- Add IPv4/IPv6, mixed-answer, IP-literal, and DNS-rebinding-oriented tests.
+- Bind the approved address set to immutable destination admission.
 
-Exit: a request cannot use DAP as an SSRF tunnel into host or private infrastructure, and unsafe URLs are rejected before the resolver is called.
+Exit: a request cannot use DAP as an SSRF tunnel into host or private infrastructure.
 
 ## 12D — Bounded public fetch transport
 
-- Fixed GET/HEAD-only command/API surface initially.
-- Resolve only after a successful 12C preflight.
-- Connect to an exact 12C-approved IP while validating TLS for the canonical hostname.
-- Do not let the HTTP client silently re-resolve the hostname after admission.
-- Fixed connect/read/total timeouts.
-- Response-byte and header-size caps.
-- Controlled content types and content encodings.
-- No automatic redirects; return redirect metadata so each destination is re-admitted through 12C.
-- No ambient proxy/cookie/browser/session inheritance.
-- No arbitrary request headers supplied by model output.
-- Cancellation-aware operation.
-- Do not register the transport as an agent-visible tool during 12D.
+- Fixed GET/HEAD-only surface.
+- DNS only after 12C preflight.
+- Exact admitted numeric-IP connection while validating TLS/SNI for the canonical hostname.
+- `AI_NUMERICHOST` prevents silent hostname re-resolution after admission.
+- Fixed connect/read/total timeouts, header/body ceilings, content types and encodings.
+- Every redirect is independently re-admitted.
+- No proxy/cookie/browser/session inheritance and no arbitrary model headers.
+- Cancellation-aware.
+
+Live Acer proof passed against `https://example.com/` with source repo clean, task ledger unchanged, Guardian inactive, and Telegram approvals disabled.
 
 Exit: harmless public content can be retrieved without giving the Research Agent generic network authority.
 
 ## 12E — Untrusted-content / prompt-injection boundary
 
-- Normalize fetched content into evidence records.
-- Strip active content and executable behavior.
-- Label remote content as untrusted data in model prompts.
-- Treat remote instructions, role changes, tool calls, credential requests, and policy claims as data only.
-- Prevent page content from selecting tools or expanding retrieval scope.
-- Add adversarial prompt-injection fixtures.
+- Verify transport body hash/count before normalization.
+- Normalize bounded textual content into immutable untrusted evidence.
+- Strip executable/active HTML content and markup authority surfaces.
+- Preserve visible remote claims as evidence rather than silently treating them as trusted.
+- Add heuristic prompt-injection findings for audit, while keeping safety independent of detection quality.
+- Wrap model context in a fixed DAP-owned quoted-data envelope.
+- Treat remote instructions, role changes, tool calls, credential requests, policy claims, and URL-expansion requests as data only.
+- Unsupported binary content such as PDF remains outside model context until a later bounded extractor exists.
 
-Exit: remote content cannot become DAP authority through the model context.
+Exit: remote content cannot become DAP authority through model context.
 
 ## 12F — Citation + retrieval evidence persistence
 
-Persist immutable DAP-owned evidence for:
+Persist immutable DAP-owned evidence for success, failure, and cancellation, including request identity, provider/transport identity, URLs, status/content metadata, hashes, redirects, timestamps, normalized-content identity, policy state, and DAP-owned citation identity.
 
-- canonical task/admission where applicable;
-- research request hash;
-- provider/transport identity;
-- canonical requested and final URL;
-- validated destination metadata without exposing secrets;
-- redirects;
-- HTTP status/content type/byte count;
-- retrieval timestamps;
-- content hash;
-- source title/metadata;
-- policy decisions;
-- cancellation/failure information.
+Persistence is additive beside canonical task truth, idempotent for exact replay, and fails on conflicting reuse of an evidence ID. It does not mutate Knowledge or task truth.
 
 Exit: research retrieval is attributable and replayable from DAP evidence.
 
 ## 12G — Research Agent integration
 
-- Add the new internet research tool only after 12A–12F are sealed.
-- Preserve Knowledge search as a separate evidence source.
-- Research Agent may synthesize retrieved evidence but may not expand authority from page instructions.
-- Keep model-generated arbitrary networking impossible.
+- Register exactly one bounded public-web tool: `internet.research.retrieve`.
+- Preserve `knowledge.search` as a separate evidence source.
+- Accept internet URLs only from the resolved inbound Research Agent request, max three explicit URLs.
+- Reject research URLs for non-Research agents.
+- Execute retrieval before model synthesis.
+- Feed only 12E normalized evidence envelopes and 12F citations into synthesis.
+- Never extract/follow new URLs from page content.
+- Keep search discovery disabled.
 
-Exit: Research Agent can combine Knowledge and bounded internet evidence.
+Dedicated 12G tests prove bounded tool execution, failure/cancellation persistence, Knowledge + internet synthesis, no embedded-URL expansion, no generic network library in the agent layer, and no privileged/provider-credential surface.
+
+Exit: Research Agent can combine Knowledge and bounded internet evidence without gaining generic network authority.
 
 ## 12H — Search/provider adapters
 
@@ -183,6 +180,7 @@ Exit: Research Agent can combine Knowledge and bounded internet evidence.
 - Agent-Reach-inspired ideas may be adapted only behind DAP contracts.
 - Do not install or delegate control to a full external runtime by default.
 - Provider secrets, if later needed, remain DAP-owned and destination-scoped.
+- Search results must enter the same untrusted-content/citation/retrieval pipeline and cannot bypass 12C–12G.
 
 Exit: search discovery can feed the same bounded retrieval/evidence pipeline.
 
@@ -202,16 +200,7 @@ Exit: owner can inspect what DAP retrieved and why it trusted the transport, wit
 
 ## 12J — Empirical benchmark + production-readiness decision
 
-Benchmark harmless public research tasks for:
-
-- retrieval success rate;
-- citation/source correctness;
-- SSRF rejection accuracy;
-- redirect-policy accuracy;
-- prompt-injection resistance;
-- latency and resource cost;
-- failure recovery;
-- evidence completeness.
+Benchmark harmless public research tasks for retrieval success, citation/source correctness, SSRF rejection, redirect-policy accuracy, prompt-injection resistance, latency/resource cost, failure recovery, and evidence completeness.
 
 Choose one: narrow routine research, experimental-only, provider-specific activation, or reject activation.
 
