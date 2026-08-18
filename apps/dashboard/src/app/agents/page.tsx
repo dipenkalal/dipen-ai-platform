@@ -1,7 +1,6 @@
 "use client";
-import SmartRoutingPanel from "./components/SmartRoutingPanel";
-import Link from "next/link";
 
+import Link from "next/link";
 import {
   AlertTriangle,
   Bot,
@@ -9,20 +8,17 @@ import {
   LoaderCircle,
   RefreshCw,
 } from "lucide-react";
-
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchAgents, fetchModels, fetchTools } from "./api";
-
 import AgentSelector from "./components/AgentSelector";
 import ExecutionTimeline from "./components/ExecutionTimeline";
 import FinalAnswer from "./components/FinalAnswer";
 import RunPanel from "./components/RunPanel";
+import SmartRoutingPanel from "./components/SmartRoutingPanel";
 import ToolOutput from "./components/ToolOutput";
 import UsageMetrics from "./components/UsageMetrics";
-
 import { useAgentRunner } from "./hooks/useAgentRunner";
-
 import type {
   AgentExecutionMode,
   AgentInfo,
@@ -45,21 +41,14 @@ function isChatModel(model: ModelInfo): boolean {
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-
   const [tools, setTools] = useState<ToolInfo[]>([]);
-
   const [models, setModels] = useState<ModelInfo[]>([]);
-
   const [mode, setMode] = useState<AgentExecutionMode>("smart");
-
   const [selectedAgentId, setSelectedAgentId] = useState("");
-
   const [selectedModelId, setSelectedModelId] = useState("");
-
   const [objective, setObjective] = useState("");
-
+  const [researchSearchQuery, setResearchSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const runner = useAgentRunner();
@@ -137,7 +126,6 @@ export default function AgentsPage() {
 
   async function handleRun(): Promise<void> {
     const trimmedObjective = objective.trim();
-
     const requiresAgent = mode === "manual";
 
     if (
@@ -148,10 +136,16 @@ export default function AgentsPage() {
       return;
     }
 
+    const boundedSearchQuery =
+      mode === "manual" && selectedAgentId === "research-agent"
+        ? researchSearchQuery.trim()
+        : "";
+
     await runner.runAgent({
       mode,
       agent_id: mode === "manual" ? selectedAgentId : null,
       objective: trimmedObjective,
+      research_search_query: boundedSearchQuery || null,
       model: selectedModelId,
       provider: "auto",
     });
@@ -160,6 +154,7 @@ export default function AgentsPage() {
   function handleReset(): void {
     runner.resetRun();
     setObjective("");
+    setResearchSearchQuery("");
   }
 
   return (
@@ -278,7 +273,9 @@ export default function AgentsPage() {
               disabled={runner.isRunning || mode === "smart"}
               onSelect={(agentId) => {
                 setSelectedAgentId(agentId);
-
+                if (agentId !== "research-agent") {
+                  setResearchSearchQuery("");
+                }
                 runner.resetRun();
               }}
             />
@@ -287,6 +284,9 @@ export default function AgentsPage() {
               mode={mode}
               onModeChange={(nextMode) => {
                 setMode(nextMode);
+                if (nextMode !== "manual") {
+                  setResearchSearchQuery("");
+                }
                 runner.resetRun();
               }}
               agents={agents}
@@ -294,9 +294,11 @@ export default function AgentsPage() {
               selectedAgentId={effectiveAgentId}
               selectedModelId={selectedModelId}
               objective={objective}
+              researchSearchQuery={researchSearchQuery}
               status={runner.status}
               isLoading={isLoading}
               onObjectiveChange={setObjective}
+              onResearchSearchQueryChange={setResearchSearchQuery}
               onModelChange={setSelectedModelId}
               onRun={() => {
                 void handleRun();
@@ -304,7 +306,9 @@ export default function AgentsPage() {
               onCancel={runner.cancelRun}
               onReset={handleReset}
             />
+
             <SmartRoutingPanel routing={runner.routing} />
+
             {runner.error && (
               <div className="flex items-start gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] p-4 text-rose-200">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
