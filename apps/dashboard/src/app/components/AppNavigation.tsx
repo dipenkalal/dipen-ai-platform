@@ -8,11 +8,13 @@ import {
   Bot,
   BrainCircuit,
   Building2,
+  ClipboardCheck,
   History,
   Mic,
   Network,
   ServerCog,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
 
 
@@ -60,6 +62,17 @@ const navigationItems: NavigationItem[] = [
     icon: Bot,
   },
   {
+    label: "Engineering",
+    href: "/engineering",
+    icon: Wrench,
+    exact: true,
+  },
+  {
+    label: "Reviews",
+    href: "/engineering/reviews",
+    icon: ClipboardCheck,
+  },
+  {
     label: "History",
     href: "/agents/history",
     icon: History,
@@ -97,7 +110,11 @@ function isActiveRoute(
 export function AppNavigation() {
   const pathname = usePathname();
 
-  if (pathname === "/") {
+  if (
+    pathname === "/" ||
+    pathname === "/chat" ||
+    pathname.startsWith("/chat/")
+  ) {
     return null;
   }
 

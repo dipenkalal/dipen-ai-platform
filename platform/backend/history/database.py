@@ -42,6 +42,18 @@ class HistoryDatabase:
                 connection,
             )
 
+            self._create_chat_conversations_table(
+                connection,
+            )
+
+            self._create_chat_messages_table(
+                connection,
+            )
+
+            self._create_chat_attachments_table(
+                connection,
+            )
+
             self._create_indexes(
                 connection,
             )
@@ -148,10 +160,216 @@ class HistoryDatabase:
         )
 
     @staticmethod
+    def _create_chat_conversations_table(
+        connection: sqlite3.Connection,
+    ) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
+            chat_conversations (
+                conversation_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                preferred_role_id TEXT,
+                settings_json TEXT NOT NULL
+                    DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                archived_at TEXT
+            )
+            """
+        )
+
+    @staticmethod
+    def _create_chat_messages_table(
+        connection: sqlite3.Connection,
+    ) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
+            chat_messages (
+                message_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                sequence INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+
+                employee_role_id TEXT,
+                employee_title TEXT,
+                department_name TEXT,
+                machine_agent_id TEXT,
+
+                run_id TEXT,
+                model TEXT,
+                routing_confidence REAL,
+
+                status TEXT NOT NULL
+                    DEFAULT 'completed',
+
+                sources_json TEXT NOT NULL
+                    DEFAULT '[]',
+                usage_json TEXT NOT NULL
+                    DEFAULT '{}',
+                metadata_json TEXT NOT NULL
+                    DEFAULT '{}',
+
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+
+                FOREIGN KEY (
+                    conversation_id
+                )
+                REFERENCES chat_conversations (
+                    conversation_id
+                )
+                ON DELETE CASCADE,
+
+                UNIQUE (
+                    conversation_id,
+                    sequence
+                )
+            )
+            """
+        )
+
+    @staticmethod
+    def _create_chat_attachments_table(
+        connection: sqlite3.Connection,
+    ) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
+            chat_attachments (
+                attachment_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                message_id TEXT,
+
+                knowledge_document_id TEXT
+                    UNIQUE,
+
+                filename TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+
+                size_bytes INTEGER NOT NULL
+                    CHECK (
+                        size_bytes >= 0
+                    ),
+
+                chunk_count INTEGER NOT NULL
+                    DEFAULT 0
+                    CHECK (
+                        chunk_count >= 0
+                    ),
+
+                sha256 TEXT,
+
+                ownership TEXT NOT NULL
+                    DEFAULT 'chat_owned'
+                    CHECK (
+                        ownership IN (
+                            'chat_owned'
+                        )
+                    ),
+
+                status TEXT NOT NULL
+                    DEFAULT 'pending'
+                    CHECK (
+                        status IN (
+                            'pending',
+                            'indexed',
+                            'failed',
+                            'deleting'
+                        )
+                    ),
+
+                error TEXT,
+
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+
+                CHECK (
+                    status NOT IN (
+                        'indexed',
+                        'deleting'
+                    )
+                    OR knowledge_document_id
+                        IS NOT NULL
+                ),
+
+                FOREIGN KEY (
+                    conversation_id
+                )
+                REFERENCES chat_conversations (
+                    conversation_id
+                )
+                ON DELETE CASCADE,
+
+                FOREIGN KEY (
+                    message_id
+                )
+                REFERENCES chat_messages (
+                    message_id
+                )
+                ON DELETE SET NULL
+            )
+            """
+        )
+
+    @staticmethod
     def _create_indexes(
         connection: sqlite3.Connection,
     ) -> None:
         statements = (
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_conversations_updated_at
+            ON chat_conversations(
+                updated_at DESC
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_conversations_archived_at
+            ON chat_conversations(
+                archived_at
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_messages_conversation_sequence
+            ON chat_messages(
+                conversation_id,
+                sequence
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_messages_run_id
+            ON chat_messages(
+                run_id
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_attachments_conversation_created
+            ON chat_attachments(
+                conversation_id,
+                created_at
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_attachments_message_id
+            ON chat_attachments(
+                message_id
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_chat_attachments_status
+            ON chat_attachments(
+                status
+            )
+            """,
             """
             CREATE INDEX IF NOT EXISTS
             idx_agent_runs_started_at

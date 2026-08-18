@@ -1,0 +1,76 @@
+name: Phase 11G Dashboard Runtime Artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase11g-dashboard-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-bundle-smoke-helper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install helper validation tools
+        run: python -m pip install ruff==0.16.0 mypy==2.3.0
+      - name: Ruff bundle smoke helper
+        run: python -m ruff check platform/backend/engineering/engineering_workspace_bundle_smoke.py
+      - name: Mypy bundle smoke helper
+        run: >-
+          python -m mypy
+          platform/backend/engineering/engineering_workspace_bundle_smoke.py
+          --follow-imports=skip
+      - name: Compile bundle smoke helper
+        run: python -m compileall -q platform/backend/engineering/engineering_workspace_bundle_smoke.py
+
+  build-dashboard-runtime:
+    needs: validate-bundle-smoke-helper
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint dashboard
+        run: npm run lint
+      - name: Build standalone dashboard
+        run: npm run build
+      - name: Package standalone runtime
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          test -f .next/standalone/server.js
+          mkdir -p .next/standalone/.next
+          cp -R .next/static .next/standalone/.next/static
+          if [ -d public ]; then
+            cp -R public .next/standalone/public
+          fi
+          tar -C .next/standalone -czf phase11g-dashboard-standalone.tar.gz .
+          sha256sum phase11g-dashboard-standalone.tar.gz > phase11g-dashboard-standalone.tar.gz.sha256
+          printf '{"source_commit":"%s","node_version":"%s","next_version":"16.2.11","artifact_schema":"phase11g-dashboard-standalone-v1"}\n' \
+            "$SOURCE_COMMIT" "$(node --version)" > phase11g-dashboard-manifest.json
+      - name: Upload standalone runtime
+        uses: actions/upload-artifact@v7
+        with:
+          name: phase11g-dashboard-standalone
+          path: |
+            apps/dashboard/phase11g-dashboard-standalone.tar.gz
+            apps/dashboard/phase11g-dashboard-standalone.tar.gz.sha256
+            apps/dashboard/phase11g-dashboard-manifest.json
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
