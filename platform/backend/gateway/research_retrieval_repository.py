@@ -28,9 +28,15 @@ class PersistedResearchRetrievalRecord(BaseModel):
 class ResearchRetrievalRepository:
     """Persist immutable internet research evidence beside canonical DAP truth."""
 
-    def __init__(self, truth_repository: AgentTruthRepository) -> None:
+    def __init__(
+        self,
+        truth_repository: AgentTruthRepository,
+        *,
+        initialize: bool = True,
+    ) -> None:
         self.truth_repository = truth_repository
-        self.initialize()
+        if initialize:
+            self.initialize()
 
     def initialize(self) -> None:
         with self.truth_repository.connection() as connection:
