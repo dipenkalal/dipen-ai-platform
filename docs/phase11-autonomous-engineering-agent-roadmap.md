@@ -1,6 +1,6 @@
 # Phase 11 — DAP Autonomous Engineering Agent
 
-Status: **IN PROGRESS**
+Status: **COMPLETE / SEALED — LIMITED OWNER-REVIEWED PILOT**
 
 Branch: `phase11/autonomous-engineering-agent`
 
@@ -15,9 +15,25 @@ Base checkpoint: `de990ec69d2f8210d1c29f987a3752d803e3f8a6`
 - 11E — Git delivery workflow: **COMPLETE / SEALED**
 - 11F — Audit + evidence persistence: **COMPLETE / SEALED**
 - 11G — Dashboard Engineering workspace: **COMPLETE / SEALED**
-- 11H — Disposable engineering benchmark: **IN PROGRESS**
-- 11I — Owner review workflow: **PENDING**
-- 11J — Production-readiness decision: **PENDING**
+- 11H — Disposable engineering benchmark: **COMPLETE / SEALED — CONSTRAINED EMPIRICAL BASELINE**
+- 11I — Owner review workflow: **COMPLETE / SEALED**
+- 11J — Production-readiness decision: **COMPLETE / SEALED — NARROW SUPPORTED TASK CLASSES**
+
+## Final Phase 11 disposition
+
+Phase 11 is complete as a bounded engineering capability, but it is not approved for broad autonomous engineering.
+
+Final 11J decision:
+
+> **LIMITED OWNER-REVIEWED PILOT — NARROW TASK CLASSES ONLY.**
+
+Routine pilot use is limited to one-file exact-text work and deterministic one-file repairs with machine-verifiable acceptance. Network access, package installation, privileged host access, automatic company routing, automatic merge, `main` merge, release, and deployment remain disabled.
+
+The live `software-engineer` company role remains mapped to the advisory `coding-agent`; Phase 11 does not remap it to `engineering-agent`.
+
+Expansion requires a new empirical benchmark and a new explicit owner milestone.
+
+Canonical decision record: `docs/phase11j-production-readiness-decision.md`.
 
 ## Mission
 
@@ -151,6 +167,16 @@ Run multiple harmless tasks against disposable repositories/worktrees and measur
 - failure recovery;
 - evidence completeness.
 
+Observed fixed baseline:
+
+- positive completion: 3/4 = 75%;
+- path compliance: 100%;
+- evidence completeness: 100%;
+- failure recovery: passed;
+- one structured-JSON positive task timed out at 150 seconds;
+- production Agent Truth remained unchanged;
+- source and disposable cleanup remained clean.
+
 Exit: empirical reliability baseline exists before routine DAP use.
 
 ### 11I — Owner review workflow
@@ -166,16 +192,43 @@ Produce a concise review package containing:
 - evidence ID;
 - explicit owner action required.
 
+Acer disposable smoke proved:
+
+- review page/list reachable;
+- approval records `record_review_only`;
+- separate owner merge action remains required;
+- conflicting second decision returns 409;
+- production task/audit/review counts remain unchanged;
+- no Git write, merge, deployment, Guardian, Docker, service restart, or npm-on-Acer action occurs;
+- source and sandbox cleanup remain clean.
+
 Exit: the owner can approve or reject delivery without terminal archaeology.
 
 ### 11J — Production-readiness decision
 
-Choose one:
+Chosen roadmap outcome:
 
-- enable routine owner-reviewed Engineering Agent work;
-- keep experimental only;
-- narrow the supported task classes;
-- reject production activation.
+- **narrow the supported task classes.**
+
+Machine-readable policy:
+
+- `platform/backend/engineering/production_readiness.py`
+
+Routine supported classes:
+
+- `exact_text_one_file`;
+- `deterministic_one_file_repair`.
+
+Not approved for routine Phase 11 use:
+
+- structured JSON generation;
+- multi-file general engineering;
+- network-required engineering;
+- package/dependency installation;
+- protected control-plane changes;
+- privileged/runtime administration;
+- automatic company routing to `engineering-agent`;
+- automatic merge, `main` merge, release, or deployment.
 
 No Phase 11 outcome grants autonomous merge/deployment authority. That requires a later explicit milestone.
 
