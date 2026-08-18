@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 AgentStatus = Literal[
     "queued",
@@ -99,6 +99,11 @@ class AgentRunRequest(BaseModel):
         max_length=12000,
     )
 
+    research_urls: tuple[str, ...] = Field(
+        default=(),
+        max_length=3,
+    )
+
     model: str | None = None
 
     provider: Literal[
@@ -138,6 +143,16 @@ class AgentRunRequest(BaseModel):
 
     document_id: str | None = None
     routing: AgentRoutingMetadata | None = None
+
+    @field_validator("research_urls")
+    @classmethod
+    def normalize_research_urls(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        normalized = tuple(value.strip() for value in values)
+        if any(not value for value in normalized):
+            raise ValueError("research URLs must not contain empty values")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("research URLs must be unique")
+        return normalized
 
 
 class AgentStep(BaseModel):
