@@ -26,7 +26,7 @@ from gateway.internet_transport import (
     SystemInternetDNSResolver,
 )
 
-BRAVE_PROVIDER_ID = "brave-web-search-v1"
+BRAVE_PROVIDER_ID: Literal["brave-web-search-v1"] = "brave-web-search-v1"
 BRAVE_API_HOSTNAME = "api.search.brave.com"
 BRAVE_API_PATH = "/res/v1/web/search"
 BRAVE_API_KEY_ENV = "DAP_BRAVE_SEARCH_API_KEY"
@@ -149,7 +149,9 @@ class BraveSearchPinnedTransport:
         url = self._build_search_url(query)
         try:
             async with asyncio.timeout(self._limits.total_timeout_seconds):
-                preflight = self._policy.preflight(InternetDestinationIntent(url=url, method="GET"))
+                preflight = self._policy.preflight(
+                    InternetDestinationIntent(url=url, method="GET")
+                )
                 if preflight.disposition != "accepted" or preflight.admission is None:
                     raise WebSearchProviderError(
                         "provider-destination-rejected",
@@ -405,7 +407,9 @@ class BraveWebSearchProvider:
             if not isinstance(title, str) or not title.strip() or not isinstance(url, str):
                 dropped += 1
                 continue
-            preflight = self._destination_policy.preflight(InternetDestinationIntent(url=url, method="GET"))
+            preflight = self._destination_policy.preflight(
+                InternetDestinationIntent(url=url, method="GET")
+            )
             if preflight.disposition != "accepted" or preflight.admission is None:
                 dropped += 1
                 continue
