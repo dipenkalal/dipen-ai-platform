@@ -100,7 +100,13 @@ export default function ResearchPage() {
   );
 
   useEffect(() => {
-    void loadEvidence();
+    const timeoutId = window.setTimeout(() => {
+      void loadEvidence();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [loadEvidence]);
 
   return (
