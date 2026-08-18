@@ -56,6 +56,7 @@ jobs:
             agents/research_executor.py \
             tests/test_phase13_provider_specific_research_activation.py
           bash -n ../../scripts/phase13-provider-specific-research-live-activate.sh
+          bash -n ../../scripts/phase13-provider-specific-research-live-resume.sh
       - name: Phase 13 activation tests
         run: |
           python -m pytest -q \
