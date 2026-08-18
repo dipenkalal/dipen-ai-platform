@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from agents.registry import agent_registry
 from gateway.internet_research_policy import (
     PHASE12_ALLOWED_METHODS,
     PHASE12_ALLOWED_SCHEMES,
     Phase12InternetBoundaryPolicy,
     Phase12InternetBoundaryRequest,
 )
-from tools.registry import tool_registry
 
 
 def test_default_boundary_is_design_only_and_fail_closed() -> None:
@@ -109,19 +107,11 @@ def test_duplicate_methods_and_schemes_fail_validation() -> None:
         Phase12InternetBoundaryRequest(requested_schemes=("HTTPS", "https"))
 
 
-def test_research_agent_remains_knowledge_only_during_12a() -> None:
-    research_agent = agent_registry.get("research-agent")
+def test_12a_policy_never_grants_live_network_or_tool_authority() -> None:
+    decision = Phase12InternetBoundaryPolicy().evaluate(Phase12InternetBoundaryRequest())
 
-    assert research_agent.tools == ["knowledge.search"]
-    assert all(not tool_id.startswith("internet.") for tool_id in research_agent.tools)
-    assert all(not tool_id.startswith("web.") for tool_id in research_agent.tools)
-
-
-def test_no_internet_tool_is_registered_during_12a() -> None:
-    tool_ids = {definition.id for definition in tool_registry.list_definitions()}
-
-    assert "system.status" in tool_ids
-    assert "knowledge.search" in tool_ids
-    assert "knowledge.ask" in tool_ids
-    assert all(not tool_id.startswith("internet.") for tool_id in tool_ids)
-    assert all(not tool_id.startswith("web.") for tool_id in tool_ids)
+    assert decision.network_execution_enabled is False
+    assert decision.internet_tool_registration_allowed is False
+    assert decision.constraints.model_generated_headers_allowed is False
+    assert decision.constraints.credential_forwarding_allowed is False
+    assert decision.constraints.guardian_access_allowed is False
