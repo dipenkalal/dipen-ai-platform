@@ -40,24 +40,31 @@ jobs:
           python -m ruff check \
             --ignore BLE001,UP012 \
             gateway/research_benchmark.py
+          python -m ruff check \
+            gateway/research_benchmark_bootstrap.py
       - name: Ruff benchmark tests
         run: |
           python -m ruff check \
-            tests/test_phase12j_research_benchmark.py
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
       - name: Mypy benchmark boundary
         run: |
           python -m mypy \
             gateway/research_benchmark.py \
+            gateway/research_benchmark_bootstrap.py \
             --follow-imports=skip
       - name: Compile benchmark boundary
         run: |
           python -m compileall -q \
             gateway/research_benchmark.py \
-            tests/test_phase12j_research_benchmark.py
+            gateway/research_benchmark_bootstrap.py \
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
       - name: Frozen Phase 12J benchmark tests
         run: |
           python -m pytest -q \
-            tests/test_phase12j_research_benchmark.py
+            tests/test_phase12j_research_benchmark.py \
+            tests/test_phase12j_research_benchmark_bootstrap.py
       - name: Phase 12 safety regression matrix
         run: |
           python -m pytest -q \
@@ -82,8 +89,10 @@ jobs:
       - name: Compile Phase 12J Guardian boundary
         run: |
           python -m compileall -q \
-            tests/test_phase12j_research_benchmark_boundary.py
+            tests/test_phase12j_research_benchmark_boundary.py \
+            tests/test_phase12j_research_benchmark_bootstrap_boundary.py
       - name: Phase 12J Guardian boundary
         run: |
           python -m unittest -v \
-            tests.test_phase12j_research_benchmark_boundary
+            tests.test_phase12j_research_benchmark_boundary \
+            tests.test_phase12j_research_benchmark_bootstrap_boundary
