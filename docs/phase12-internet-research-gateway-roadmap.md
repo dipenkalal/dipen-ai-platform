@@ -1,6 +1,6 @@
 # Phase 12 — DAP Internet / Research Capability Gateway
 
-Status: **IN PROGRESS — 12A–12G SEALED; 12H ZERO-COST SEARXNG RUNTIME GATE ACTIVE**
+Status: **IN PROGRESS — 12A–12H SEALED; 12I NEXT**
 
 Branch: `phase12/internet-research-gateway`
 
@@ -23,13 +23,13 @@ Phase 12 does not authorize arbitrary browsing, autonomous account actions, arbi
 - 12E — Untrusted-content / prompt-injection boundary: **COMPLETE / SEALED**
 - 12F — Citation + retrieval evidence persistence: **COMPLETE / SEALED**
 - 12G — Research Agent integration: **COMPLETE / SEALED**
-- 12H — Search/provider adapters: **CODE/CI COMPLETE — ZERO-COST SEARXNG ACER DEPLOYMENT + LIVE SMOKE PENDING**
-- 12I — Dashboard Research workspace: **PENDING**
+- 12H — Search/provider adapters: **COMPLETE / SEALED — ZERO-COST SEARXNG ACER LIVE PROOF PASSED**
+- 12I — Dashboard Research workspace: **NEXT / PENDING**
 - 12J — Empirical benchmark + production-readiness decision: **PENDING**
 
 ## Current sealed capability checkpoint
 
-12A–12G establish these live invariants:
+12A–12H establish these live invariants:
 
 - DAP remains the sole task/policy/credential/privilege authority.
 - Public-web URLs enter through the inbound DAP/owner `AgentRunRequest.research_urls` field, bounded to at most three explicit URLs.
@@ -41,13 +41,17 @@ Phase 12 does not authorize arbitrary browsing, autonomous account actions, arbi
 - 12E strips active web content, preserves visible remote text as untrusted data, and wraps model context in a fixed DAP-owned quoted-evidence envelope.
 - 12F persists immutable success/failure/cancellation retrieval evidence and DAP-owned citations additively without rewriting canonical task truth or Knowledge.
 - Remote page content cannot add retrieval URLs or select tools.
+- Search discovery is provided by a local zero-cost SearXNG runtime fixed to `127.0.0.1:8888`.
+- Search candidates are URL-discovery input only; provider titles/snippets are not retrieval evidence and are not forwarded into the model evidence path.
+- Candidate URLs must still pass the complete sealed DAP public retrieval/evidence pipeline before becoming research evidence.
+- No paid search-provider credential is configured or required for the selected runtime path.
 - No generic HTTP/socket client, browser session, cookie jar, provider credential, Guardian/root/systemd surface, MCP/plugin runtime, merge, release, or deployment authority is exposed to the Research Agent.
 
-## 12H — Search/provider adapters
+## 12H — Search/provider adapters — sealed
 
 ### Owner budget constraint
 
-Production search discovery must remain **$0** with no paid API or billing/card exposure.
+Production search discovery remains **$0** with no paid API or billing/card exposure.
 
 The earlier Brave adapter remains dormant optional code. It is not configured or selected for production.
 
@@ -99,22 +103,39 @@ Tracked templates under `deploy/phase12h-searxng/` pin the SearXNG image and enf
 
 A dedicated Guardian regression statically rejects deployment drift that weakens these invariants.
 
-### Current 12H checkpoint
+### 12H live exit evidence
 
-At `827eb2f1dd18c660fc9e574b3659f72063166706`, all four workflows passed, including the SearXNG provider, provider-neutral search→retrieval integration, deployment boundary and live-smoke helper.
+On 2026-08-18, the Acer runtime gate passed against code checkpoint `63bff214ffe04703e46fd5784f1089ee61207e41`:
 
-Search discovery is still not registered as live Research Agent authority.
+- pinned SearXNG image present and started;
+- container `dap-searxng` bound exactly to `127.0.0.1:8888->8080/tcp`;
+- privileged mode false;
+- `cap_drop: ALL`;
+- `no-new-privileges:true`;
+- local JSON API returned `200` with valid search results;
+- DAP zero-cost search smoke succeeded;
+- four search candidates were observed and three HTTPS URLs were selected;
+- provider titles/snippets remained excluded from provider evidence;
+- no paid provider or provider credential was used;
+- no model call or DB write was performed by the smoke helper;
+- `task_ledger` remained `11` before/after;
+- backend MainPID remained `2856` before/after;
+- backend remained active;
+- Guardian remained inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false` remained unchanged;
+- SearXNG remained healthy on loopback after the proof.
 
-### Remaining 12H runtime exit
+Detailed evidence: `docs/phase12h-searxng-live-evidence-2026-08-18.md`.
 
-1. deploy the pinned local SearXNG container on Acer;
-2. verify port 8888 is loopback-only;
-3. run `gateway.searxng_search_provider_smoke` successfully;
-4. verify task truth/source/Guardian/Telegram remain unchanged;
-5. record the live evidence;
-6. decide whether to activate bounded search discovery for `research-agent`.
+### 12H activation decision
+
+Search discovery is **not registered as additional live Research Agent authority yet**.
+
+The zero-cost runtime and search→retrieval boundary are proven, but activation is deliberately deferred while 12I adds owner-visible inspection and 12J performs empirical production-readiness benchmarking. This preserves least authority without blocking Phase 12 progress.
 
 ## 12I — Dashboard Research workspace
+
+Status: **NEXT / PENDING**
 
 Expose read-only research evidence:
 
@@ -126,15 +147,28 @@ Expose read-only research evidence:
 - failures/cancellations;
 - provenance distinguishing Knowledge from internet evidence.
 
+The workspace must remain an inspection surface only. It must not gain UI-side network authority, search-provider credentials, arbitrary URL fetching, Guardian/root/systemd actions, or a second source of canonical task truth.
+
 Exit: owner can inspect what DAP retrieved and why it admitted the transport, without UI-side network authority.
 
 ## 12J — Empirical benchmark + production-readiness decision
+
+Status: **PENDING AFTER 12I**
 
 Benchmark harmless public research tasks for retrieval/search success, citation/source correctness, SSRF rejection, redirect-policy accuracy, prompt-injection resistance, latency/resource cost, failure recovery, and evidence completeness.
 
 Choose one: narrow routine research, experimental-only, provider-specific activation, or reject activation.
 
 No Phase 12 outcome grants privileged host access, arbitrary network access, autonomous account actions, or autonomous merge/deployment authority.
+
+## Remaining Phase 12 milestones
+
+From the sealed 12H checkpoint, two top-level gates remain:
+
+1. **12I — Dashboard Research workspace**;
+2. **12J — Empirical benchmark + production-readiness decision**.
+
+Phase 12 completes only after both gates are sealed and the final activation posture is recorded.
 
 ## Safety invariants
 
