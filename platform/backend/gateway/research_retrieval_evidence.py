@@ -218,7 +218,7 @@ class ResearchRetrievalEvidenceFactory:
             ],
             "hops": [hop.model_dump(mode="json") for hop in hops],
             "citation": citation.model_dump(mode="json"),
-            "observed_at": observed_at.isoformat(),
+            "observed_at": _canonical_datetime(observed_at),
             "error_code": None,
             "error_detail": None,
             "evidence_is_additive_only": True,
@@ -312,7 +312,7 @@ class ResearchRetrievalEvidenceFactory:
             "prompt_injection_finding_rule_ids": [],
             "hops": [],
             "citation": None,
-            "observed_at": observed_at.isoformat(),
+            "observed_at": _canonical_datetime(observed_at),
             "error_code": error_code,
             "error_detail": error_detail,
             "evidence_is_additive_only": True,
@@ -340,7 +340,7 @@ class ResearchRetrievalEvidenceFactory:
             "source_title": content.title,
             "content_evidence_id": content.evidence_id,
             "normalized_text_sha256": content.normalized_text_sha256,
-            "retrieved_at": observed_at.isoformat(),
+            "retrieved_at": _canonical_datetime(observed_at),
         }
         citation_sha256 = _canonical_hash(payload)
         return ResearchCitation(
@@ -385,6 +385,13 @@ ExcludeCancelledStage = Literal[
     "response",
     "content-normalization",
 ]
+
+
+def _canonical_datetime(value: datetime) -> str:
+    rendered = value.isoformat()
+    if rendered.endswith("+00:00"):
+        return f"{rendered[:-6]}Z"
+    return rendered
 
 
 def _canonical_hash(payload: object) -> str:
