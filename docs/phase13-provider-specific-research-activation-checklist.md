@@ -23,4 +23,4 @@
 - [x] Final production invariants preserved, with only expected immutable retrieval evidence and one normal instrumented agent task added.
 - [x] Live run-to-task correlation proves the single ledger delta belongs to the completed Research Agent run.
 - [x] Resume closure proves no duplicate Research Agent run or duplicate evidence was created.
-- [ ] Phase 13 PR merged after final evidence/documentation checkpoint is CI-green.
+- [x] Phase 13 PR merged after final evidence/documentation checkpoint was CI-green (`1130ddd8f7132a30666161d19898e18aec6c139c`).
