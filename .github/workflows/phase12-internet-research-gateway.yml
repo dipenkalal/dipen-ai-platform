@@ -37,26 +37,32 @@ jobs:
           python -m ruff check \
             gateway/internet_research_policy.py \
             gateway/research_contract.py \
+            gateway/internet_destination_policy.py \
             tests/test_phase12_internet_research_policy.py \
-            tests/test_phase12_research_contract.py
+            tests/test_phase12_research_contract.py \
+            tests/test_phase12_internet_destination_policy.py
       - name: Mypy Phase 12 boundary
         run: |
           python -m mypy \
             gateway/internet_research_policy.py \
             gateway/research_contract.py \
+            gateway/internet_destination_policy.py \
             --follow-imports=skip
       - name: Compile Phase 12 boundary
         run: |
           python -m compileall -q \
             gateway/internet_research_policy.py \
             gateway/research_contract.py \
+            gateway/internet_destination_policy.py \
             tests/test_phase12_internet_research_policy.py \
-            tests/test_phase12_research_contract.py
+            tests/test_phase12_research_contract.py \
+            tests/test_phase12_internet_destination_policy.py
       - name: Phase 12 boundary tests
         run: |
           python -m pytest -q \
             tests/test_phase12_internet_research_policy.py \
-            tests/test_phase12_research_contract.py
+            tests/test_phase12_research_contract.py \
+            tests/test_phase12_internet_destination_policy.py
 
   guardian-boundary:
     runs-on: ubuntu-latest
