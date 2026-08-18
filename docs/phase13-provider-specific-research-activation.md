@@ -1,10 +1,12 @@
 # Phase 13 — Provider-Specific Research Activation
 
-Status: **IN PROGRESS — CODE/CI GATE, LIVE ACER PROOF PENDING**
+Status: **SEALED — LIVE ACER ACTIVATION GATE PASSED; MERGE READY**
 
 Branch: `phase13/provider-specific-research-activation`
 
 Base: Phase 12 merge `4ca48a1d68e3f90f43265017befe0ce7c263229c`
+
+Final live-proof source checkpoint: `3f7dc4318abe165629e59cf45264c781d7a6784f`
 
 ## Decision
 
@@ -84,11 +86,13 @@ Phase 13 does **not** grant:
 - provider snippet/title evidence authority;
 - smart-routing search activation;
 - automatic Knowledge mutation;
-- task-ledger mutation;
+- arbitrary task-truth mutation;
 - Guardian/root/systemd authority;
 - Docker socket or privileged container authority;
 - autonomous account action;
-- autonomous merge/release/deployment authority.
+- autonomous release/deployment authority.
+
+Normal DAP runtime instrumentation still records one task-ledger row for a successfully executed manual agent run. That row is an audit/runtime truth record, not new model authority. The Phase 13 live proof required the ledger delta to be exactly one and correlated it to the completed Research Agent run by `source_run_id` and assigned agent.
 
 The Research Agent registry remains model-tool limited to:
 
@@ -101,36 +105,47 @@ SearXNG discovery is a deterministic DAP executor path, not a generic model-call
 
 ## CI exit gate
 
-Before live activation, the Phase 13 branch must pass:
+The Phase 13 branch passed:
 
 - Ruff and Mypy on the activation boundary;
 - Phase 13 backend contract/integration tests;
 - the sealed Phase 12 destination/transport/untrusted/evidence/search/workspace/benchmark regressions;
-- Phase 12H SearXNG Guardian regression evolved for post-activation semantics;
-- dedicated Phase 13 Guardian boundary;
+- post-activation SearXNG Guardian semantics;
+- dedicated Phase 13 Guardian boundaries;
 - dashboard lint/build;
 - production dashboard Docker image build;
 - normal repository CI/regression workflows.
 
-## Live Acer proof — pending
+The operator scripts were also hardened after live observations to prove:
 
-The live proof must verify, in one controlled deployment:
+- root-owned generated `.next` cleanup is limited to the fixed generated path;
+- the application rebuild runs offline as the normal host UID;
+- the resume path does not rerun the Research Agent;
+- task-ledger growth must be exactly one and must correlate to the completed Research Agent run.
+
+## Live Acer proof — PASSED
+
+The final live proof established:
 
 - exact approved Phase 13 source checkpoint;
-- task ledger unchanged around activation;
-- research evidence grows only through immutable retrieval evidence;
-- one controlled backend restart loads the new request/executor path;
-- dashboard is rebuilt/recreated without disturbing unrelated services;
-- manual Research Agent search succeeds through `searxng-local-v1`;
-- selected URL count is bounded to at most three;
-- provider snippets/titles are not model evidence;
-- Research workspace displays the resulting Internet Evidence;
-- smart-mode search request is rejected;
-- non-Research-Agent search request is rejected;
-- backend remains active after deployment;
-- Guardian remains inactive;
-- `DAP_TELEGRAM_APPROVALS_ENABLED=false` remains unchanged;
-- SearXNG remains loopback-only at `127.0.0.1:8888`;
-- source checkout remains clean.
+- one controlled backend restart loaded the new request/executor path;
+- smart-mode search request was rejected;
+- non-Research-Agent search request was rejected;
+- one manual Research Agent search succeeded through `searxng-local-v1`;
+- selected URL count remained bounded to at most three;
+- provider snippets/titles remained non-evidence and outside model context;
+- three new immutable retrieval-evidence rows were created, increasing evidence from `7` to `10`;
+- the normal instrumented agent run created exactly one new task-ledger row, increasing the ledger from `11` to `12`;
+- that task was `completed`, requested by `agent-api`, assigned to `research-agent`, and linked to run `801daf77-af76-49bb-a45d-fb414cb2fc11`;
+- Research workspace exposed the resulting Internet Evidence read-only;
+- dashboard was rebuilt offline and recreated without disturbing unrelated services;
+- backend remained active with PID `462906` after closure;
+- Guardian remained inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false` remained unchanged;
+- SearXNG remained loopback-only at `127.0.0.1:8888`;
+- source checkout remained clean;
+- resume closure did not rerun research or create duplicate evidence.
 
-No merge of this activation branch should occur until the live Acer proof passes.
+The complete evidence record is `docs/phase13-provider-specific-research-live-evidence-2026-08-18.md`.
+
+Phase 13 is therefore sealed and ready for integration into `main` after this documentation checkpoint remains CI-green.
