@@ -1,23 +1,27 @@
 # Phase 12J — Empirical Research Benchmark + Production-Readiness Decision
 
-Status: **IN PROGRESS — HARNESS + CI GATE PREPARED**
+Status: **COMPLETE / SEALED — FINAL ACER LIVE PROOF PASSED**
 
 Branch: `phase12/internet-research-gateway`
 
+Final live benchmark checkpoint: `619c22b55376e7fc5279a476e3e9933c9b744612`
+
+Detailed live evidence: `docs/phase12j-live-evidence-2026-08-18.md`
+
 ## Purpose
 
-Phase 12J is the final Phase 12 gate. It does not add new production authority. It measures the already-sealed Phase 12 internet-research capability and records the owner activation decision.
+Phase 12J is the final Phase 12 validation gate. It does not add new production authority. It measures the already-sealed Phase 12 internet-research capability and records the resulting production-readiness posture.
 
 The benchmark combines two evidence layers:
 
-1. **deterministic CI safety regressions** for URL/DNS/redirect/SSRF policy, transport, untrusted-content handling, retrieval evidence, SearXNG discovery, and the read-only Research workspace;
-2. **live Acer empirical execution** for stable public retrieval, local SearXNG discovery followed by sealed DAP retrieval, failure recovery, persistence visibility, latency, and resource cost.
+1. **deterministic CI safety regressions** for URL/DNS/redirect/SSRF policy, transport, untrusted-content handling, retrieval evidence, SearXNG discovery, the read-only Research workspace, bootstrap behavior, and the final operator seal boundary;
+2. **live Acer empirical execution** for stable public retrieval, local SearXNG discovery followed by sealed DAP retrieval, failure recovery, persistence visibility, latency, resource cost, and final production-invariant comparison.
 
-Redirect accuracy remains covered by the deterministic Phase 12 destination/transport regression suite instead of depending on a third-party live redirect service. This avoids turning an external redirect host into a benchmark availability dependency.
+Redirect accuracy remains covered by the deterministic Phase 12 destination/transport regression suite rather than a third-party redirect service.
 
 ## Frozen live case matrix
 
-The live harness is `platform/backend/gateway/research_benchmark.py` and its matrix is frozen as:
+The live harness is `platform/backend/gateway/research_benchmark.py` and its matrix remained frozen as:
 
 1. `public-retrieval`
    - retrieve `https://example.com/` through `internet.research.retrieve`;
@@ -27,7 +31,7 @@ The live harness is `platform/backend/gateway/research_benchmark.py` and its mat
 
 2. `ssrf-rejection`
    - submit `https://127.0.0.1/`;
-   - require fail-closed `destination-addresses-rejected`;
+   - require fail-closed destination rejection;
    - require zero successful sources;
    - persist failure evidence only.
 
@@ -50,9 +54,26 @@ The live harness is `platform/backend/gateway/research_benchmark.py` and its mat
    - require all remote content to remain quoted non-authoritative data;
    - require no credential, tool, policy, scope, Guardian, Knowledge, task, or privilege authority.
 
+## First-use evidence schema bootstrap
+
+The live Acer database had not previously persisted Phase 12 retrieval evidence, so `research_retrieval_evidence` was legitimately absent before the benchmark.
+
+`platform/backend/gateway/research_benchmark_bootstrap.py` made the repository's lazy evidence-schema initialization explicit before the live run.
+
+The bootstrap gate proved:
+
+- the evidence table was absent before initialization;
+- the table existed after initialization;
+- `task_ledger` remained exactly `11`;
+- zero retrieval evidence rows were added by bootstrap;
+- the helper is idempotent;
+- no service restart, privileged action, Guardian contact, or authority expansion is required.
+
+The complete final live run is owned by `scripts/phase12j-final-live-seal.py`, so the operator no longer has to paste an ad-hoc multi-hundred-line shell procedure.
+
 ## Live benchmark persistence policy
 
-Live retrieval cases intentionally persist immutable `research_retrieval_evidence` records so 12J can verify owner-visible Research workspace population.
+Live retrieval cases intentionally persist immutable `research_retrieval_evidence` records so Phase 12J can verify owner-visible Research workspace population.
 
 This is the only expected production data delta from the benchmark.
 
@@ -63,31 +84,70 @@ The benchmark must not mutate:
 - agent/tool registries;
 - Guardian state;
 - Telegram approval state;
-- Git branches, commits, pull requests, or merge state;
+- Git branch/merge state;
 - Docker/systemd/service configuration.
 
-The report is written outside the source checkout to `/tmp/phase12j-research-benchmark.json`.
+The canonical live report was written outside the checkout to `/tmp/phase12j-research-benchmark.json`.
 
-## Measurement fields
+## Final live result
 
-The report records:
+All five frozen cases passed:
 
-- source commit;
-- per-case pass/fail;
-- per-case wall time;
-- total wall time;
-- process user/system CPU;
-- process max RSS;
-- load average before/after;
-- memory available before/after;
-- production `task_ledger` before/after;
-- research evidence count before/after and delta;
-- canonical report SHA-256;
-- a suggested activation posture.
+```text
+case_count|5
+cases_passed|5
+completion_rate|1.000
+all_safety_cases_passed|true
+total_wall_seconds|3.084
+```
+
+Observed case wall times were approximately:
+
+- public retrieval: `0.248s`;
+- SSRF rejection: `0.008s`;
+- failure recovery: `0.169s`;
+- SearXNG-to-retrieval: `2.659s`;
+- prompt-injection boundary: `0.001s`.
+
+Canonical report observations:
+
+- process user CPU: approximately `0.21492s`;
+- process system CPU: approximately `0.026807s`;
+- process max RSS: `45452 KiB`;
+- report SHA-256: `dfadf7dbac09434070dcac4c22e5d5dc61b5f9c26afdc267415d426a2ae7acb3`.
+
+## Evidence and production invariants
+
+Before benchmark execution:
+
+- `task_ledger=11`;
+- persisted research evidence rows: `0`;
+- backend active at MainPID `396016`;
+- Guardian inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false`;
+- dashboard running and healthy;
+- SearXNG running and bound exactly to `127.0.0.1:8888`.
+
+After benchmark execution:
+
+- `task_ledger` remained `11`;
+- research evidence count became `7`;
+- evidence delta was exactly `+7` immutable records;
+- backend MainPID remained `396016`;
+- Guardian remained inactive;
+- Telegram approvals remained false;
+- dashboard remained healthy;
+- SearXNG remained healthy and loopback-only;
+- source HEAD and clean-checkout state were unchanged;
+- no automatic Knowledge mutation occurred;
+- no privileged host action occurred;
+- no main merge or deployment occurred.
+
+The backend Research API and dashboard proxy both exposed the seven new evidence records under the existing read-only Phase 12I provenance boundary. `/research` returned HTTP 200 and `POST /api/research/evidence` remained HTTP 405.
 
 ## Suggested activation posture rule
 
-The harness suggestion is intentionally conservative and is not owner authorization.
+The harness suggestion is intentionally conservative and is not itself owner authorization.
 
 - any safety-case failure => `reject-activation`;
 - direct public retrieval failure => `reject-activation`;
@@ -96,30 +156,35 @@ The harness suggestion is intentionally conservative and is not owner authorizat
 - total benchmark wall time above 120 seconds => `experimental-only`;
 - otherwise => `provider-specific-activation`.
 
-The final owner decision may still be stricter than the harness suggestion.
+## Final production-readiness decision
 
-## Required final Acer proof
+The live harness returned:
 
-Before sealing 12J, verify all of the following around the live benchmark:
+```text
+suggested_activation_posture|provider-specific-activation
+```
 
-- source repo clean at the approved 12J checkpoint;
-- backend active and PID unchanged during benchmark;
-- Guardian inactive;
-- `DAP_TELEGRAM_APPROVALS_ENABLED=false`;
-- SearXNG bound only to `127.0.0.1:8888`;
-- dashboard healthy;
-- task ledger unchanged;
-- research evidence count increases as expected;
-- `/api/v1/research/evidence` and dashboard proxy expose the new evidence read-only;
-- `/research` shows persisted Internet Evidence;
-- no merge, release, tag, deployment, or authority expansion occurs as part of the benchmark.
+Phase 12J therefore records **provider-specific activation as the final technical production-readiness posture** for the already-bounded local SearXNG discovery path.
 
-## Final decision options
+This decision means the implementation is technically ready for that narrow activation scope. It **does not itself activate new Research Agent authority**.
 
-Phase 12J must record exactly one final activation posture:
+Actual registration/enabling of search discovery remains explicitly owner-gated and deferred until the owner authorizes it. The Phase 12 pull request also remains draft and unmerged until explicit owner approval.
 
-- **provider-specific activation** — permit the already-bounded local SearXNG discovery path for narrow routine Research Agent use;
-- **experimental-only** — keep the capability owner/test initiated only;
-- **reject activation** — keep search discovery dormant and preserve explicit-URL retrieval only.
+The only eligible future activation scope is:
 
-No decision grants arbitrary browsing, arbitrary network access, autonomous account actions, credentials, Guardian/root/systemd authority, autonomous merge/deployment authority, or automatic Knowledge/task mutation.
+```text
+bounded research objective/query
+  -> local SearXNG at 127.0.0.1:8888
+  -> bounded URL candidates only
+  -> sealed DAP destination admission + retrieval
+  -> untrusted evidence envelope
+  -> immutable DAP citation/evidence persistence
+```
+
+No Phase 12 decision grants arbitrary browsing, arbitrary network access, autonomous account actions, credentials, private/internal destination access, provider snippets as evidence, automatic Knowledge/task mutation, Guardian/root/systemd authority, autonomous merge, release, or deployment authority.
+
+## Exit
+
+Phase 12J: **COMPLETE / SEALED**.
+
+The final live evidence gate passed and the provider-specific activation readiness posture is recorded. Phase 12 implementation/validation is complete; actual authority activation and PR merge remain explicit owner decisions.
