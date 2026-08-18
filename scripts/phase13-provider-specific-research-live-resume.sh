@@ -7,7 +7,8 @@ EXPECTED_EVIDENCE_TOTAL="${3:-}"
 RUN_ID="${4:-}"
 
 ORIGINAL_ACTIVATION_HEAD="2bb068c0bc39604e75faa75660ebf39ebed80f56"
-EXPECTED_TASK_LEDGER="11"
+PRE_ACTIVATION_TASK_LEDGER="11"
+EXPECTED_TASK_LEDGER="12"
 REPO="/home/dipen/dap/source/dipen-ai-platform"
 BACKEND="$REPO/platform/backend"
 DASH="$REPO/apps/dashboard"
@@ -27,6 +28,66 @@ cleanup_tmp() {
   rm -rf "$CTX"
 }
 trap cleanup_tmp EXIT
+
+validate_research_task_ledger() {
+  "$PY" - "$TRUTH_DB" "$RUN_ID" "$PRE_ACTIVATION_TASK_LEDGER" "$EXPECTED_TASK_LEDGER" <<'PY'
+import json
+import sqlite3
+import sys
+
+path, run_id, pre_raw, expected_raw = sys.argv[1:]
+pre_count = int(pre_raw)
+expected_count = int(expected_raw)
+
+with sqlite3.connect(path) as connection:
+    connection.row_factory = sqlite3.Row
+    total = int(connection.execute("SELECT COUNT(*) FROM task_ledger").fetchone()[0])
+    rows = connection.execute(
+        """
+        SELECT
+            task_id,
+            task_type,
+            objective,
+            status,
+            requested_by,
+            assigned_agent_ids_json,
+            source_run_id,
+            current_step,
+            progress_percent,
+            error,
+            completed_at
+        FROM task_ledger
+        WHERE source_run_id = ?
+        """,
+        (run_id,),
+    ).fetchall()
+
+assert expected_count == pre_count + 1, (pre_count, expected_count)
+assert total == expected_count, (total, expected_count)
+assert len(rows) == 1, (run_id, len(rows))
+
+row = rows[0]
+assigned = json.loads(row["assigned_agent_ids_json"])
+
+assert row["task_type"] == "agent", dict(row)
+assert row["status"] == "completed", dict(row)
+assert row["requested_by"] == "agent-api", dict(row)
+assert assigned == ["research-agent"], assigned
+assert row["source_run_id"] == run_id, dict(row)
+assert row["current_step"] == "Agent execution completed", dict(row)
+assert float(row["progress_percent"]) == 100.0, dict(row)
+assert row["error"] is None, dict(row)
+assert row["completed_at"], dict(row)
+
+print(f"research_task_id|{row['task_id']}")
+print(f"research_task_status|{row['status']}")
+print(f"research_task_requested_by|{row['requested_by']}")
+print("research_task_assigned_agent|research-agent")
+print(f"research_task_source_run_id|{row['source_run_id']}")
+print("research_task_ledger_delta|1")
+print("research_task_ledger_proof|PASS")
+PY
+}
 
 echo "============================================================"
 echo " PHASE 13 — LIVE ACTIVATION RESUME / DASHBOARD CLOSURE"
@@ -70,6 +131,7 @@ DASHBOARD_IMAGE_REF="$(docker inspect -f '{{.Config.Image}}' dap-dashboard)"
 SEARX_STATE_NOW="$(docker inspect -f '{{.State.Status}}' dap-searxng)"
 SEARX_BINDING_NOW="$(docker port dap-searxng 8080/tcp | tr -d '\r')"
 
+echo "task_ledger_pre_activation|$PRE_ACTIVATION_TASK_LEDGER"
 echo "task_ledger_resume|$TASKS_NOW"
 echo "research_evidence_resume|$EVIDENCE_NOW"
 echo "backend_pid_resume|$PID_NOW"
@@ -81,6 +143,7 @@ echo "searxng_state_resume|$SEARX_STATE_NOW"
 echo "searxng_binding_resume|$SEARX_BINDING_NOW"
 
 [[ "$TASKS_NOW" == "$EXPECTED_TASK_LEDGER" ]] || exit 1
+validate_research_task_ledger
 [[ "$EVIDENCE_NOW" == "$EXPECTED_EVIDENCE_TOTAL" ]] || exit 1
 [[ "$PID_NOW" == "$EXPECTED_BACKEND_PID" ]] || exit 1
 [[ "$BACKEND_NOW" == "active" ]] || exit 1
@@ -230,6 +293,7 @@ echo "HEAD_final|$HEAD_FINAL"
 echo "source_final|$SOURCE_FINAL"
 
 [[ "$TASKS_FINAL" == "$EXPECTED_TASK_LEDGER" ]] || exit 1
+validate_research_task_ledger
 [[ "$EVIDENCE_FINAL" == "$EXPECTED_EVIDENCE_TOTAL" ]] || exit 1
 [[ "$PID_FINAL" == "$EXPECTED_BACKEND_PID" ]] || exit 1
 [[ "$BACKEND_FINAL" == "active" ]] || exit 1
