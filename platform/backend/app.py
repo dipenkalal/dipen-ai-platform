@@ -33,6 +33,9 @@ from engineering.routes import (
 from executive_office.routes import (
     router as executive_office_router,
 )
+from gateway.research_routes import (
+    router as research_workspace_router,
+)
 from gateway.routes import (
     router as gateway_router,
 )
@@ -165,6 +168,7 @@ app.add_middleware(
 
 
 app.include_router(gateway_router)
+app.include_router(research_workspace_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)
 app.include_router(agent_truth_router)
