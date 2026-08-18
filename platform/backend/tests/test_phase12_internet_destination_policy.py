@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from gateway.internet_destination_policy import (
+    InternetDestinationIntent,
     InternetDestinationPolicy,
     InternetDestinationRequest,
 )
@@ -26,6 +27,24 @@ def _decision(
             redirect_depth=redirect_depth,
         )
     )
+
+
+def test_public_https_preflight_is_safe_to_resolve_but_performs_no_dns() -> None:
+    preflight = InternetDestinationPolicy().preflight(
+        InternetDestinationIntent(
+            url="https://Example.COM/research?q=dap#fragment",
+            method=" get ",
+        )
+    )
+
+    assert preflight.disposition == "accepted"
+    assert preflight.findings == ()
+    assert preflight.admission is not None
+    assert preflight.admission.canonical_url == "https://example.com/research?q=dap"
+    assert preflight.admission.hostname == "example.com"
+    assert preflight.admission.method == "GET"
+    assert preflight.admission.dns_resolution_performed is False
+    assert preflight.admission.transport_execution_enabled is False
 
 
 def test_public_https_destination_is_admitted_deterministically() -> None:
@@ -60,16 +79,23 @@ def test_head_is_allowed_but_mutating_methods_are_rejected() -> None:
         "javascript:alert(1)",
     ],
 )
-def test_non_https_schemes_are_rejected(url: str) -> None:
+def test_non_https_schemes_are_rejected_before_dns(url: str) -> None:
+    preflight = InternetDestinationPolicy().preflight(
+        InternetDestinationIntent(url=url)
+    )
     decision = _decision(url)
 
+    assert preflight.disposition == "rejected"
     assert decision.disposition == "rejected"
     assert "unsupported-scheme" in {finding.rule_id for finding in decision.findings}
 
 
-def test_credential_bearing_urls_are_rejected() -> None:
-    decision = _decision("https://owner:secret@example.com/research")
+def test_credential_bearing_urls_are_rejected_before_dns() -> None:
+    url = "https://owner:secret@example.com/research"
+    preflight = InternetDestinationPolicy().preflight(InternetDestinationIntent(url=url))
+    decision = _decision(url)
 
+    assert preflight.disposition == "rejected"
     assert decision.disposition == "rejected"
     assert "url-credentials" in {finding.rule_id for finding in decision.findings}
 
@@ -86,11 +112,32 @@ def test_credential_bearing_urls_are_rejected() -> None:
         "metadata.google.internal",
     ],
 )
-def test_local_internal_and_container_hostnames_are_rejected(hostname: str) -> None:
-    decision = _decision(f"https://{hostname}/")
+def test_local_internal_and_container_hostnames_are_rejected_before_dns(
+    hostname: str,
+) -> None:
+    url = f"https://{hostname}/"
+    preflight = InternetDestinationPolicy().preflight(InternetDestinationIntent(url=url))
+    decision = _decision(url)
 
+    assert preflight.disposition == "rejected"
     assert decision.disposition == "rejected"
     assert "blocked-hostname" in {finding.rule_id for finding in decision.findings}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://exa mple.com/",
+        "https://bad_label.example/",
+        "https://-bad.example/",
+        "https://bad-.example/",
+    ],
+)
+def test_invalid_hostname_syntax_is_rejected_before_dns(url: str) -> None:
+    preflight = InternetDestinationPolicy().preflight(InternetDestinationIntent(url=url))
+
+    assert preflight.disposition == "rejected"
+    assert "invalid-hostname" in {finding.rule_id for finding in preflight.findings}
 
 
 @pytest.mark.parametrize(
@@ -135,9 +182,12 @@ def test_invalid_resolver_output_is_rejected() -> None:
     }
 
 
-def test_nonstandard_https_port_is_rejected() -> None:
-    decision = _decision("https://example.com:8443/research")
+def test_nonstandard_https_port_is_rejected_before_dns() -> None:
+    url = "https://example.com:8443/research"
+    preflight = InternetDestinationPolicy().preflight(InternetDestinationIntent(url=url))
+    decision = _decision(url)
 
+    assert preflight.disposition == "rejected"
     assert decision.disposition == "rejected"
     assert "unsupported-port" in {finding.rule_id for finding in decision.findings}
 
