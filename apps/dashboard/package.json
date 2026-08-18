@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:guardian-voice": "node scripts/check-guardian-voice.mjs && python3 -m compileall -q ../../platform/voice && PYTHONPATH=../../platform/voice python3 -m unittest discover -s ../../platform/voice/tests -v",
-    "test:research-workspace": "node scripts/check-research-workspace.mjs"
+    "test:research-workspace": "node scripts/check-research-workspace.mjs",
+    "test:research-operations": "node scripts/check-research-operations.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.26.0",
