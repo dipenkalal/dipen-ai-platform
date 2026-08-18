@@ -15,6 +15,9 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
         cls.contract_source = (
             cls.repo_root / "platform/backend/gateway/research_contract.py"
         ).read_text(encoding="utf-8")
+        cls.destination_source = (
+            cls.repo_root / "platform/backend/gateway/internet_destination_policy.py"
+        ).read_text(encoding="utf-8")
         cls.agent_registry_source = (
             cls.repo_root / "platform/backend/agents/registry.py"
         ).read_text(encoding="utf-8")
@@ -22,20 +25,29 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
             cls.repo_root / "platform/backend/tools/registry.py"
         ).read_text(encoding="utf-8")
 
-    def test_12a_and_12b_contracts_have_no_network_or_process_transport(self) -> None:
+    def test_phase12_contracts_have_no_network_or_process_transport(self) -> None:
         prohibited_imports = (
-            r"^import\s+(?:aiohttp|httpx|requests|socket|subprocess|urllib)",
-            r"^from\s+(?:aiohttp|httpx|requests|socket|subprocess|urllib)(?:\.|\s)",
+            r"^import\s+(?:aiohttp|httpx|requests|socket|subprocess)(?:\.|\s|$)",
+            r"^from\s+(?:aiohttp|httpx|requests|socket|subprocess)(?:\.|\s)",
+            r"^import\s+urllib\.request(?:\s|$)",
+            r"^from\s+urllib\.request(?:\s|\.)",
         )
         for source_name, source in (
-            ("policy", self.policy_source),
+            ("boundary policy", self.policy_source),
             ("request contract", self.contract_source),
+            ("destination policy", self.destination_source),
         ):
             for pattern in prohibited_imports:
                 self.assertIsNone(
                     re.search(pattern, source, flags=re.MULTILINE),
                     msg=f"Phase 12 {source_name} must remain transport-free: {pattern}",
                 )
+
+    def test_destination_policy_does_not_resolve_dns_or_open_sockets(self) -> None:
+        for token in ("getaddrinfo", "gethostbyname", "create_connection", "socket.socket"):
+            self.assertNotIn(token, self.destination_source)
+        self.assertIn("from urllib.parse import", self.destination_source)
+        self.assertIn("import ipaddress", self.destination_source)
 
     def test_phase12_contracts_have_no_privileged_control_plane_dependency(self) -> None:
         prohibited_tokens = (
@@ -48,7 +60,9 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
             "os.system(",
             "subprocess.",
         )
-        combined = (self.policy_source + "\n" + self.contract_source).lower()
+        combined = "\n".join(
+            (self.policy_source, self.contract_source, self.destination_source)
+        ).lower()
         for token in prohibited_tokens:
             self.assertNotIn(token, combined)
 
