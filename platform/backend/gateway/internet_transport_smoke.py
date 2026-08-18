@@ -5,10 +5,10 @@ import hashlib
 import ipaddress
 
 from gateway.internet_transport import (
+    TRANSPORT_ID,
     BoundedInternetRetriever,
     InternetTransportError,
     InternetTransportLimits,
-    TRANSPORT_ID,
 )
 
 SMOKE_URL = "https://example.com/"
