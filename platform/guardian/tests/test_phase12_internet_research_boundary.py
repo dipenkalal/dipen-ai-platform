@@ -84,8 +84,8 @@ class Phase12InternetResearchBoundaryTests(unittest.TestCase):
         self.assertIn('_ALLOWED_METHODS = frozenset({"GET", "HEAD"})', self.destination_source)
         self.assertIn("Accept-Encoding: identity", self.transport_source)
         self.assertIn("Connection: close", self.transport_source)
-        self.assertNotIn("headers: dict", self.transport_source)
         self.assertNotIn("request_headers", self.transport_source)
+        self.assertNotIn("extra_headers", self.transport_source)
 
     def test_transport_has_no_privileged_or_execution_control_dependency(self) -> None:
         prohibited_tokens = (
