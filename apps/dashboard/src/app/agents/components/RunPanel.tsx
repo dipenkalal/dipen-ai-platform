@@ -2,6 +2,7 @@
 
 import {
   CircleStop,
+  Globe2,
   LoaderCircle,
   Play,
   RotateCcw,
@@ -22,10 +23,12 @@ type RunPanelProps = {
   selectedAgentId: string;
   selectedModelId: string;
   objective: string;
+  researchSearchQuery: string;
   status: AgentRunStatus;
   isLoading?: boolean;
   onModeChange: (mode: AgentExecutionMode) => void;
   onObjectiveChange: (objective: string) => void;
+  onResearchSearchQueryChange: (query: string) => void;
   onModelChange: (modelId: string) => void;
   onRun: () => void;
   onCancel: () => void;
@@ -82,10 +85,12 @@ export default function RunPanel({
   selectedAgentId,
   selectedModelId,
   objective,
+  researchSearchQuery,
   status,
   isLoading = false,
   onModeChange,
   onObjectiveChange,
+  onResearchSearchQueryChange,
   onModelChange,
   onRun,
   onCancel,
@@ -96,6 +101,8 @@ export default function RunPanel({
   const availableModels = models.filter(isChatModel);
 
   const isRunning = status === "running";
+  const showResearchSearch =
+    mode === "manual" && selectedAgentId === "research-agent";
 
   const canRun =
     Boolean(selectedModelId) &&
@@ -187,6 +194,7 @@ export default function RunPanel({
             </button>
           </div>
         </div>
+
         <div>
           <label
             htmlFor="agent-objective"
@@ -200,7 +208,7 @@ export default function RunPanel({
             value={objective}
             disabled={isRunning || isLoading}
             onChange={(event) => onObjectiveChange(event.target.value)}
-            placeholder="Example: Check the current server health and explain any warnings."
+            placeholder="Example: Compare recent public evidence about a technology and cite the sources."
             rows={5}
             className={[
               "w-full resize-y rounded-xl border border-white/10 bg-black/20 px-4 py-3",
@@ -217,6 +225,53 @@ export default function RunPanel({
             <span>{objective.length} characters</span>
           </div>
         </div>
+
+        {showResearchSearch && (
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <Globe2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor="research-search-query"
+                  className="block text-sm font-medium text-emerald-100"
+                >
+                  Local web search · optional
+                </label>
+
+                <p className="mt-1 text-xs leading-5 text-emerald-100/60">
+                  Explicit owner-triggered search only. DAP queries the fixed local
+                  SearXNG provider at 127.0.0.1:8888, selects at most three candidate
+                  URLs, then sends those URLs through the sealed public-web retrieval
+                  and evidence pipeline. Provider titles and snippets never become
+                  evidence.
+                </p>
+
+                <input
+                  id="research-search-query"
+                  value={researchSearchQuery}
+                  maxLength={400}
+                  disabled={isRunning || isLoading}
+                  onChange={(event) =>
+                    onResearchSearchQueryChange(event.target.value)
+                  }
+                  placeholder="Example: latest Kubernetes release security changes"
+                  className={[
+                    "mt-3 w-full rounded-xl border border-emerald-400/20 bg-black/25 px-4 py-3",
+                    "text-sm text-white outline-none transition placeholder:text-slate-600",
+                    "focus:border-emerald-300/50 focus:ring-2 focus:ring-emerald-300/10",
+                    "disabled:cursor-not-allowed disabled:opacity-60",
+                  ].join(" ")}
+                />
+
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+                  <span>Leave blank to use indexed DAP Knowledge only.</span>
+                  <span>{researchSearchQuery.length}/400</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
