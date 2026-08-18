@@ -176,23 +176,29 @@ async def test_chunked_identity_body_is_decoded_within_ceiling() -> None:
     ("payload", "expected_code"),
     [
         (
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: application/octet-stream\r\n"
-            b"Content-Length: 0\r\n\r\n",
+            (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/octet-stream\r\n"
+                b"Content-Length: 0\r\n\r\n"
+            ),
             "content-type-unsupported",
         ),
         (
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: text/plain\r\n"
-            b"Content-Encoding: gzip\r\n"
-            b"Content-Length: 0\r\n\r\n",
+            (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/plain\r\n"
+                b"Content-Encoding: gzip\r\n"
+                b"Content-Length: 0\r\n\r\n"
+            ),
             "content-encoding-unsupported",
         ),
         (
-            b"HTTP/1.1 200 OK\r\n"
-            b"Content-Type: text/plain\r\n"
-            b"Transfer-Encoding: chunked\r\n"
-            b"Content-Length: 5\r\n\r\n",
+            (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/plain\r\n"
+                b"Transfer-Encoding: chunked\r\n"
+                b"Content-Length: 5\r\n\r\n"
+            ),
             "response-framing-ambiguous",
         ),
     ],
