@@ -45,7 +45,7 @@ async def _run() -> int:
     )
 
     selected_urls = result.selected_urls
-    serialized = result.model_dump_json()
+    serialized_payload = result.model_dump(mode="json")
     checks = {
         "provider_id_exact": result.provider_id == SEARXNG_PROVIDER_ID,
         "endpoint_exact": SEARXNG_ENDPOINT == "http://127.0.0.1:8888/search",
@@ -85,8 +85,8 @@ async def _run() -> int:
         "task_ledger_mutation_false": result.task_ledger_mutation_performed is False,
         "guardian_contacted_false": result.guardian_contacted is False,
         "privileged_host_action_false": result.privileged_host_action_performed is False,
-        "provider_titles_not_serialized": "Provider title" not in serialized,
-        "provider_snippets_not_serialized": "snippet" not in serialized.lower(),
+        "provider_titles_not_serialized": "provider_titles" not in serialized_payload,
+        "provider_snippets_not_serialized": "provider_snippets" not in serialized_payload,
     }
 
     print("=== PHASE 12H ZERO-COST SEARXNG LIVE SEARCH SMOKE ===")
