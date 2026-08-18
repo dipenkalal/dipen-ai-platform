@@ -12,6 +12,7 @@ from gateway.internet_transport import (
 )
 
 SMOKE_URL = "https://example.com/"
+BLOCKED_LOCALHOST_URL = "https://localhost/"
 BLOCKED_LOOPBACK_URL = "https://127.0.0.1/"
 SMOKE_LIMITS = InternetTransportLimits(
     dns_timeout_seconds=5.0,
@@ -37,6 +38,17 @@ def _is_public_address(value: str) -> bool:
             address.is_unspecified,
         )
     )
+
+
+async def _rejection_code(
+    retriever: BoundedInternetRetriever,
+    url: str,
+) -> str:
+    try:
+        await retriever.retrieve(url, method="GET")
+    except InternetTransportError as exc:
+        return exc.code
+    return "none"
 
 
 async def _run_smoke() -> int:
@@ -67,14 +79,14 @@ async def _run_smoke() -> int:
         "privileged_host_action_false": not result.privileged_host_action_performed,
     }
 
-    blocked_loopback_code = "none"
-    try:
-        await retriever.retrieve(BLOCKED_LOOPBACK_URL, method="GET")
-    except InternetTransportError as exc:
-        blocked_loopback_code = exc.code
+    blocked_localhost_code = await _rejection_code(retriever, BLOCKED_LOCALHOST_URL)
+    blocked_loopback_code = await _rejection_code(retriever, BLOCKED_LOOPBACK_URL)
 
-    checks["loopback_rejected_pre_dns"] = (
-        blocked_loopback_code == "destination-preflight-rejected"
+    checks["localhost_rejected_pre_dns"] = (
+        blocked_localhost_code == "destination-preflight-rejected"
+    )
+    checks["loopback_literal_rejected_before_fetch"] = (
+        blocked_loopback_code == "destination-addresses-rejected"
     )
 
     print("=== PHASE 12D LIVE PUBLIC FETCH SMOKE ===")
@@ -90,6 +102,7 @@ async def _run_smoke() -> int:
         print(f"hop_{index}_connected_address|{hop.connected_address}")
         print(f"hop_{index}_address_admitted|{hop.connected_address in hop.approved_addresses}")
         print(f"hop_{index}_address_public|{_is_public_address(hop.connected_address)}")
+    print(f"blocked_localhost_code|{blocked_localhost_code}")
     print(f"blocked_loopback_code|{blocked_loopback_code}")
     for name, passed in checks.items():
         print(f"check|{name}|{str(passed).lower()}")
