@@ -3,11 +3,13 @@ FROM node:24-alpine AS dependencies
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm config set fetch-retries 5 \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
     && npm config set fetch-timeout 600000 \
-    && npm ci --no-audit --no-fund
+    && npm config set maxsockets 3 \
+    && npm ci --no-audit --no-fund --prefer-offline
 
 
 FROM node:24-alpine AS builder
