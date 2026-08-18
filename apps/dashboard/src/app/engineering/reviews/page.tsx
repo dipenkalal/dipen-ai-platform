@@ -64,8 +64,34 @@ export default function EngineeringReviewsPage() {
   }, []);
 
   useEffect(() => {
-    void loadReviews();
-  }, [loadReviews]);
+    let cancelled = false;
+
+    void fetchEngineeringReviews()
+      .then((response) => {
+        if (!cancelled) {
+          setData(response);
+          setError(null);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load engineering reviews.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submitDecision(
     view: EngineeringOwnerReviewView,
