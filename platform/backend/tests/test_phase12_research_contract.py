@@ -9,7 +9,7 @@ from gateway.research_contract import (
 )
 
 
-def test_source_registry_is_static_and_network_sources_are_disabled() -> None:
+def test_source_registry_promotes_only_bounded_public_web_execution() -> None:
     sources = research_source_registry.list()
 
     assert tuple(source.source_id for source in sources) == (
@@ -23,9 +23,9 @@ def test_source_registry_is_static_and_network_sources_are_disabled() -> None:
 
     public_web = research_source_registry.get("public_web")
     assert public_web.provider_id == "dap-public-http"
-    assert public_web.tool_id is None
+    assert public_web.tool_id == "internet.research.retrieve"
     assert public_web.network_required is True
-    assert public_web.execution_enabled is False
+    assert public_web.execution_enabled is True
     assert public_web.untrusted_content is True
 
     web_search = research_source_registry.get("web_search")
@@ -65,7 +65,7 @@ def test_research_request_identity_is_deterministic() -> None:
     assert first.source_registry_sha256 == research_source_registry.snapshot_sha256()
 
 
-def test_research_request_can_express_web_intent_without_network_authority() -> None:
+def test_research_request_can_express_web_intent_without_itself_granting_network_authority() -> None:
     request = ResearchRequestFactory().build(
         ResearchRequestIntent(
             objective="Research the public web for a harmless topic.",
