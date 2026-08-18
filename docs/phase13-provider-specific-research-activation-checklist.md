@@ -14,11 +14,13 @@
 - [x] No generic search tool is registered.
 - [x] Owner dashboard control appears only for manual Research Agent.
 - [x] Dedicated backend, Guardian, dashboard, and Phase 12 regression gates added.
-- [ ] Dedicated Phase 13 CI green.
-- [ ] Repository-wide CI/regressions green.
-- [ ] Acer backend activation + dashboard deployment proof.
-- [ ] Live manual SearXNG Research Agent run passes.
-- [ ] Smart/non-Research rejection proofs pass live.
-- [ ] Research evidence appears read-only in `/research`.
-- [ ] Final production invariants unchanged except expected immutable evidence/run-history additions.
-- [ ] Phase 13 PR merged after live proof.
+- [x] Dedicated Phase 13 CI green.
+- [x] Repository-wide CI/regressions green.
+- [x] Acer backend activation + dashboard deployment proof.
+- [x] Live manual SearXNG Research Agent run passes.
+- [x] Smart/non-Research rejection proofs pass live.
+- [x] Research evidence appears read-only in `/research`.
+- [x] Final production invariants preserved, with only expected immutable retrieval evidence and one normal instrumented agent task added.
+- [x] Live run-to-task correlation proves the single ledger delta belongs to the completed Research Agent run.
+- [x] Resume closure proves no duplicate Research Agent run or duplicate evidence was created.
+- [ ] Phase 13 PR merged after final evidence/documentation checkpoint is CI-green.
