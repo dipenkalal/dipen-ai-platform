@@ -23,17 +23,31 @@ class Phase11ReadinessEvidence(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    benchmark_report_sha256: Literal[
-        "d34293353519f2fb8ae1803e308a965cc35cbab29f820794290467c41ed229fd"
-    ] = PHASE11H_BENCHMARK_REPORT_SHA256
-    positive_completion_rate: Literal[0.75] = PHASE11H_POSITIVE_COMPLETION_RATE
-    path_compliance_rate: Literal[1.0] = PHASE11H_PATH_COMPLIANCE_RATE
-    evidence_completeness_rate: Literal[1.0] = PHASE11H_EVIDENCE_COMPLETENESS_RATE
+    benchmark_report_sha256: str = Field(
+        default=PHASE11H_BENCHMARK_REPORT_SHA256,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    positive_completion_rate: float = Field(
+        default=PHASE11H_POSITIVE_COMPLETION_RATE,
+        ge=0.0,
+        le=1.0,
+    )
+    path_compliance_rate: float = Field(
+        default=PHASE11H_PATH_COMPLIANCE_RATE,
+        ge=0.0,
+        le=1.0,
+    )
+    evidence_completeness_rate: float = Field(
+        default=PHASE11H_EVIDENCE_COMPLETENESS_RATE,
+        ge=0.0,
+        le=1.0,
+    )
     failure_recovery_passed: Literal[True] = True
     structured_json_timed_out: Literal[True] = True
-    owner_review_smoke_source_sha: Literal[
-        "9d55ef80d4764758c94fb37c8d474f0218734b4f"
-    ] = PHASE11I_RUNTIME_SMOKE_SOURCE_SHA
+    owner_review_smoke_source_sha: str = Field(
+        default=PHASE11I_RUNTIME_SMOKE_SOURCE_SHA,
+        pattern=r"^[0-9a-f]{40}$",
+    )
     owner_review_smoke_passed: Literal[True] = True
     owner_review_conflict_failed_closed: Literal[True] = True
     production_truth_mutated_by_smoke: Literal[False] = False
