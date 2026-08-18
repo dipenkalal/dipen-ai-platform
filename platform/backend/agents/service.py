@@ -3,8 +3,8 @@ from collections.abc import AsyncIterator
 
 from fastapi import HTTPException
 
-from agents.research_executor import research_enabled_agent_executor as agent_executor
 from agents.registry import agent_registry
+from agents.research_executor import research_enabled_agent_executor as agent_executor
 from agents.router import AgentRoute, agent_router
 from agents.runtime import instrumented_agent_executor
 from agents.schemas import (
@@ -185,9 +185,9 @@ class AgentService:
                             "model": route.model,
                             "confidence": (route.confidence),
                             "reason": route.reason,
-                            "matched_terms": (route.matched_terms),
-                            "candidate_scores": (route.candidate_scores),
-                            "routing_latency_ms": (route.routing_latency_ms),
+                            "matched_terms": route.matched_terms,
+                            "candidate_scores": route.candidate_scores,
+                            "routing_latency_ms": route.routing_latency_ms,
                         },
                         default=str,
                     )
