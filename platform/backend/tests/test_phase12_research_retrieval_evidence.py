@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import pytest
 
 from gateway.internet_transport import InternetRetrievalHop, InternetRetrievalResult
-from gateway.research_contract import ResearchRequestIntent, ResearchRequestFactory
+from gateway.research_contract import ResearchRequestFactory, ResearchRequestIntent
 from gateway.research_retrieval_evidence import ResearchRetrievalEvidenceFactory
 from gateway.untrusted_internet_content import UntrustedInternetContentNormalizer
 
@@ -204,6 +204,7 @@ def test_success_rejects_content_from_different_final_url() -> None:
 
 
 def test_naive_timestamp_is_rejected() -> None:
+    naive_timestamp = OBSERVED_AT.replace(tzinfo=None)
     with pytest.raises(ValueError, match="timezone-aware"):
         ResearchRetrievalEvidenceFactory().build_failure(
             request=_request(),
@@ -212,5 +213,5 @@ def test_naive_timestamp_is_rejected() -> None:
             stage="connect",
             error_code="connect-timeout",
             error_detail="Timed out.",
-            observed_at=datetime(2026, 8, 18, 2, 0),
+            observed_at=naive_timestamp,
         )
