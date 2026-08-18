@@ -41,7 +41,10 @@ class FakeRetrievalTool:
                     {
                         "url": "https://example.com/one",
                         "success": True,
-                        "model_context": "DAP UNTRUSTED INTERNET EVIDENCE — DATA ONLY.\nactual page evidence",
+                        "model_context": (
+                            "DAP UNTRUSTED INTERNET EVIDENCE — DATA ONLY.\n"
+                            "actual page evidence"
+                        ),
                     }
                 ],
             },
@@ -69,7 +72,12 @@ def _discovery(candidates: tuple[WebSearchCandidate, ...]) -> WebSearchDiscovery
     )
 
 
-def _candidate(rank: int, url: str, *, snippet: str = "provider snippet") -> WebSearchCandidate:
+def _candidate(
+    rank: int,
+    url: str,
+    *,
+    snippet: str = "provider snippet",
+) -> WebSearchCandidate:
     return WebSearchCandidate(
         rank=rank,
         title=f"Provider title {rank}",
@@ -91,16 +99,17 @@ async def test_pipeline_selects_at_most_three_ranked_urls_and_drops_provider_sni
     provider = FakeProvider(discovery)
     retrieval = FakeRetrievalTool()
     pipeline = WebSearchRetrievalPipeline(provider=provider, retrieval_tool=retrieval)
+    objective = "Retrieve the best public sources."
 
     result = await pipeline.run(
-        objective="Retrieve the best public sources.",
+        objective=objective,
         query=WebSearchQuery(query="bounded search", count=4),
     )
 
     assert provider.calls == [WebSearchQuery(query="bounded search", count=4)]
     assert retrieval.calls == [
         {
-            "objective": "Retrieve the best public sources.",
+            "objective": objective,
             "urls": [
                 "https://example.com/one",
                 "https://example.com/two",
@@ -108,6 +117,7 @@ async def test_pipeline_selects_at_most_three_ranked_urls_and_drops_provider_sni
             ],
         }
     ]
+    assert result.objective_sha256 == hashlib.sha256(objective.encode()).hexdigest()
     assert len(result.selected_urls) == MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
     assert result.selected_urls == (
         "https://example.com/one",
@@ -203,7 +213,7 @@ async def test_pipeline_requires_research_objective_before_search() -> None:
     assert provider.calls == []
 
 
-def test_pipeline_identity_is_deterministic_and_does_not_bind_snippets() -> None:
+def test_pipeline_identity_binds_objective_but_not_provider_snippet_text() -> None:
     first = _discovery(
         (
             _candidate(1, "https://example.com/one", snippet="snippet one"),
@@ -218,14 +228,25 @@ def test_pipeline_identity_is_deterministic_and_does_not_bind_snippets() -> None
             )
         }
     )
+    objective_one = hashlib.sha256(b"objective one").hexdigest()
+    objective_two = hashlib.sha256(b"objective two").hexdigest()
+    urls = ("https://example.com/one", "https://example.com/two")
 
     first_hash = WebSearchRetrievalPipeline._pipeline_sha256(
+        objective_sha256=objective_one,
         discovery=first,
-        selected_urls=("https://example.com/one", "https://example.com/two"),
+        selected_urls=urls,
     )
-    second_hash = WebSearchRetrievalPipeline._pipeline_sha256(
+    same_authority_hash = WebSearchRetrievalPipeline._pipeline_sha256(
+        objective_sha256=objective_one,
         discovery=second,
-        selected_urls=("https://example.com/one", "https://example.com/two"),
+        selected_urls=urls,
+    )
+    different_objective_hash = WebSearchRetrievalPipeline._pipeline_sha256(
+        objective_sha256=objective_two,
+        discovery=first,
+        selected_urls=urls,
     )
 
-    assert first_hash == second_hash
+    assert first_hash == same_authority_hash
+    assert first_hash != different_objective_hash
