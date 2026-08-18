@@ -1,0 +1,24 @@
+# Phase 13 Provider-Specific Research Activation — Gate Checklist
+
+- [x] Phase 12 merged and remains sealed.
+- [x] Activation isolated on `phase13/provider-specific-research-activation`.
+- [x] Request contract adds bounded `research_search_query`.
+- [x] Explicit URLs and search query are mutually exclusive.
+- [x] Search query is manual Research Agent only.
+- [x] Smart routing cannot trigger search discovery.
+- [x] Supplemental attachment/context cannot be combined with search discovery.
+- [x] Search provider is fixed local `searxng-local-v1`.
+- [x] Candidate selection stays capped by the sealed search pipeline at three URLs.
+- [x] Candidate URLs still require full DAP retrieval/admission.
+- [x] Provider titles/snippets remain non-evidence and out of model context.
+- [x] No generic search tool is registered.
+- [x] Owner dashboard control appears only for manual Research Agent.
+- [x] Dedicated backend, Guardian, dashboard, and Phase 12 regression gates added.
+- [ ] Dedicated Phase 13 CI green.
+- [ ] Repository-wide CI/regressions green.
+- [ ] Acer backend activation + dashboard deployment proof.
+- [ ] Live manual SearXNG Research Agent run passes.
+- [ ] Smart/non-Research rejection proofs pass live.
+- [ ] Research evidence appears read-only in `/research`.
+- [ ] Final production invariants unchanged except expected immutable evidence/run-history additions.
+- [ ] Phase 13 PR merged after live proof.
