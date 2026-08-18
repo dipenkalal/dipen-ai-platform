@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Activity,
   ArrowRight,
   Ban,
   CheckCircle2,
@@ -137,6 +138,14 @@ export default function ResearchPage() {
                 <ShieldCheck className="h-4 w-4" />
                 Read only
               </span>
+
+              <Link
+                href="/research/operations"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+              >
+                <Activity className="h-4 w-4" />
+                Operations
+              </Link>
 
               <button
                 type="button"
