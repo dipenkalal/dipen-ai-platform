@@ -11,7 +11,10 @@ from urllib.parse import urlencode
 from pydantic import BaseModel, ConfigDict, Field
 
 from agents.cancellation import raise_if_current_cancellation_requested
-from gateway.internet_destination_policy import InternetDestinationIntent, InternetDestinationPolicy
+from gateway.internet_destination_policy import (
+    InternetDestinationIntent,
+    InternetDestinationPolicy,
+)
 from gateway.internet_transport import InternetTransportLimits, PinnedHTTPSFetcher
 from gateway.web_search_provider import WebSearchCandidate, WebSearchQuery
 
