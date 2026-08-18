@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from time import perf_counter
 from typing import Any
 
-from agents.executor import AgentExecutor, RESEARCH_AGENT_PROMPT
+from agents.executor import RESEARCH_AGENT_PROMPT, AgentExecutor
 from agents.schemas import AgentDefinition, AgentRunRequest, AgentRunResponse, AgentStep
 from tools.registry import tool_registry
 
