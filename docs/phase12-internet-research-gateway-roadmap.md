@@ -1,6 +1,6 @@
 # Phase 12 — DAP Internet / Research Capability Gateway
 
-Status: **IN PROGRESS — 12A–12H SEALED; 12I NEXT**
+Status: **IN PROGRESS — 12A–12I SEALED; 12J NEXT**
 
 Branch: `phase12/internet-research-gateway`
 
@@ -24,12 +24,12 @@ Phase 12 does not authorize arbitrary browsing, autonomous account actions, arbi
 - 12F — Citation + retrieval evidence persistence: **COMPLETE / SEALED**
 - 12G — Research Agent integration: **COMPLETE / SEALED**
 - 12H — Search/provider adapters: **COMPLETE / SEALED — ZERO-COST SEARXNG ACER LIVE PROOF PASSED**
-- 12I — Dashboard Research workspace: **NEXT / PENDING**
-- 12J — Empirical benchmark + production-readiness decision: **PENDING**
+- 12I — Dashboard Research workspace: **COMPLETE / SEALED — ACER LIVE PROOF PASSED**
+- 12J — Empirical benchmark + production-readiness decision: **NEXT / PENDING**
 
 ## Current sealed capability checkpoint
 
-12A–12H establish these live invariants:
+12A–12I establish these live invariants:
 
 - DAP remains the sole task/policy/credential/privilege authority.
 - Public-web URLs enter through the inbound DAP/owner `AgentRunRequest.research_urls` field, bounded to at most three explicit URLs.
@@ -45,6 +45,9 @@ Phase 12 does not authorize arbitrary browsing, autonomous account actions, arbi
 - Search candidates are URL-discovery input only; provider titles/snippets are not retrieval evidence and are not forwarded into the model evidence path.
 - Candidate URLs must still pass the complete sealed DAP public retrieval/evidence pipeline before becoming research evidence.
 - No paid search-provider credential is configured or required for the selected runtime path.
+- The owner dashboard exposes read-only Research evidence inspection through `/research` and GET-only API proxies.
+- Dashboard provenance explicitly distinguishes Internet Evidence from Knowledge.
+- Dashboard-side network authority, Knowledge mutation, task mutation, arbitrary URL fetching, Guardian/root/systemd actions, and search-provider credentials remain disabled.
 - No generic HTTP/socket client, browser session, cookie jar, provider credential, Guardian/root/systemd surface, MCP/plugin runtime, merge, release, or deployment authority is exposed to the Research Agent.
 
 ## 12H — Search/provider adapters — sealed
@@ -131,29 +134,65 @@ Detailed evidence: `docs/phase12h-searxng-live-evidence-2026-08-18.md`.
 
 Search discovery is **not registered as additional live Research Agent authority yet**.
 
-The zero-cost runtime and search→retrieval boundary are proven, but activation is deliberately deferred while 12I adds owner-visible inspection and 12J performs empirical production-readiness benchmarking. This preserves least authority without blocking Phase 12 progress.
+The zero-cost runtime and search→retrieval boundary are proven, but activation remains deliberately deferred until 12J performs empirical production-readiness benchmarking. This preserves least authority without blocking Phase 12 progress.
 
-## 12I — Dashboard Research workspace
+## 12I — Dashboard Research workspace — sealed
 
-Status: **NEXT / PENDING**
+Status: **COMPLETE / SEALED — ACER LIVE PROOF PASSED**
 
-Expose read-only research evidence:
+The owner-facing Research workspace now exposes read-only retrieval evidence with:
 
-- objective/request identity;
-- queried/retrieved sources;
-- citations;
+- objective/request identity and correlated Research Agent history;
+- queried/retrieved source URLs;
+- DAP-owned citations;
 - retrieval status and policy state;
 - content hashes and timestamps;
 - failures/cancellations;
-- provenance distinguishing Knowledge from internet evidence.
+- admission hops and prompt-injection findings;
+- provenance explicitly distinguishing Internet Evidence from Knowledge.
 
-The workspace must remain an inspection surface only. It must not gain UI-side network authority, search-provider credentials, arbitrary URL fetching, Guardian/root/systemd actions, or a second source of canonical task truth.
+The dashboard surface remains inspection-only:
 
-Exit: owner can inspect what DAP retrieved and why it admitted the transport, without UI-side network authority.
+- `GET /api/v1/research/evidence` and `GET /api/v1/research/evidence/{evidence_id}` are the backend read surface;
+- dashboard API proxies are GET-only;
+- `POST /api/research/evidence` is rejected with HTTP 405;
+- UI network authority is disabled;
+- UI mutation authority is disabled;
+- search candidate metadata is not exposed as evidence;
+- Knowledge mutation remains disabled;
+- no arbitrary URL fetching, SearXNG credentials, Guardian/root/systemd action, or second task-truth source was introduced.
+
+### 12I live exit evidence
+
+On 2026-08-18, the Acer dashboard gate passed against code checkpoint `83d5367667c822f0c5a7a52d28d5aa4ce2eb3b95`.
+
+Key proof:
+
+- backend Phase 12I activation succeeded with controlled MainPID change from `2856` to `396016`;
+- Research evidence API changed from pre-restart HTTP 404 to HTTP 200;
+- workspace mode is `read_only`;
+- `network_authority_granted=false`;
+- `mutation_authority_granted=false`;
+- `search_candidate_metadata_included=false`;
+- dashboard `/research` returned HTTP 200 and rendered the live Research workspace;
+- dashboard GET proxy returned HTTP 200 with valid read-only JSON;
+- dashboard POST proxy boundary returned HTTP 405;
+- task ledger remained `11`;
+- backend MainPID remained `396016` during dashboard deployment;
+- backend remained active;
+- Guardian remained inactive;
+- `DAP_TELEGRAM_APPROVALS_ENABLED=false` remained unchanged;
+- SearXNG remained healthy on loopback with HTTP 200.
+
+The dashboard build path was also hardened after unstable Acer-to-npm bulk transfers exposed two build-only network failures. The tracked `.dockerignore` reduced build context from about 840.56 MB to about 11.58 KB, and the final Next.js application build succeeded with networking explicitly disabled before packaging a minimal runtime image.
+
+Detailed evidence: `docs/phase12i-research-workspace-live-evidence-2026-08-18.md`.
+
+Exit: the owner can inspect what DAP retrieved and why it admitted the transport without UI-side network or mutation authority.
 
 ## 12J — Empirical benchmark + production-readiness decision
 
-Status: **PENDING AFTER 12I**
+Status: **NEXT / PENDING**
 
 Benchmark harmless public research tasks for retrieval/search success, citation/source correctness, SSRF rejection, redirect-policy accuracy, prompt-injection resistance, latency/resource cost, failure recovery, and evidence completeness.
 
@@ -163,12 +202,11 @@ No Phase 12 outcome grants privileged host access, arbitrary network access, aut
 
 ## Remaining Phase 12 milestones
 
-From the sealed 12H checkpoint, two top-level gates remain:
+From the sealed 12I checkpoint, one top-level gate remains:
 
-1. **12I — Dashboard Research workspace**;
-2. **12J — Empirical benchmark + production-readiness decision**.
+1. **12J — Empirical benchmark + production-readiness decision**.
 
-Phase 12 completes only after both gates are sealed and the final activation posture is recorded.
+Phase 12 completes only after 12J is sealed and the final activation posture is recorded.
 
 ## Safety invariants
 
