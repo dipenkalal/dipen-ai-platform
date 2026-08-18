@@ -7,7 +7,11 @@ from typing import Any
 import pytest
 
 from agents.cancellation import CooperativeCancellationRequested
-from gateway.internet_transport import InternetRetrievalHop, InternetRetrievalResult, InternetTransportError
+from gateway.internet_transport import (
+    InternetRetrievalHop,
+    InternetRetrievalResult,
+    InternetTransportError,
+)
 from gateway.research_retrieval_repository import PersistedResearchRetrievalRecord
 from tools.internet_research_tools import (
     MAX_EXPLICIT_RESEARCH_URLS,
