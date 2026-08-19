@@ -1,12 +1,16 @@
 # Phase 15.1 — Research UI and Data Hygiene
 
-Status: **COMPLETE / SEALED — ACER LIVE PROOF PASSED; MERGE PENDING OWNER AUTHORIZATION**
+Status: **COMPLETE / SEALED / MERGED**
 
 Base: Phase 15 merge commit `1a79e3a1e04cb9d372f69c8f2630fc3f007a7830`.
 
 Branch: `maintenance/phase15-1-research-ui-data-hygiene`.
 
 CI-green/live-validation source checkpoint: `abe0bbd9d407a83306513d79575054931ce74842`.
+
+Final documentation/CI head: `0a49cb79c457d1c3b909dca1f34c663e9c25fecb`.
+
+PR #70 merge commit: `d47c11166f5e52b2067f8804deeb75ffa048c1fb`.
 
 ## Purpose
 
@@ -107,4 +111,8 @@ Detailed evidence: `docs/phase15-1-live-evidence-2026-08-19.md`.
 
 ## Exit state
 
-Phase 15.1 engineering and live-validation gates are complete. Phase 16 remains frozen until this maintenance PR is merged under explicit owner authorization.
+Phase 15.1 engineering, live-validation, final CI, and merge gates are complete. PR #70 is merged into `main` at `d47c11166f5e52b2067f8804deeb75ffa048c1fb`.
+
+The remaining known research-system issue is provider quality measured in Phase 15: low query coverage / high no-candidate rate and high retrieval tail latency. That work belongs to Phase 16 and does not require an authority expansion.
+
+Phase 16 may begin from `main` after the post-merge documentation bookkeeping is sealed and the Acer source checkout is returned to `main`.
