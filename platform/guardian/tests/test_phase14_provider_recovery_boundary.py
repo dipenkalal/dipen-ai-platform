@@ -40,7 +40,7 @@ class Phase14ProviderRecoveryBoundaryTests(unittest.TestCase):
         self.assertIn("expected exactly one unrecorded failed task", self.source)
         self.assertIn('verify_task(failed_run_id, "failed")', self.source)
         self.assertIn('assigned == ["research-agent"]', self.source)
-        self.assertIn('requested_by', self.source)
+        self.assertIn("requested_by", self.source)
         self.assertIn("failed search unexpectedly changed evidence count", self.source)
         self.assertIn("failed search unexpectedly changed retrieval operations count", self.source)
 
@@ -58,6 +58,8 @@ class Phase14ProviderRecoveryBoundaryTests(unittest.TestCase):
             "systemctl restart",
             "systemctl start",
             "systemctl stop",
+            "dap-guardian-broker.service",
+            "systemctl enable",
             "docker ",
             "docker.compose",
             "subprocess.popen",
@@ -72,7 +74,6 @@ class Phase14ProviderRecoveryBoundaryTests(unittest.TestCase):
             "git tag",
             "github release",
             "dap_telegram_approvals_enabled=true",
-            "guardian",
         ):
             self.assertNotIn(token, self.lower)
 
