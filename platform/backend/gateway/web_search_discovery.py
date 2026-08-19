@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from gateway.research_source_quality import (
     SOURCE_SELECTION_POLICY_ID,
     ResearchSourceSelectionResult,
+    canonical_source_family,
     select_source_diverse_candidates,
 )
 from gateway.searxng_search_provider import SearXNGWebSearchProvider
@@ -199,18 +200,40 @@ class WebSearchRetrievalPipeline:
         *,
         objective_sha256: str,
         discovery: WebSearchDiscoveryProtocol,
-        selection: ResearchSourceSelectionResult,
+        selection: ResearchSourceSelectionResult | None = None,
+        selected_urls: tuple[str, ...] | None = None,
     ) -> str:
+        """Bind live Phase 14 selection metadata while accepting the sealed Phase 12 helper call."""
+
+        if selection is not None and selected_urls is not None:
+            raise ValueError("pipeline identity accepts selection or selected_urls, not both")
+        if selection is None and selected_urls is None:
+            raise ValueError("pipeline identity requires selected source URLs")
+
+        if selection is not None:
+            selected_url_values = selection.selected_urls
+            selection_policy_id = selection.policy_id
+            selected_source_families = selection.selected_source_families
+            selected_quality_scores = selection.selected_quality_scores
+        else:
+            assert selected_urls is not None
+            selected_url_values = selected_urls
+            selection_policy_id = "phase12-selected-urls-compat-v1"
+            selected_source_families = tuple(
+                canonical_source_family(url) for url in selected_urls
+            )
+            selected_quality_scores = ()
+
         payload = {
             "objective_sha256": objective_sha256,
             "provider_id": discovery.provider_id,
             "discovery_id": discovery.discovery_id,
             "discovery_sha256": discovery.discovery_sha256,
             "query": discovery.query,
-            "source_selection_policy_id": selection.policy_id,
-            "selected_urls": list(selection.selected_urls),
-            "selected_source_families": list(selection.selected_source_families),
-            "selected_quality_scores": list(selection.selected_quality_scores),
+            "source_selection_policy_id": selection_policy_id,
+            "selected_urls": list(selected_url_values),
+            "selected_source_families": list(selected_source_families),
+            "selected_quality_scores": list(selected_quality_scores),
             "retrieval_tool_id": "internet.research.retrieve",
         }
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
