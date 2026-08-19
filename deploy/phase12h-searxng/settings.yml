@@ -3,7 +3,6 @@ use_default_settings:
     keep_only:
       - google
       - bing
-      - qwant
       - mojeek
       - wikipedia
       - wiby
@@ -12,8 +11,6 @@ engines:
   - name: google
     disabled: false
   - name: bing
-    disabled: false
-  - name: qwant
     disabled: false
   - name: mojeek
     disabled: false
