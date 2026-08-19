@@ -28,6 +28,7 @@ import {
 import {
   fetchResearchOperations,
   fetchResearchProviderHealth,
+  fetchResearchProviderReadiness,
   fetchResearchResourceSnapshot,
   fetchResearchRetentionPlan,
 } from "../api";
@@ -37,11 +38,16 @@ import type {
 import type {
   ResearchOperationsSummary,
   ResearchProviderHealth,
+  ResearchProviderReadiness,
   ResearchRetentionPlan,
 } from "../types";
 
 function percent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function optionalPercent(value: number | null): string {
+  return value === null ? "Pending live corpus" : percent(value);
 }
 
 function milliseconds(value: number | null): string {
@@ -66,11 +72,28 @@ function postureLabel(
   return "Insufficient data";
 }
 
+function readinessLabel(
+  state: ResearchProviderReadiness["state"],
+): string {
+  if (state === "healthy") {
+    return "Target met";
+  }
+  if (state === "degraded") {
+    return "Degraded";
+  }
+  if (state === "unavailable") {
+    return "Unavailable";
+  }
+  return "Live corpus pending";
+}
+
 export default function ResearchOperationsPage() {
   const [summary, setSummary] =
     useState<ResearchOperationsSummary | null>(null);
   const [health, setHealth] =
     useState<ResearchProviderHealth | null>(null);
+  const [readiness, setReadiness] =
+    useState<ResearchProviderReadiness | null>(null);
   const [resources, setResources] =
     useState<ResearchResourceSnapshot | null>(null);
   const [retention, setRetention] =
@@ -87,16 +110,19 @@ export default function ResearchOperationsPage() {
       const [
         nextSummary,
         nextHealth,
+        nextReadiness,
         nextResources,
         nextRetention,
       ] = await Promise.all([
         fetchResearchOperations(),
         fetchResearchProviderHealth(),
+        fetchResearchProviderReadiness(),
         fetchResearchResourceSnapshot(),
         fetchResearchRetentionPlan(),
       ]);
       setSummary(nextSummary);
       setHealth(nextHealth);
+      setReadiness(nextReadiness);
       setResources(nextResources);
       setRetention(nextRetention);
     } catch (loadError) {
@@ -197,6 +223,48 @@ export default function ResearchOperationsPage() {
             </p>
             <p className="mt-1 text-xs text-slate-500">{health ? milliseconds(health.latency_ms) : ""}</p>
           </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-violet-300/15 bg-violet-300/[0.04] p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-violet-200">
+                <Activity className="h-4 w-4" />
+                <h2 className="text-sm font-semibold uppercase tracking-[0.16em]">Phase 15 provider readiness</h2>
+              </div>
+              <p className="mt-3 text-2xl font-semibold">
+                {readiness ? readinessLabel(readiness.state) : "—"}
+              </p>
+              <p className="mt-2 max-w-3xl text-sm text-slate-400">
+                The 30-case live corpus is the readiness gate. Until its hashed report exists, this panel stays insufficient-data rather than treating older operational evidence as a Phase 15 pass.
+              </p>
+            </div>
+            <span className="rounded-full border border-violet-300/20 bg-violet-300/[0.07] px-3 py-2 text-xs font-semibold text-violet-200">
+              Live corpus: {readiness?.live_corpus_status ?? "—"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Metric label="Query coverage" value={readiness ? optionalPercent(readiness.query_coverage_rate) : "—"} />
+            <Metric label="No candidate" value={readiness ? optionalPercent(readiness.no_candidate_rate) : "—"} />
+            <Metric label="Unique families" value={readiness ? optionalPercent(readiness.selected_unique_source_family_rate) : "—"} />
+            <Metric label="Duplicate content" value={readiness ? optionalPercent(readiness.duplicate_content_rate) : "—"} />
+            <Metric label="Retrieval P95" value={milliseconds(readiness?.retrieval_source_p95_ms ?? null)} />
+          </div>
+
+          {readiness?.reason_codes.length ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {readiness.reason_codes.map((reason) => (
+                <span key={reason} className="rounded-full border border-amber-300/15 bg-amber-300/[0.05] px-3 py-1 text-xs text-amber-200">
+                  {reason}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <p className="mt-4 text-xs text-slate-500">
+            Targets: ≥95% query coverage, ≤5% no-candidate, ≥80% unique-source-family rate, ≤20% duplicate-content rate, retrieval P95 ≤1.5 s. Smart-routing research remains disabled regardless of this panel.
+          </p>
         </section>
 
         <section className="mt-6 grid gap-4 lg:grid-cols-3">

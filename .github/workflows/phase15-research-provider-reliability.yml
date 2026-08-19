@@ -1,0 +1,169 @@
+name: Phase 15 Research Provider Reliability
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase15/research-provider-reliability
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase15-research-provider-reliability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-provider-reliability:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff Phase 15 provider boundary
+        run: |
+          python -m ruff check \
+            agents/research_executor.py \
+            gateway/searxng_search_provider.py \
+            gateway/web_search_discovery.py \
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
+      - name: Mypy Phase 15 provider boundary
+        run: |
+          python -m mypy \
+            agents/research_executor.py \
+            gateway/searxng_search_provider.py \
+            gateway/web_search_discovery.py \
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
+            --follow-imports=skip
+      - name: Compile Phase 15 provider boundary
+        run: |
+          python -m compileall -q \
+            agents/research_executor.py \
+            gateway/searxng_search_provider.py \
+            gateway/web_search_discovery.py \
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
+      - name: Phase 15 provider reliability tests
+        run: |
+          python -m pytest -q \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
+      - name: Deterministic 30-case Phase 15 benchmark
+        run: |
+          python -m gateway.research_provider_benchmark \
+            --source-commit "${GITHUB_SHA}" \
+            --output /tmp/phase15-provider-benchmark.json
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/phase15-provider-benchmark.json', encoding='utf-8'))
+          assert payload['benchmark_version'] == 'phase15h.1'
+          assert payload['case_count'] == 30
+          assert payload['cases_passed'] == 30
+          assert payload['all_cases_passed'] is True
+          assert payload['smart_routing_research_activated'] is False
+          assert payload['provider_switching_allowed'] is False
+          assert payload['generic_network_authority_expanded'] is False
+          print('phase15_provider_benchmark_ci|PASS')
+          PY
+      - name: Sealed search/retrieval regression matrix
+        run: |
+          python -m pytest -q \
+            tests/test_phase12_searxng_search_provider.py \
+            tests/test_phase12_searxng_search_discovery.py \
+            tests/test_phase12_web_search_discovery.py \
+            tests/test_phase13_provider_specific_research_activation.py \
+            tests/test_phase14_source_quality.py \
+            tests/test_phase14_retrieval_reliability.py \
+            tests/test_phase14_research_operations.py
+
+  guardian-provider-reliability:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Guardian boundaries
+        run: |
+          python -m compileall -q \
+            tests/test_phase15_provider_reliability_boundary.py \
+            tests/test_phase14_research_operations_boundary.py \
+            tests/test_phase13_provider_specific_research_activation_boundary.py \
+            tests/test_phase12h_searxng_provider_boundary.py
+      - name: Phase 15 Guardian boundary
+        run: |
+          python -m unittest -v \
+            tests.test_phase15_provider_reliability_boundary \
+            tests.test_phase14_research_operations_boundary \
+            tests.test_phase13_provider_specific_research_activation_boundary \
+            tests.test_phase12h_searxng_provider_boundary
+
+  dashboard-research-visibility:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Research workspace boundary
+        run: npm run test:research-workspace
+      - name: Research operations and navigation boundary
+        run: npm run test:research-operations
+      - name: Lint dashboard
+        run: npm run lint
+      - name: Build dashboard
+        run: npm run build
+      - name: Build production dashboard image
+        run: docker build --pull=false -t dap-dashboard-phase15-ci .

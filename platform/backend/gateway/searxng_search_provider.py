@@ -23,6 +23,7 @@ SEARXNG_HOST: Literal["127.0.0.1"] = "127.0.0.1"
 SEARXNG_PORT = 8888
 SEARXNG_PATH = "/search"
 SEARXNG_ENDPOINT = f"http://{SEARXNG_HOST}:{SEARXNG_PORT}{SEARXNG_PATH}"
+MAX_SEARXNG_PROVIDER_RESULT_SCAN = 20
 _MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
 
 
@@ -54,7 +55,14 @@ class SearXNGSearchDiscoveryResult(BaseModel):
     raw_response_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     connected_address: Literal["127.0.0.1"] = SEARXNG_HOST
     candidates: tuple[WebSearchCandidate, ...]
+    provider_result_count: int = Field(ge=0)
+    considered_result_count: int = Field(ge=0, le=MAX_SEARXNG_PROVIDER_RESULT_SCAN)
+    invalid_candidate_count: int = Field(ge=0)
+    policy_rejected_candidate_count: int = Field(ge=0)
+    accepted_candidate_count: int = Field(ge=0, le=10)
     dropped_unsafe_candidate_count: int = Field(ge=0)
+    provider_zero_results: bool
+    admissible_candidate_zero_after_filtering: bool
     provider_is_local_only: Literal[True] = True
     provider_credential_required: Literal[False] = False
     provider_credential_exposed_to_model: Literal[False] = False
@@ -194,6 +202,9 @@ class SearXNGFixedLocalTransport:
         return "\r\n".join(lines).encode("ascii")
 
 
+CandidateDisposition = Literal["accepted", "invalid", "policy-rejected"]
+
+
 class SearXNGWebSearchProvider:
     """Convert local SearXNG results into untrusted candidate URLs only."""
 
@@ -228,13 +239,30 @@ class SearXNGWebSearchProvider:
             )
 
         candidates: list[WebSearchCandidate] = []
-        dropped = 0
-        for rank, item in enumerate(provider_results[: query.count], start=1):
-            candidate = self._candidate_from_item(rank, item)
-            if candidate is None:
-                dropped += 1
+        considered = 0
+        invalid = 0
+        policy_rejected = 0
+        bounded_results = provider_results[:MAX_SEARXNG_PROVIDER_RESULT_SCAN]
+        for rank, item in enumerate(bounded_results, start=1):
+            if len(candidates) >= query.count:
+                break
+            considered += 1
+            candidate, disposition = self._candidate_from_item_with_disposition(rank, item)
+            if disposition == "invalid":
+                invalid += 1
                 continue
-            candidates.append(candidate)
+            if disposition == "policy-rejected":
+                policy_rejected += 1
+                continue
+            if candidate is not None:
+                candidates.append(candidate)
+
+        dropped = invalid + policy_rejected
+        provider_result_count = len(provider_results)
+        provider_zero_results = provider_result_count == 0
+        admissible_candidate_zero_after_filtering = (
+            provider_result_count > 0 and not candidates
+        )
 
         discovery_payload = {
             "provider_id": SEARXNG_PROVIDER_ID,
@@ -243,7 +271,16 @@ class SearXNGWebSearchProvider:
             "raw_response_sha256": raw.body_sha256,
             "connected_address": raw.connected_address,
             "candidates": [candidate.model_dump(mode="json") for candidate in candidates],
+            "provider_result_count": provider_result_count,
+            "considered_result_count": considered,
+            "invalid_candidate_count": invalid,
+            "policy_rejected_candidate_count": policy_rejected,
+            "accepted_candidate_count": len(candidates),
             "dropped_unsafe_candidate_count": dropped,
+            "provider_zero_results": provider_zero_results,
+            "admissible_candidate_zero_after_filtering": (
+                admissible_candidate_zero_after_filtering
+            ),
         }
         canonical = json.dumps(discovery_payload, sort_keys=True, separators=(",", ":"))
         discovery_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -254,28 +291,48 @@ class SearXNGWebSearchProvider:
             requested_count=query.count,
             raw_response_sha256=raw.body_sha256,
             candidates=tuple(candidates),
+            provider_result_count=provider_result_count,
+            considered_result_count=considered,
+            invalid_candidate_count=invalid,
+            policy_rejected_candidate_count=policy_rejected,
+            accepted_candidate_count=len(candidates),
             dropped_unsafe_candidate_count=dropped,
+            provider_zero_results=provider_zero_results,
+            admissible_candidate_zero_after_filtering=(
+                admissible_candidate_zero_after_filtering
+            ),
         )
 
     def _candidate_from_item(self, rank: int, item: Any) -> WebSearchCandidate | None:
+        candidate, _ = self._candidate_from_item_with_disposition(rank, item)
+        return candidate
+
+    def _candidate_from_item_with_disposition(
+        self,
+        rank: int,
+        item: Any,
+    ) -> tuple[WebSearchCandidate | None, CandidateDisposition]:
         if not isinstance(item, dict):
-            return None
+            return None, "invalid"
         title = item.get("title")
         url = item.get("url")
         content = item.get("content", "")
         if not isinstance(title, str) or not title.strip() or not isinstance(url, str):
-            return None
+            return None, "invalid"
         preflight = self._destination_policy.preflight(
             InternetDestinationIntent(url=url, method="GET")
         )
         if preflight.disposition != "accepted" or preflight.admission is None:
-            return None
+            return None, "policy-rejected"
         snippet = content.strip() if isinstance(content, str) else ""
-        return WebSearchCandidate(
-            rank=rank,
-            title=title.strip()[:1000],
-            url=preflight.admission.canonical_url,
-            snippet=snippet[:5000],
+        return (
+            WebSearchCandidate(
+                rank=rank,
+                title=title.strip()[:1000],
+                url=preflight.admission.canonical_url,
+                snippet=snippet[:5000],
+            ),
+            "accepted",
         )
 
 
