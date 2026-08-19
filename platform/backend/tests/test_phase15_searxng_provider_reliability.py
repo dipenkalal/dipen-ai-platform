@@ -141,15 +141,21 @@ async def test_pipeline_distinguishes_provider_zero_results_in_diagnostics() -> 
         )
 
     assert exc_info.value.code == "no-search-candidates"
-    assert exc_info.value.diagnostics == {
-        "provider_result_count": 0,
-        "considered_result_count": 0,
-        "invalid_candidate_count": 0,
-        "policy_rejected_candidate_count": 0,
-        "accepted_candidate_count": 0,
-        "provider_zero_results": True,
-        "admissible_candidate_zero_after_filtering": False,
-    }
+    diagnostics = exc_info.value.diagnostics
+    assert diagnostics["provider_result_count"] == 0
+    assert diagnostics["considered_result_count"] == 0
+    assert diagnostics["invalid_candidate_count"] == 0
+    assert diagnostics["policy_rejected_candidate_count"] == 0
+    assert diagnostics["accepted_candidate_count"] == 0
+    assert diagnostics["provider_zero_results"] is True
+    assert diagnostics["admissible_candidate_zero_after_filtering"] is False
+    assert diagnostics["search_attempt_count"] == 1
+    assert diagnostics["search_queries_attempted"] == ["provider zero diagnostic"]
+    assert diagnostics["search_fallback_policy_id"] is None
+    assert len(diagnostics["attempts"]) == 1
+    assert diagnostics["attempts"][0]["outcome"] == "no-candidate"
+    assert diagnostics["attempts"][0]["provider_titles_included"] is False
+    assert diagnostics["attempts"][0]["provider_snippets_included"] is False
     assert "zero raw results" in exc_info.value.detail
 
 
