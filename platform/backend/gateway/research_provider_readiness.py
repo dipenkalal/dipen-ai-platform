@@ -69,10 +69,10 @@ def load_phase15_live_report(
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
-            raise ValueError("live report root must be an object")
+            raise TypeError("live report root must be an object")
         stated_hash = raw.get("report_sha256")
         if not isinstance(stated_hash, str):
-            raise ValueError("live report SHA-256 is missing")
+            raise TypeError("live report SHA-256 is missing")
         canonical_payload = dict(raw)
         canonical_payload.pop("report_sha256", None)
         canonical = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
@@ -80,7 +80,7 @@ def load_phase15_live_report(
         if actual_hash != stated_hash:
             raise ValueError("live report SHA-256 mismatch")
         report = Phase15LiveBenchmarkReport.model_validate(raw)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
         return Phase15LoadedLiveReport(
             report=None,
             status="invalid",

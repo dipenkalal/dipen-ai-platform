@@ -9,7 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agents.truth_repository import AgentTruthRepository, DEFAULT_TRUTH_DATABASE_PATH
+from agents.truth_repository import DEFAULT_TRUTH_DATABASE_PATH, AgentTruthRepository
 from gateway.research_operations_repository import ResearchOperationsRepository
 from gateway.research_provider_corpus import (
     PHASE15_CORPUS_VERSION,
@@ -22,7 +22,10 @@ from gateway.searxng_search_provider import (
     SearXNGSearchProviderError,
     SearXNGWebSearchProvider,
 )
-from gateway.web_search_discovery import WebSearchDiscoveryError, WebSearchRetrievalPipeline
+from gateway.web_search_discovery import (
+    WebSearchDiscoveryError,
+    WebSearchRetrievalPipeline,
+)
 from gateway.web_search_provider import WebSearchQuery
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
