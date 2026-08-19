@@ -40,7 +40,10 @@ from gateway.searxng_search_provider import (
     SearXNGSearchProviderError,
     SearXNGWebSearchProvider,
 )
-from gateway.web_search_discovery import WebSearchDiscoveryError, WebSearchRetrievalPipeline
+from gateway.web_search_discovery import (
+    WebSearchDiscoveryError,
+    WebSearchRetrievalPipeline,
+)
 from gateway.web_search_provider import WebSearchQuery
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
@@ -308,7 +311,13 @@ def summarize_stage_timings(
     }
     p50 = {name: percentile(values, 0.50) for name, values in stages.items()}
     p95 = {name: percentile(values, 0.95) for name, values in stages.items()}
-    candidate_stages = ("preflight", "dns", "admission", "fetch", "uninstrumented-overhead")
+    candidate_stages = (
+        "preflight",
+        "dns",
+        "admission",
+        "fetch",
+        "uninstrumented-overhead",
+    )
     dominant = max(candidate_stages, key=lambda name: p95[name])
     fetch_shares = [
         min(1.0, max(0.0, trace.fetch_ms / trace.total_ms))
