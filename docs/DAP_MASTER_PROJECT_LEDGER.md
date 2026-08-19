@@ -1,22 +1,25 @@
 # NAS Project Dipen / DAP — Master Progress Ledger
 
 **Canonical project:** `dipenkalal/dipen-ai-platform`  
-**Coverage:** Day 1 through Phase 11E current checkpoint  
-**Ledger date:** 2026-08-17  
+**Coverage:** Day 1 through Phase 15.1 verified continuation  
+**Ledger date:** 2026-08-19  
 **Purpose:** Permanent progress-tracking companion to every future handover.
 
 > Evidence rule: VERIFIED means supported by repository/PR/CI/runtime evidence available during reconstruction. RECONSTRUCTED means supported by prior handovers but exact early repository metadata was not recovered. UNVERIFIED means missing metadata is intentionally not invented.
+>
+> The historical body below preserves the original Phase 11-era reconstruction. Verified later milestones are recorded in `DAP_MASTER_PROJECT_LEDGER_PHASE12_14_APPENDIX.md` and `DAP_MASTER_PROJECT_LEDGER_PHASE15_15_1_APPENDIX.md`. The **Current continuation checkpoint** at the end of this file is the authoritative latest project position.
 
 ## Executive status
 
-DAP progressed from an initial frontend/backend `fetch failed` recovery into a governed local AI control plane with multi-agent orchestration, durable task truth, bounded owner-triggered execution, cooperative cancellation, Guardian security controls, Telegram owner-channel functionality, Unified Chat with attachment/Knowledge isolation, a completed Ruflo evaluation, and an in-progress Phase 11 autonomous Engineering Agent integration.
+DAP progressed from an initial frontend/backend `fetch failed` recovery into a governed local AI control plane with multi-agent orchestration, durable task truth, bounded owner-triggered execution, cooperative cancellation, Guardian security controls, Telegram owner-channel functionality, Unified Chat with attachment/Knowledge isolation, a completed Ruflo evaluation, bounded Engineering Agent integration, and a sealed owner-supervised public-web research path with operational reliability telemetry and frontend evidence controls.
 
-- Completed through: **Phase 11D**
-- Current branch: `phase11/autonomous-engineering-agent`
-- Phase 11D owner acceptance: **PASS**
-- Current milestone: **Phase 11E controlled Git delivery**
-- Production release observed before Phase 10: **DAP 0.18.1**
-- Phase 10/11 production merge: **NO**
+- Completed through: **Phase 15.1**
+- Current repository baseline: `main` after PR #70 merge commit `d47c11166f5e52b2067f8804deeb75ffa048c1fb`
+- Current production research posture: **manual owner-supervised research; provider degraded**
+- Smart-routing research: **DISABLED**
+- Guardian broker: **INACTIVE**
+- Telegram approvals: **DISABLED**
+- Next milestone: **Phase 16 — Research Provider Coverage & Latency Remediation**
 - Ruflo decision: **ADAPT SELECTED COMPONENTS ONLY / REJECT FULL RUNTIME**
 
 ## Permanent architectural rules
@@ -55,7 +58,12 @@ DAP progressed from an initial frontend/backend `fetch failed` recovery into a g
 | Phase 10 Ruflo Evaluation | COMPLETE — PASS | VERIFIED | Narrow adapter accepted; full Ruflo runtime rejected. |
 | Phase 11A–11C Engineering Agent + bounded Codex | COMPLETE | VERIFIED | DAP-owned work order, execution ticket, bounded Codex runner, Acer live smoke. |
 | Phase 11D Guardian execution admission | COMPLETE — PASS | VERIFIED | Non-privileged admission bound to Codex execution; Acer smoke passed without Guardian/root contact. |
-| Phase 11E controlled Git delivery | IN PROGRESS | VERIFIED to current code/CI gate | DAP-owned delivery contract + isolated local commit builder; remote publication still disabled. |
+| Phase 11E controlled Git delivery | HISTORICAL CHECKPOINT | VERIFIED to recorded code/CI gate | DAP-owned delivery contract + isolated local commit builder; historical reconstruction retained below. |
+| Phase 12 Internet Research Gateway | COMPLETE / SEALED / MERGED | VERIFIED | Bounded retrieval, SSRF/untrusted-content controls, immutable evidence, local SearXNG, Research Workspace. |
+| Phase 13 Provider-Specific Research Activation | COMPLETE / SEALED / MERGED | VERIFIED | Manual Research Agent query path activated through fixed loopback SearXNG; smart routing remained disabled. |
+| Phase 14 Research Operations & Reliability | COMPLETE / SEALED / MERGED | VERIFIED | Operations telemetry, source-family/duplicate visibility, retention dry-run, provider health and reliability dashboard. |
+| Phase 15 Provider Reliability Remediation | COMPLETE / SEALED / MERGED | VERIFIED | 30-case isolated provider corpus, fallback/diagnostics/timing, readiness projection; provider remained degraded. |
+| Phase 15.1 Research UI + Data Hygiene | COMPLETE / SEALED / MERGED | VERIFIED | Metric-scope clarity, successful-only source-family analytics, workspace evidence scoping, navigation hygiene. |
 
 ## Day-1 recovery and early Phase 2
 
@@ -237,19 +245,19 @@ A DAP-owned `EngineeringGuardianAdmission` binds the work-order and Codex-ticket
 
 Acer acceptance on source head `fe22d0b0aadb492f21768ad6d332df7a07cedbbe` passed with Guardian contact required/contacted false, root authorization required false, Codex success, exact one-file mutation, no Git/PR/merge/deploy effects, no residue, clean source repo, Guardian inactive and Telegram approvals false.
 
-### 11E — controlled Git delivery — IN PROGRESS
+### 11E — controlled Git delivery — HISTORICAL CHECKPOINT
 
 11E.1 adds an immutable `GitDeliveryPlan` bound to the full work-order/ticket/Guardian-admission/execution-receipt chain. The repository is fixed, the base must be a non-main development branch, and the delivery branch is DAP-derived under `engineering/...`.
 
 11E.2 adds a network-free `LocalGitDeliveryBuilder` which clones from the local source commit into an isolated delivery root, removes `origin`, creates the deterministic delivery branch, applies only the exact changed-file allowlist, creates one local commit, verifies its parent and file set, and rejects any remote push/PR/force-push/main-merge/tag/release/deployment observation.
 
-Remote publication remains disabled until local Acer proof passes.
+The original reconstruction recorded remote publication as disabled at this point. Later milestones are tracked in the verified appendices rather than inferred from this historical checkpoint.
 
 ## PR index recovered for milestone history
 
 #5, #9, #12, #13, #23, #25, #26, #27, #32, #33, #34, #36, #37, #38, #40, #41, #42, #43, #44, #45, #46, #47, #48, #49, #52, #53, #54, #55, #56, #57, #58, #59, #60, #61, #62.
 
-This is not asserted to be every PR ever created; it is the positively recovered milestone-relevant set from this reconstruction.
+This is not asserted to be every PR ever created; it is the positively recovered milestone-relevant set from this reconstruction. Verified later PRs are recorded in the Phase 12–14 and Phase 15–15.1 appendices.
 
 ## Known release/runtime checkpoints
 
@@ -258,9 +266,12 @@ This is not asserted to be every PR ever created; it is the positively recovered
 | Early project | Local DAP recovered from frontend/backend connectivity failure; exact version UNVERIFIED. |
 | 2026-08-09 | DAP `0.18.0` deployed healthy during Phase-7 work. |
 | 2026-08-16 | DAP `0.18.1` healthy during Phase-9 completion/recovery. |
-| 2026-08-17 | Phase 10 isolated and accepted; Phase 11 development/acceptance in progress; no production merge/release. |
+| 2026-08-17 | Phase 10 isolated and accepted; Phase 11 development/acceptance in progress. |
+| 2026-08-19 | Phases 12–15.1 verified complete/sealed/merged; manual research provider remains degraded; smart routing disabled. |
 
 ## Current architecture
+
+The historical Phase 11 architecture below is retained as reconstruction context:
 
 ```text
 Owner
@@ -278,7 +289,20 @@ Owner
        -> Guardian privileged boundary -> fixed approved executor
 ```
 
-Ruflo is not a peer and is not in the privileged or Git authority chain.
+Current verified research path added by Phases 12–15.1:
+
+```text
+Owner/manual Research Agent
+  -> explicit research_search_query
+  -> fixed local searxng-local-v1 on 127.0.0.1:8888
+  -> bounded candidate selection (<= 3 retrieval URLs)
+  -> sealed DAP admission/retrieval/untrusted-content boundary
+  -> immutable Internet Evidence
+  -> Research Agent synthesis
+  -> read-only Research Workspace / Research Operations visibility
+```
+
+Ruflo is not a peer and is not in the privileged or Git authority chain. Smart-routing research is disabled.
 
 ## Honest metadata gaps
 
@@ -292,16 +316,23 @@ Fill these only if new repository/handover evidence is recovered.
 
 ```text
 Project: dipenkalal/dipen-ai-platform
-Completed through: Phase 11D
-Current branch: phase11/autonomous-engineering-agent
-Draft PR: #62 (do not merge without explicit owner approval)
-Phase 11D owner acceptance: PASS
-Current milestone: Phase 11E controlled Git delivery
-11E.1: delivery contract implemented
-11E.2: isolated local Git commit builder implemented
-Remote Git/GitHub publication: disabled
-Main merge/release/deployment: prohibited
-Guardian broker: must remain inactive during current evaluation
-Telegram approvals: must remain false
-Next gate: CI + Acer end-to-end local Git delivery smoke
+Completed through: Phase 15.1
+Current repository baseline: main
+Latest completed merge: PR #70 -> d47c11166f5e52b2067f8804deeb75ffa048c1fb
+Phase 15 posture: manual-research-provider-degraded
+Phase 15.1 UI/data hygiene: COMPLETE / SEALED / MERGED
+Production task ledger at live proof: 15
+Production research evidence at live proof: 16
+Production research operations at live proof: 6
+Guardian broker: inactive
+Telegram approvals: false
+SearXNG: fixed local provider on 127.0.0.1:8888
+Smart-routing research: disabled
+Known remaining issue: provider query coverage/no-candidate reliability and retrieval tail latency
+Next milestone: Phase 16 — Research Provider Coverage & Latency Remediation
+Authority expansion in Phase 16: none planned
 ```
+
+Verified continuation details:
+- `docs/DAP_MASTER_PROJECT_LEDGER_PHASE12_14_APPENDIX.md`
+- `docs/DAP_MASTER_PROJECT_LEDGER_PHASE15_15_1_APPENDIX.md`
