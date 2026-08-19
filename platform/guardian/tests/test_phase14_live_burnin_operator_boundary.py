@@ -8,10 +8,20 @@ class Phase14LiveBurninOperatorBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.repo_root = Path(__file__).resolve().parents[3]
-        cls.source = (
+        cls.operator_path = (
             cls.repo_root / "scripts/phase14-research-operations-live-burnin.sh"
-        ).read_text(encoding="utf-8")
+        )
+        cls.source = cls.operator_path.read_text(encoding="utf-8")
         cls.lower = cls.source.lower()
+
+    def test_exactly_one_tracked_phase14_live_operator_path_exists(self) -> None:
+        self.assertTrue(self.operator_path.is_file())
+        self.assertFalse(
+            (
+                self.repo_root
+                / "scripts/phase14_research_operations_live_burnin.py"
+            ).exists()
+        )
 
     def test_operator_restarts_only_backend_once(self) -> None:
         self.assertEqual(
