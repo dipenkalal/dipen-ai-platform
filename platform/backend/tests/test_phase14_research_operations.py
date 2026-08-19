@@ -140,7 +140,7 @@ def test_summary_surfaces_duplicates_families_latency_and_recovery() -> None:
         "example.com",
         "example.org",
         "example.net",
-        "example.edu",
+        "docs.example.edu",
     }
     assert all(item.source_family != "127.0.0.1" for item in summary.source_families)
     failed_provenance = next(
