@@ -1,8 +1,10 @@
 # Phase 14 — Research Operations & Reliability Roadmap
 
-Status: **COMPLETE / SEALED — 14A–14J PASSED; FINAL POSTURE `manual-research-provider-degraded`; SMART-ROUTING RESEARCH REMAINS OUT OF SCOPE**
+Status: **COMPLETE / SEALED / MERGED — 14A–14J PASSED; FINAL POSTURE `manual-research-provider-degraded`; SMART-ROUTING RESEARCH REMAINS OUT OF SCOPE**
 
 Base: Phase 13 final merged seal `5f4afa1869497aafee3d1cba3de9b96cdad2e8dd`.
+
+Phase 14 merge commit: `f9b49781ddcf98346c199128d52ec75e33d3f6fc`.
 
 ## Mission
 
@@ -40,97 +42,39 @@ manual research-agent
 
 ### 14A — Reliability contract and SLO model — COMPLETE
 
-Delivered:
-- explicit research reliability metrics and thresholds;
-- stable machine-readable operations models;
-- clear distinction between source-selection quality, provenance quality, and factual correctness;
-- no hidden credibility claims.
-
-Exit gate: contracts frozen in tests and Guardian boundary — PASS.
+Delivered explicit research reliability metrics and thresholds, stable machine-readable operations models, and clear distinction between source-selection quality, provenance quality, and factual correctness. Exit gate: PASS.
 
 ### 14B — Source-family diversity and duplicate handling — COMPLETE
 
-Delivered:
-- deterministic canonical source-family extraction from candidate hostnames;
-- selection that prefers unique source families before duplicate families;
-- exact URL duplicate suppression;
-- post-retrieval duplicate-content detection using immutable normalized-text hashes;
-- owner-visible duplicate/family metadata;
-- provider titles/snippets remain non-evidence.
-
-Exit gate: selected URL count remains <= 3 and every selected URL still requires full DAP retrieval — PASS.
+Delivered deterministic canonical source-family extraction, unique-family preference, exact URL duplicate suppression, post-retrieval duplicate-content detection, and owner-visible family/duplicate metadata. Provider titles/snippets remain non-evidence. Exit gate: PASS.
 
 ### 14C — Retrieval latency, attempt, timeout and retry telemetry — COMPLETE
 
-Delivered:
-- per-source wall-clock duration;
-- attempt count and transient retry count;
-- stable transient/non-transient error classification;
-- bounded retry policy for safe GET retrieval only;
-- no retry after destination-policy rejection, content-policy rejection, redirect-policy failure or cancellation;
-- append-only operational telemetry separate from immutable retrieval evidence.
-
-Exit gate: deterministic retry ceiling with no destination/method expansion — PASS.
+Delivered per-source duration, attempt/retry telemetry, stable error classification, and exactly one bounded retry for safe transient GET failures. No retry after destination/content/redirect-policy failure or cancellation. Exit gate: PASS.
 
 ### 14D — Evidence retention and cleanup policy — COMPLETE
 
-Delivered:
-- owner-visible retention classification;
-- dry-run cleanup planner;
-- duplicate/superseded candidates surfaced without deleting canonical evidence;
-- default preserve-all policy;
-- no automatic deletion.
-
-Exit gate: planner is read-only and reports only future owner-action candidates — PASS.
+Delivered owner-visible retention classification and dry-run cleanup planning with preserve-all default. No automatic deletion/archive. Exit gate: PASS.
 
 ### 14E — SearXNG health telemetry — COMPLETE
 
-Delivered:
-- fixed-local-provider health check;
-- latency/status sample;
-- loopback-binding expectation in operations status;
-- provider health visibility without agent control.
-
-Exit gate: health check cannot mutate provider configuration or start/restart services — PASS.
+Delivered fixed-loopback provider health and latency/status visibility without provider service-control authority. Exit gate: PASS.
 
 ### 14F — Research Operations API — COMPLETE
 
-Delivered GET-only endpoints under `/api/v1/research/operations` for reliability summary, provider health, resource snapshot and retention plan.
-
-Exit gate: POST mutation attempts return 405 — PASS.
+Delivered GET-only reliability summary, provider health, resource snapshot and retention-plan endpoints under `/api/v1/research/operations`. Mutation POST attempts return 405. Exit gate: PASS.
 
 ### 14G — Owner dashboard — COMPLETE
 
-Delivered `/research/operations` showing reliability, source-family diversity, duplicate-content rate, latency/attempt/retry metrics, SearXNG health, failure/recovery state, retention plan, provenance-quality indicators and explicit read-only/no-network-authority labels.
-
-Exit gate: dashboard cannot fetch arbitrary URLs, mutate evidence/Knowledge/tasks, or control SearXNG — PASS.
+Delivered `/research/operations` with reliability, source-family, duplicate, latency/retry, provider health, failure/recovery, retention and provenance-quality visibility. Dashboard has no arbitrary fetch, evidence/Knowledge/task mutation or provider-control authority. Exit gate: PASS.
 
 ### 14H — Failure/recovery visibility — COMPLETE
 
-Delivered:
-- transient vs terminal failure visibility;
-- recovered-after-retry count;
-- failure-stage/error-code breakdown;
-- evidence completeness checks;
-- explicit degraded-provider state;
-- bounded live provider-failure recovery operator for 14J.
-
-Exit gate: failure visibility/recovery evidence grants no new agent remediation authority — PASS.
+Delivered transient/terminal failure visibility, recovery counts, error breakdown, evidence completeness checks, explicit degraded-provider state, and the bounded live provider-failure recovery bridge used during 14J. Exit gate: PASS.
 
 ### 14I — Periodic regression benchmark — COMPLETE
 
-Delivered:
-- deterministic CI reliability benchmark;
-- Acer live reliability benchmark;
-- machine-readable JSON report with SHA-256;
-- source-diversity, retry, operations, retention and provider-loopback cases;
-- weekly scheduled deterministic regression workflow.
-
-Acer benchmark: 5/5 PASS.
-
-Report SHA-256: `57cf45169f98675df7c7567dc0bbaefae4c4ad1db74805d72bfeac4903f45bfc`.
-
-Exit gate: benchmark did not activate smart-routing research or expand network authority — PASS.
+Delivered deterministic CI and Acer reliability benchmarks plus weekly scheduled regression. Acer benchmark: 5/5 PASS. Report SHA-256: `57cf45169f98675df7c7567dc0bbaefae4c4ad1db74805d72bfeac4903f45bfc`. Smart-routing research remained false and network authority remained unchanged. Exit gate: PASS.
 
 ### 14J — Burn-in and readiness decision — COMPLETE
 
@@ -157,24 +101,20 @@ Final 14J posture: **`manual-research-provider-degraded`**.
 
 Smart-routing research is **not** activated by 14J.
 
-This posture means:
-
-- manual owner-supervised research remains available under the Phase 13 boundary;
-- the reliability layer is complete and working;
-- the SearXNG-backed provider path is not promoted to production-ready;
-- smart-routing research remains disabled;
-- a future authority-expansion review is blocked until provider reliability is remediated and re-benchmarked.
+This posture means manual owner-supervised research remains available under the Phase 13 boundary, the reliability layer is complete and working, the SearXNG-backed provider path is not promoted to production-ready, and any future authority-expansion review is blocked until provider reliability is remediated and re-benchmarked.
 
 ## Completion criteria
 
 1. 14A–14I deterministic CI gates green — PASS.
 2. Acer live operations proof without authority broadening — PASS.
-3. owner dashboard/API expose read-only operational state — PASS.
-4. evidence retention remains non-destructive — PASS.
+3. Owner dashboard/API expose read-only operational state — PASS.
+4. Evidence retention remains non-destructive — PASS.
 5. Phase 12 destination/content/evidence regressions pass — PASS.
 6. Phase 13 manual-only search-routing regressions pass — PASS.
 7. 14J empirical readiness posture recorded — PASS (`manual-research-provider-degraded`).
+8. Final branch head `08fe62a0fd58e1c036a8012c82830e67944ecd4e` passed all eight repository workflows — PASS.
+9. PR #67 merged to `main` at `f9b49781ddcf98346c199128d52ec75e33d3f6fc` — PASS.
 
 Live evidence: `docs/phase14-research-operations-live-evidence-2026-08-18.md`.
 
-Phase 14 is **COMPLETE / SEALED**. No Phase 14 result activates smart-routing research.
+Phase 14 is **COMPLETE / SEALED / MERGED**. No Phase 14 result activates smart-routing research.

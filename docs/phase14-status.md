@@ -1,12 +1,16 @@
 # Phase 14 Status
 
-Status: **COMPLETE / SEALED — 14A–14J PASS; EMPIRICAL POSTURE `manual-research-provider-degraded`; FINAL MERGE PENDING CI**
+Status: **COMPLETE / SEALED / MERGED — 14A–14J PASS; EMPIRICAL POSTURE `manual-research-provider-degraded`**
 
 Base: Phase 13 final merged seal `5f4afa1869497aafee3d1cba3de9b96cdad2e8dd`.
 
-Branch: `phase14/research-operations-reliability`.
+Phase 14 merge commit: `f9b49781ddcf98346c199128d52ec75e33d3f6fc`.
+
+Development branch: `phase14/research-operations-reliability`.
 
 Live evidence checkpoint: `2c81aefc434a84b296cf9b0acb135be3663f3f6b`.
+
+Final CI-green branch head: `08fe62a0fd58e1c036a8012c82830e67944ecd4e`.
 
 Live evidence record: `docs/phase14-research-operations-live-evidence-2026-08-18.md`.
 
@@ -30,13 +34,13 @@ Live evidence record: `docs/phase14-research-operations-live-evidence-2026-08-18
 
 ## Preserved authority boundary
 
-Phase 14 does not activate smart-routing research, generic model network tools, arbitrary provider access, automatic Knowledge mutation, destructive evidence cleanup, Guardian/root/systemd authority, Docker privilege, or autonomous merge/release/deployment authority.
+Phase 14 did not activate smart-routing research, generic model network tools, arbitrary provider access, automatic Knowledge mutation, destructive evidence cleanup, Guardian/root/systemd authority, Docker privilege, or autonomous merge/release/deployment authority.
 
 Production research scope remains manual `research-agent` + explicit bounded search query + fixed local `searxng-local-v1` + sealed Phase 12 retrieval/evidence.
 
 ## Deterministic gate
 
-All eight repository workflows were green before live execution. The Phase 14-specific gate passed backend reliability tests, the deterministic 5/5 reliability benchmark, sealed Phase 12/13 regressions, live operator/recovery syntax, Guardian boundaries, dashboard authority/lint/build checks and the production dashboard image build.
+All eight repository workflows passed on final branch head `08fe62a0fd58e1c036a8012c82830e67944ecd4e` before merge. The Phase 14-specific gate passed backend reliability tests, deterministic 5/5 reliability benchmark, sealed Phase 12/13 regressions, live operator/recovery syntax, Guardian boundaries, dashboard authority/lint/build checks and production dashboard image build.
 
 ## 14J live result
 
@@ -89,7 +93,7 @@ Acer deterministic benchmark remained 5/5 green with report SHA-256 `57cf45169f9
 - dashboard: `healthy`
 - SearXNG: `running`
 - SearXNG binding: `127.0.0.1:8888`
-- source tree: clean
+- source tree: clean at live proof
 
 Final markers:
 
@@ -102,6 +106,6 @@ Final markers:
 
 Final 14J posture: **`manual-research-provider-degraded`**.
 
-Phase 14 is therefore complete and sealable because its reliability, telemetry, recovery, dashboard, benchmark, retention, and authority-boundary goals all passed. The underlying provider-specific research path is **not** promoted to production-ready and smart-routing research remains disabled.
+Phase 14 is complete, sealed, and merged because its reliability, telemetry, recovery, dashboard, benchmark, retention, and authority-boundary goals all passed. The underlying provider-specific research path is **not** promoted to production-ready and smart-routing research remains disabled.
 
 Next reliability work should remediate provider query coverage, source-family diversity, duplicate-content rate and tail latency before any later authority-expansion review.
