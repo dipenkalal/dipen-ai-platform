@@ -17,7 +17,7 @@ from gateway.research_query_fallback import build_research_query_fallback_plan
 from gateway.research_source_quality import select_source_diverse_candidates
 from gateway.web_search_provider import WebSearchCandidate, WebSearchQuery
 
-BENCHMARK_VERSION = "phase15h.1"
+BENCHMARK_VERSION: Literal["phase15h.1"] = "phase15h.1"
 
 
 class Phase15ProviderBenchmarkCaseResult(BaseModel):
@@ -83,7 +83,11 @@ def _fixture_candidates(case_id: str) -> tuple[WebSearchCandidate, ...]:
     )
 
 
-def _case_result(case_id: str, category: str, query: str) -> Phase15ProviderBenchmarkCaseResult:
+def _case_result(
+    case_id: str,
+    category: str,
+    query: str,
+) -> Phase15ProviderBenchmarkCaseResult:
     fallback = build_research_query_fallback_plan(
         WebSearchQuery(query=query, count=5)
     )

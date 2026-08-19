@@ -29,7 +29,7 @@ from gateway.web_search_discovery import (
 from gateway.web_search_provider import WebSearchQuery
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
-LIVE_BENCHMARK_VERSION = "phase15i.1"
+LIVE_BENCHMARK_VERSION: Literal["phase15i.1"] = "phase15i.1"
 DEFAULT_LIVE_REPORT_PATH = Path(
     "/home/dipen/dap/data/research/phase15-provider-live-report.json"
 )
