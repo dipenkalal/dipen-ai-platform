@@ -260,6 +260,27 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
                     "query": search_result.query,
                     "candidate_count": search_result.candidate_count,
                     "selected_urls": list(search_result.selected_urls),
+                    "source_selection_policy_id": (
+                        search_result.source_selection_policy_id
+                    ),
+                    "unique_source_family_count": (
+                        search_result.unique_source_family_count
+                    ),
+                    "selected_source_families": list(
+                        search_result.selected_source_families
+                    ),
+                    "selected_quality_scores": list(
+                        search_result.selected_quality_scores
+                    ),
+                    "skipped_exact_duplicate_count": (
+                        search_result.skipped_exact_duplicate_count
+                    ),
+                    "duplicate_family_fallback_count": (
+                        search_result.duplicate_family_fallback_count
+                    ),
+                    "selection_quality_is_factual_credibility": (
+                        search_result.selection_quality_is_factual_credibility
+                    ),
                     "retrieval_tool_id": search_result.retrieval_tool_id,
                     "retrieval_success": search_result.retrieval_success,
                     "disposition": search_result.disposition,
