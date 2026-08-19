@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import sqlite3
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -141,7 +141,11 @@ class ResearchOperationsSummary(BaseModel):
     transient_retry_count: int = Field(ge=0)
     recovered_after_retry_count: int = Field(ge=0)
     prompt_injection_evidence_count: int = Field(ge=0)
-    average_provenance_quality_score: float | None = Field(default=None, ge=0, le=100)
+    average_provenance_quality_score: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
     errors: tuple[ResearchErrorCount, ...]
     source_families: tuple[ResearchSourceFamilyCount, ...]
     duplicate_content_groups: tuple[ResearchDuplicateContentGroup, ...]
@@ -198,7 +202,9 @@ class ResearchOperationsService:
         unique_family_rate = unique_family_count / len(families) if families else 0.0
 
         duplicate_groups = self._duplicate_groups(records)
-        duplicate_evidence_count = sum(group.duplicate_count for group in duplicate_groups)
+        duplicate_evidence_count = sum(
+            group.duplicate_count for group in duplicate_groups
+        )
         duplicate_rate = duplicate_evidence_count / succeeded if succeeded else 0.0
 
         retrieval_events = [
@@ -207,7 +213,9 @@ class ResearchOperationsService:
         durations = [event.duration_ms for event in retrieval_events]
         attempt_count = sum(event.attempt_count for event in retrieval_events)
         retry_count = sum(event.transient_retry_count for event in retrieval_events)
-        recovered_count = sum(event.recovered_after_retry for event in retrieval_events)
+        recovered_count = sum(
+            event.recovered_after_retry for event in retrieval_events
+        )
         errors = Counter(
             event.error_code
             for event in retrieval_events
@@ -319,7 +327,9 @@ class ResearchOperationsService:
                 and age_days >= self._retention_policy.duplicate_candidate_after_days
             ):
                 classification = "future-archive-duplicate"
-                reason = "duplicate normalized content older than dry-run duplicate horizon"
+                reason = (
+                    "duplicate normalized content older than dry-run duplicate horizon"
+                )
             elif (
                 evidence.outcome == "failed"
                 and age_days >= self._retention_policy.failed_candidate_after_days
@@ -341,7 +351,9 @@ class ResearchOperationsService:
                 )
             )
 
-        preserve_count = sum(item.classification == "preserve" for item in candidates)
+        preserve_count = sum(
+            item.classification == "preserve" for item in candidates
+        )
         return ResearchRetentionPlan(
             policy=self._retention_policy,
             total_evidence=len(candidates),
@@ -390,7 +402,10 @@ class ResearchOperationsService:
         for digest, matches in groups.items():
             if len(matches) < 2:
                 continue
-            ordered = sorted(matches, key=lambda item: (item.stored_at, item.evidence.evidence_id))
+            ordered = sorted(
+                matches,
+                key=lambda item: (item.stored_at, item.evidence.evidence_id),
+            )
             families = tuple(
                 sorted(
                     {
@@ -403,12 +418,16 @@ class ResearchOperationsService:
             results.append(
                 ResearchDuplicateContentGroup(
                     normalized_text_sha256=digest,
-                    evidence_ids=tuple(match.evidence.evidence_id for match in ordered),
+                    evidence_ids=tuple(
+                        match.evidence.evidence_id for match in ordered
+                    ),
                     source_families=families,
                     duplicate_count=len(ordered) - 1,
                 )
             )
-        return tuple(sorted(results, key=lambda item: item.normalized_text_sha256))
+        return tuple(
+            sorted(results, key=lambda item: item.normalized_text_sha256)
+        )
 
     def _provenance_quality(
         self,
@@ -446,5 +465,8 @@ class ResearchOperationsService:
         if not values:
             return None
         ordered = sorted(values)
-        index = max(0, min(len(ordered) - 1, math.ceil(quantile * len(ordered)) - 1))
+        index = max(
+            0,
+            min(len(ordered) - 1, math.ceil(quantile * len(ordered)) - 1),
+        )
         return round(ordered[index], 3)
