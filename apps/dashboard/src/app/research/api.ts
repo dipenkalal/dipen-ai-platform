@@ -1,4 +1,10 @@
 import type {
+  ResearchResourceSnapshot,
+} from "./resource-types";
+import type {
+  ResearchOperationsSummary,
+  ResearchProviderHealth,
+  ResearchRetentionPlan,
   ResearchWorkspaceEvidenceItem,
   ResearchWorkspaceListResponse,
 } from "./types";
@@ -22,19 +28,10 @@ async function readError(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`;
 }
 
-export async function fetchResearchEvidence(
-  limit = 100,
-): Promise<ResearchWorkspaceListResponse> {
-  const searchParams = new URLSearchParams({
-    limit: String(limit),
+async function getJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    cache: "no-store",
   });
-
-  const response = await fetch(
-    `/api/research/evidence?${searchParams.toString()}`,
-    {
-      cache: "no-store",
-    },
-  );
 
   if (!response.ok) {
     throw new Error(await readError(response));
@@ -43,19 +40,46 @@ export async function fetchResearchEvidence(
   return response.json();
 }
 
+export async function fetchResearchEvidence(
+  limit = 100,
+): Promise<ResearchWorkspaceListResponse> {
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+  });
+
+  return getJson<ResearchWorkspaceListResponse>(
+    `/api/research/evidence?${searchParams.toString()}`,
+  );
+}
+
 export async function fetchResearchEvidenceItem(
   evidenceId: string,
 ): Promise<ResearchWorkspaceEvidenceItem> {
-  const response = await fetch(
+  return getJson<ResearchWorkspaceEvidenceItem>(
     `/api/research/evidence/${encodeURIComponent(evidenceId)}`,
-    {
-      cache: "no-store",
-    },
   );
+}
 
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
+export async function fetchResearchOperations(): Promise<ResearchOperationsSummary> {
+  return getJson<ResearchOperationsSummary>(
+    "/api/research/operations",
+  );
+}
 
-  return response.json();
+export async function fetchResearchProviderHealth(): Promise<ResearchProviderHealth> {
+  return getJson<ResearchProviderHealth>(
+    "/api/research/operations/provider-health",
+  );
+}
+
+export async function fetchResearchResourceSnapshot(): Promise<ResearchResourceSnapshot> {
+  return getJson<ResearchResourceSnapshot>(
+    "/api/research/operations/resource-snapshot",
+  );
+}
+
+export async function fetchResearchRetentionPlan(): Promise<ResearchRetentionPlan> {
+  return getJson<ResearchRetentionPlan>(
+    "/api/research/operations/retention-plan",
+  );
 }

@@ -1,0 +1,63 @@
+# Phase 14 — Research Operations & Reliability Gate Checklist
+
+- [x] Phase 13 merged and remains sealed.
+- [x] Phase 14 isolated on `phase14/research-operations-reliability`.
+- [x] Smart-routing research remains out of scope.
+- [x] Source-family diversity prefers unique hostname families before duplicate-family fallback.
+- [x] Exact duplicate candidate URLs are suppressed.
+- [x] Source-selection quality is explicitly not factual/source credibility.
+- [x] Provider titles/snippets remain non-evidence and out of model context.
+- [x] Selected URL ceiling remains <= 3.
+- [x] Every selected URL still traverses sealed Phase 12 retrieval/admission.
+- [x] Transient GET retry ceiling is exactly one retry per explicit URL.
+- [x] Destination-policy, content-policy, redirect-policy and cancellation failures are not retried.
+- [x] Retrieval duration, attempts, retries and recovery are owner-visible.
+- [x] Research operations telemetry is append-only and contains no retrieved source body/provider snippets.
+- [x] Duplicate-content groups use immutable normalized-text SHA-256.
+- [x] Retention policy is dry-run only with default preserve-all.
+- [x] Automatic evidence deletion/archive remains disabled.
+- [x] SearXNG health check is fixed-loopback and grants no service-control authority.
+- [x] Backend resource snapshot is read-only and not per-research-request attribution.
+- [x] Research Operations backend APIs are GET-only.
+- [x] Research Operations dashboard proxies are GET-only.
+- [x] `/research/operations` exposes reliability, source-family, duplicate, retry, failure, provenance, retention and resource visibility.
+- [x] Dashboard exposes no arbitrary fetch, cleanup, retry, provider restart or process-control actions.
+- [x] Deterministic Phase 14 benchmark covers five frozen cases and emits a report SHA-256.
+- [x] Weekly deterministic regression benchmark is configured.
+- [x] Phase 14 core deterministic tests pass.
+- [x] Sealed Phase 12/13 regression matrix passes (112 tests at the pre-live gate).
+- [x] Repository-wide pre-operator CI/regressions pass.
+- [x] Resumable Acer burn-in/deployment operator added.
+- [x] Operator prevents duplicate successful burn-in if a later deployment step must be resumed.
+- [x] Bounded provider-failure recovery bridge added and Guardian-gated after first live no-candidate result.
+- [x] Failed run `2750295c-8acb-465b-86f1-417731d0a022` reconciled to exactly one failed instrumented Research Agent task.
+- [x] Failed no-candidate search produced no public-web evidence and no retrieval-operations event.
+- [x] Recovery completed exactly two successful manual Research Agent burn-in runs.
+- [x] Recovery successful run `84d6dc11-b044-479d-87d3-a6a82d1248bb` selected 3 URLs and produced +3 evidence/+3 operations events.
+- [x] Recovery successful run `746654d9-1be0-42a6-9970-0acf404e2419` selected 3 URLs and produced +3 evidence/+3 operations events.
+- [x] Acer live burn-in produced at least five Phase 14 retrieval operations events (`6`).
+- [x] Every successful live Research Agent run is correlated to exactly one completed instrumented task row.
+- [x] Live source-selection metadata is present and provider snippets/titles remain excluded.
+- [x] Live provider-health, resource, retention and operations endpoints pass read-only checks.
+- [x] Operations POST attempts return 405 through backend and dashboard proxy.
+- [x] Deterministic 5/5 reliability benchmark passes on the Acer.
+- [x] Acer benchmark report SHA-256 is `57cf45169f98675df7c7567dc0bbaefae4c4ad1db74805d72bfeac4903f45bfc`.
+- [x] Offline dashboard build/recreate succeeds without npm internet downloads.
+- [x] `/research/operations` is healthy and owner-visible.
+- [x] Final Guardian/Telegram/SearXNG/source safety invariants pass.
+- [x] Final task ledger count recorded as `15`.
+- [x] Final research evidence count recorded as `16`.
+- [x] Final research operations event count recorded as `6`.
+- [x] Final backend PID recorded as `487274` and active.
+- [x] Guardian remains inactive.
+- [x] Telegram approvals remain false.
+- [x] SearXNG remains bound only to `127.0.0.1:8888`.
+- [x] Dashboard remains healthy.
+- [x] Source checkout remains clean.
+- [x] 14J empirical manual-research readiness posture recorded as `manual-research-provider-degraded`.
+- [x] Smart-routing research remains disabled after 14J.
+- [x] Phase 14 completion criteria satisfied.
+- [ ] PR #67 final documentation checkpoint passes all repository workflows.
+- [ ] PR #67 merged to `main` only after final documentation CI is green.
+
+Live evidence: `docs/phase14-research-operations-live-evidence-2026-08-18.md`.
