@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import math
@@ -38,6 +39,7 @@ MAXIMUM_LIVE_NO_CANDIDATE_RATE = 0.05
 MINIMUM_LIVE_UNIQUE_SOURCE_FAMILY_RATE = 0.80
 MAXIMUM_LIVE_DUPLICATE_CONTENT_RATE = 0.20
 MAXIMUM_LIVE_RETRIEVAL_P95_MS = 1500.0
+LIVE_CASE_TIMEOUT_SECONDS = 60.0
 
 
 class Phase15LiveThresholds(BaseModel):
@@ -51,6 +53,7 @@ class Phase15LiveThresholds(BaseModel):
     minimum_unique_source_family_rate: float = MINIMUM_LIVE_UNIQUE_SOURCE_FAMILY_RATE
     maximum_duplicate_content_rate: float = MAXIMUM_LIVE_DUPLICATE_CONTENT_RATE
     maximum_retrieval_p95_ms: float = MAXIMUM_LIVE_RETRIEVAL_P95_MS
+    maximum_case_wall_clock_seconds: float = LIVE_CASE_TIMEOUT_SECONDS
 
 
 class Phase15LiveCaseResult(BaseModel):
@@ -191,10 +194,32 @@ async def run_phase15_live_benchmark(
 
     for case in PHASE15_PROVIDER_CORPUS:
         try:
-            result = await pipeline.run(
-                objective=case.objective,
-                query=WebSearchQuery(query=case.query, count=5),
+            async with asyncio.timeout(LIVE_CASE_TIMEOUT_SECONDS):
+                result = await pipeline.run(
+                    objective=case.objective,
+                    query=WebSearchQuery(query=case.query, count=5),
+                )
+        except TimeoutError:
+            cases.append(
+                Phase15LiveCaseResult(
+                    case_id=case.case_id,
+                    category=case.category,
+                    query=case.query,
+                    success=False,
+                    no_candidate=False,
+                    search_attempt_count=1,
+                    fallback_used=False,
+                    selected_url_count=0,
+                    selected_unique_source_family_count=0,
+                    successful_source_count=0,
+                    error_code="benchmark-case-timeout",
+                    error_detail=(
+                        "Phase 15 live corpus case exceeded the frozen 60 second "
+                        "wall-clock budget."
+                    ),
+                )
             )
+            continue
         except WebSearchDiscoveryError as exc:
             attempt_count = int(exc.diagnostics.get("search_attempt_count") or 1)
             cases.append(
@@ -375,8 +400,6 @@ async def _async_main() -> int:
 
 
 def main() -> int:
-    import asyncio
-
     return asyncio.run(_async_main())
 
 

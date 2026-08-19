@@ -7,6 +7,7 @@ import pytest
 
 from agents.truth_repository import DEFAULT_TRUTH_DATABASE_PATH
 from gateway.research_provider_live_benchmark import (
+    LIVE_CASE_TIMEOUT_SECONDS,
     MAXIMUM_LIVE_DUPLICATE_CONTENT_RATE,
     MAXIMUM_LIVE_NO_CANDIDATE_RATE,
     MAXIMUM_LIVE_RETRIEVAL_P95_MS,
@@ -34,6 +35,7 @@ def test_phase15_live_thresholds_are_frozen_before_live_corpus() -> None:
         == 0.20
     )
     assert thresholds.maximum_retrieval_p95_ms == MAXIMUM_LIVE_RETRIEVAL_P95_MS == 1500.0
+    assert thresholds.maximum_case_wall_clock_seconds == LIVE_CASE_TIMEOUT_SECONDS == 60.0
 
 
 def test_percentile_is_deterministic_nearest_rank() -> None:
