@@ -144,9 +144,9 @@
 - [x] Zero authority-boundary regressions.
 - [x] Smart-routing remains disabled regardless of Phase 15 posture.
 - [x] Phase 15 live evidence document created.
-- [ ] Final documentation CI green on the post-live documentation checkpoint.
+- [x] Final documentation CI green on checkpoint `ef7bc9d830f54fe8405e97b8535d2482bc39a10c` across all nine repository workflows.
 - [ ] Merge requires explicit owner authorization.
 
 ## Final state
 
-Phase 15 engineering and live evidence are complete. The only remaining non-empirical gates are final documentation CI and explicit owner merge authorization. The provider remains deliberately manual and degraded; no authority expansion is implied by completing Phase 15.
+Phase 15 engineering, Acer live evidence, empirical posture selection, and final documentation CI are complete. The only remaining gate is explicit owner merge authorization. The provider remains deliberately manual and degraded; no authority expansion is implied by completing Phase 15.
