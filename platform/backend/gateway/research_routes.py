@@ -11,6 +11,11 @@ from gateway.research_provider_health import (
     ResearchProviderHealth,
     check_searxng_health,
 )
+from gateway.research_provider_readiness import (
+    ResearchProviderReadiness,
+    assess_phase15_provider_readiness,
+    load_phase15_live_report,
+)
 from gateway.research_resource_snapshot import (
     ResearchResourceSnapshot,
     capture_research_resource_snapshot,
@@ -98,6 +103,20 @@ async def get_research_operations(
 )
 async def get_research_provider_health() -> ResearchProviderHealth:
     return await check_searxng_health()
+
+
+@router.get(
+    "/operations/provider-readiness",
+    response_model=ResearchProviderReadiness,
+)
+async def get_research_provider_readiness() -> ResearchProviderReadiness:
+    operations = research_operations_service.summary()
+    health = await check_searxng_health()
+    return assess_phase15_provider_readiness(
+        operations=operations,
+        health=health,
+        loaded_report=load_phase15_live_report(),
+    )
 
 
 @router.get(

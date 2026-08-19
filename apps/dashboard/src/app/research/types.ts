@@ -234,3 +234,48 @@ export type ResearchProviderHealth = {
   service_control_authority_granted: false;
   credentials_used: false;
 };
+
+export type Phase15LiveThresholds = {
+  policy_id: "dap-phase15-provider-readiness-v1";
+  minimum_success_rate: number;
+  maximum_no_candidate_rate: number;
+  minimum_unique_source_family_rate: number;
+  maximum_duplicate_content_rate: number;
+  maximum_retrieval_p95_ms: number;
+};
+
+export type ResearchProviderReadiness = {
+  policy_id: "dap-phase15-provider-readiness-view-v1";
+  state:
+    | "insufficient-data"
+    | "healthy"
+    | "degraded"
+    | "unavailable";
+  reason_codes: string[];
+  provider_id: "searxng-local-v1";
+  provider_health_healthy: boolean;
+  operations_reliability_posture:
+    | "insufficient-data"
+    | "within-thresholds"
+    | "degraded";
+  live_corpus_status: "missing" | "valid" | "invalid";
+  live_corpus_version: string | null;
+  live_report_sha256: string | null;
+  query_coverage_rate: number | null;
+  no_candidate_rate: number | null;
+  selected_unique_source_family_rate: number | null;
+  duplicate_content_rate: number | null;
+  retrieval_source_p95_ms: number | null;
+  live_recommended_posture:
+    | "manual-research-production-ready"
+    | "manual-research-experimental-only"
+    | "manual-research-provider-degraded"
+    | null;
+  thresholds: Phase15LiveThresholds;
+  smart_routing_research_activated: false;
+  network_authority_granted: false;
+  mutation_authority_granted: false;
+  service_control_authority_granted: false;
+  provider_reconfiguration_authority_granted: false;
+  owner_approval_required_for_future_authority_expansion: true;
+};

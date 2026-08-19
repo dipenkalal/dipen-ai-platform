@@ -20,6 +20,18 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         cls.selection_source = (
             cls.repo_root / "platform/backend/gateway/research_source_quality.py"
         ).read_text(encoding="utf-8")
+        cls.corpus_source = (
+            cls.repo_root / "platform/backend/gateway/research_provider_corpus.py"
+        ).read_text(encoding="utf-8")
+        cls.live_benchmark_source = (
+            cls.repo_root / "platform/backend/gateway/research_provider_live_benchmark.py"
+        ).read_text(encoding="utf-8")
+        cls.readiness_source = (
+            cls.repo_root / "platform/backend/gateway/research_provider_readiness.py"
+        ).read_text(encoding="utf-8")
+        cls.routes_source = (
+            cls.repo_root / "platform/backend/gateway/research_routes.py"
+        ).read_text(encoding="utf-8")
         cls.navigation_source = (
             cls.repo_root / "apps/dashboard/src/app/components/AppNavigation.tsx"
         ).read_text(encoding="utf-8")
@@ -98,10 +110,49 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         for token in ("sleep(", "kill(", "terminate(", "send_signal("):
             self.assertNotIn(token, self.discovery_source.lower())
 
+    def test_benchmark_corpus_is_frozen_before_live_execution(self) -> None:
+        self.assertIn("PHASE15_CORPUS_MINIMUM_CASES = 30", self.corpus_source)
+        self.assertEqual(self.corpus_source.count("ResearchProviderCorpusCase("), 31)
+        for token in (
+            '"official-documentation"',
+            '"standards"',
+            '"general-factual"',
+            '"multi-source-technical"',
+        ):
+            self.assertIn(token, self.corpus_source)
+
+    def test_live_benchmark_uses_isolated_truth_and_cannot_mutate_production_truth(self) -> None:
+        self.assertIn("not str(resolved).startswith(\"/tmp/\")", self.live_benchmark_source)
+        self.assertIn(
+            "production_task_truth_mutation_performed",
+            self.live_benchmark_source,
+        )
+        self.assertIn(
+            "production_research_evidence_mutation_performed",
+            self.live_benchmark_source,
+        )
+        self.assertIn("Literal[False] = False", self.live_benchmark_source)
+        self.assertNotIn("TaskLedgerRecord", self.live_benchmark_source)
+        self.assertNotIn("persist_task", self.live_benchmark_source)
+
+    def test_readiness_is_get_only_observation_without_remediation_authority(self) -> None:
+        self.assertIn('"/operations/provider-readiness"', self.routes_source)
+        self.assertIn("@router.get", self.routes_source)
+        self.assertNotIn("@router.post", self.routes_source)
+        for token in (
+            "smart_routing_research_activated: Literal[False] = False",
+            "network_authority_granted: Literal[False] = False",
+            "mutation_authority_granted: Literal[False] = False",
+            "service_control_authority_granted: Literal[False] = False",
+            "provider_reconfiguration_authority_granted: Literal[False] = False",
+        ):
+            self.assertIn(token, self.readiness_source)
+
     def test_phase15_adds_no_privileged_or_service_control_authority(self) -> None:
         combined = (
             f"{self.provider_source}\n{self.discovery_source}\n"
-            f"{self.fallback_source}\n{self.selection_source}"
+            f"{self.fallback_source}\n{self.selection_source}\n"
+            f"{self.live_benchmark_source}\n{self.readiness_source}"
         ).lower()
         for token in (
             "systemctl",

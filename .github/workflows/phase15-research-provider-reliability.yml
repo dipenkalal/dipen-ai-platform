@@ -39,8 +39,16 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/research_query_fallback.py \
             gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
             tests/test_phase15_searxng_provider_reliability.py \
-            tests/test_phase15_query_fallback_and_source_quality.py
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
       - name: Mypy Phase 15 provider boundary
         run: |
           python -m mypy \
@@ -48,6 +56,11 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/research_query_fallback.py \
             gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
             --follow-imports=skip
       - name: Compile Phase 15 provider boundary
         run: |
@@ -56,13 +69,41 @@ jobs:
             gateway/web_search_discovery.py \
             gateway/research_query_fallback.py \
             gateway/research_source_quality.py \
+            gateway/research_provider_corpus.py \
+            gateway/research_provider_benchmark.py \
+            gateway/research_provider_live_benchmark.py \
+            gateway/research_provider_readiness.py \
+            gateway/research_routes.py \
             tests/test_phase15_searxng_provider_reliability.py \
-            tests/test_phase15_query_fallback_and_source_quality.py
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
       - name: Phase 15 provider reliability tests
         run: |
           python -m pytest -q \
             tests/test_phase15_searxng_provider_reliability.py \
-            tests/test_phase15_query_fallback_and_source_quality.py
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_provider_benchmark.py \
+            tests/test_phase15_live_benchmark_contract.py \
+            tests/test_phase15_provider_readiness.py
+      - name: Deterministic 30-case Phase 15 benchmark
+        run: |
+          python -m gateway.research_provider_benchmark \
+            --source-commit "${GITHUB_SHA}" \
+            --output /tmp/phase15-provider-benchmark.json
+          python - <<'PY'
+          import json
+          payload = json.load(open('/tmp/phase15-provider-benchmark.json', encoding='utf-8'))
+          assert payload['benchmark_version'] == 'phase15h.1'
+          assert payload['case_count'] == 30
+          assert payload['cases_passed'] == 30
+          assert payload['all_cases_passed'] is True
+          assert payload['smart_routing_research_activated'] is False
+          assert payload['provider_switching_allowed'] is False
+          assert payload['generic_network_authority_expanded'] is False
+          print('phase15_provider_benchmark_ci|PASS')
+          PY
       - name: Sealed search/retrieval regression matrix
         run: |
           python -m pytest -q \

@@ -4,6 +4,7 @@ import type {
 import type {
   ResearchOperationsSummary,
   ResearchProviderHealth,
+  ResearchProviderReadiness,
   ResearchRetentionPlan,
   ResearchWorkspaceEvidenceItem,
   ResearchWorkspaceListResponse,
@@ -69,6 +70,12 @@ export async function fetchResearchOperations(): Promise<ResearchOperationsSumma
 export async function fetchResearchProviderHealth(): Promise<ResearchProviderHealth> {
   return getJson<ResearchProviderHealth>(
     "/api/research/operations/provider-health",
+  );
+}
+
+export async function fetchResearchProviderReadiness(): Promise<ResearchProviderReadiness> {
+  return getJson<ResearchProviderReadiness>(
+    "/api/research/operations/provider-readiness",
   );
 }
 
