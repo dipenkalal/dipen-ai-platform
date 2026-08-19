@@ -41,6 +41,7 @@ jobs:
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
             gateway/research_provider_health.py \
+            gateway/research_resource_snapshot.py \
             gateway/research_reliability_benchmark.py \
             gateway/web_search_discovery.py \
             gateway/research_routes.py \
@@ -56,6 +57,7 @@ jobs:
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
             gateway/research_provider_health.py \
+            gateway/research_resource_snapshot.py \
             gateway/research_reliability_benchmark.py \
             gateway/web_search_discovery.py \
             gateway/research_routes.py \
@@ -68,6 +70,7 @@ jobs:
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
             gateway/research_provider_health.py \
+            gateway/research_resource_snapshot.py \
             gateway/research_reliability_benchmark.py \
             gateway/web_search_discovery.py \
             gateway/research_routes.py \
