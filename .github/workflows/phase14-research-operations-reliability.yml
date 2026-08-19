@@ -37,6 +37,7 @@ jobs:
       - name: Ruff Phase 14 boundary
         run: |
           python -m ruff check \
+            agents/research_executor.py \
             gateway/research_source_quality.py \
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
@@ -53,6 +54,7 @@ jobs:
       - name: Mypy Phase 14 boundary
         run: |
           python -m mypy \
+            agents/research_executor.py \
             gateway/research_source_quality.py \
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
@@ -66,6 +68,7 @@ jobs:
       - name: Compile Phase 14 boundary
         run: |
           python -m compileall -q \
+            agents/research_executor.py \
             gateway/research_source_quality.py \
             gateway/research_operations_repository.py \
             gateway/research_operations.py \
@@ -118,6 +121,9 @@ jobs:
             tests/test_phase12i_research_workspace.py \
             tests/test_phase12j_research_benchmark.py \
             tests/test_phase13_provider_specific_research_activation.py
+      - name: Live operator shell syntax
+        working-directory: ../..
+        run: bash -n scripts/phase14-research-operations-live-burnin.sh
 
   guardian-reliability:
     runs-on: ubuntu-latest
@@ -133,12 +139,14 @@ jobs:
         run: |
           python -m compileall -q \
             tests/test_phase14_research_operations_boundary.py \
+            tests/test_phase14_live_burnin_operator_boundary.py \
             tests/test_phase13_provider_specific_research_activation_boundary.py \
             tests/test_phase12h_searxng_provider_boundary.py
       - name: Phase 14 Guardian boundary
         run: |
           python -m unittest -v \
             tests.test_phase14_research_operations_boundary \
+            tests.test_phase14_live_burnin_operator_boundary \
             tests.test_phase13_provider_specific_research_activation_boundary \
             tests.test_phase12h_searxng_provider_boundary
 
