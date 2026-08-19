@@ -72,3 +72,18 @@ No backend restart, SearXNG restart, provider configuration mutation, production
 The dominant coverage defect is the current three-engine SearXNG pool itself. All configured engines are simultaneously blocked by upstream anti-bot/rate-limit behavior. DAP candidate validation, destination policy, retrieval, and benchmark timeout behavior are not the cause of the 70% no-candidate baseline.
 
 The next justified action is a bounded provider-engine-pool remediation while preserving the same fixed local SearXNG provider and all DAP authority boundaries. SafeSearch is not implicated by this evidence and should remain unchanged during the engine-pool correction so that variables are isolated.
+
+## 16C.2 source remediation selected
+
+The tracked candidate replacement pool is:
+
+- Google;
+- Bing;
+- Qwant;
+- Mojeek;
+- Wikipedia;
+- Wiby.
+
+The original blocked Brave/DuckDuckGo/Startpage pool is removed from the candidate configuration. All six replacement engines are credential-free in the tracked DAP configuration and explicitly enabled. SafeSearch remains `2`.
+
+The source boundary test freezes the exact pool and rejects credential fields or authority changes before any Acer deployment is allowed.
