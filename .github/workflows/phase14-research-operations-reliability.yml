@@ -122,7 +122,7 @@ jobs:
             tests/test_phase12j_research_benchmark.py \
             tests/test_phase13_provider_specific_research_activation.py
       - name: Live operator shell syntax
-        working-directory: ../..
+        working-directory: .
         run: bash -n scripts/phase14-research-operations-live-burnin.sh
 
   guardian-reliability:
