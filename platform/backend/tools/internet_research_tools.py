@@ -132,6 +132,7 @@ class InternetResearchRetrieveTool(BaseTool):
             attempt_count = 0
             transient_retry_count = 0
             retry_trigger_error_code: str | None = None
+            source_family: str | None = None
 
             while True:
                 attempt_count += 1
