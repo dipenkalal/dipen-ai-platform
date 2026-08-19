@@ -146,7 +146,8 @@ class WebSearchRetrievalPipeline:
 
         discovery = await self._provider.search(query)
         selection = self._select_urls(discovery)
-        if not selection.selected_urls:
+        selected_urls = selection.selected_urls
+        if not selected_urls:
             raise WebSearchDiscoveryError(
                 "no-search-candidates",
                 "Search provider returned no URL candidate eligible for bounded DAP retrieval.",
@@ -155,7 +156,7 @@ class WebSearchRetrievalPipeline:
         retrieval = await self._retrieval_tool.execute(
             {
                 "objective": normalized_objective,
-                "urls": list(selection.selected_urls),
+                "urls": list(selected_urls),
             }
         )
         retrieval_output = retrieval.output if isinstance(retrieval.output, dict) else None
@@ -173,7 +174,7 @@ class WebSearchRetrievalPipeline:
             discovery_sha256=discovery.discovery_sha256,
             query=discovery.query,
             candidate_count=len(discovery.candidates),
-            selected_urls=selection.selected_urls,
+            selected_urls=selected_urls,
             source_selection_policy_id=selection.policy_id,
             unique_source_family_count=selection.unique_source_family_count,
             selected_source_families=selection.selected_source_families,
