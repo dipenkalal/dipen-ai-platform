@@ -92,9 +92,9 @@ def select_source_diverse_candidates(
 
     duplicate_family_fallback_urls: set[str] = set()
     if len(selected) < limit:
-        selected_urls = {candidate.url for candidate in selected}
+        already_selected_urls = {candidate.url for candidate in selected}
         for candidate in unique_candidates:
-            if candidate.url in selected_urls:
+            if candidate.url in already_selected_urls:
                 continue
             selected.append(candidate)
             duplicate_family_fallback_urls.add(candidate.url)
