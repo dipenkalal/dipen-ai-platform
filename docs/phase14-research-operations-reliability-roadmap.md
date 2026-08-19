@@ -155,6 +155,8 @@ Live operations result:
 
 Final 14J posture: **`manual-research-provider-degraded`**.
 
+Smart-routing research is **not** activated by 14J.
+
 This posture means:
 
 - manual owner-supervised research remains available under the Phase 13 boundary;
