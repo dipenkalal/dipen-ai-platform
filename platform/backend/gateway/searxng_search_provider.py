@@ -24,7 +24,24 @@ SEARXNG_PORT = 8888
 SEARXNG_PATH = "/search"
 SEARXNG_ENDPOINT = f"http://{SEARXNG_HOST}:{SEARXNG_PORT}{SEARXNG_PATH}"
 MAX_SEARXNG_PROVIDER_RESULT_SCAN = 20
+MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS = 16
 _MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
+
+SearXNGEngineFailureClass = Literal[
+    "too-many-requests",
+    "captcha",
+    "access-denied",
+    "timeout",
+    "http-error",
+    "http-protocol-error",
+    "network-error",
+    "proxy-error",
+    "ssl-error",
+    "parsing-error",
+    "server-api-error",
+    "unexpected-crash",
+    "other",
+]
 
 
 class SearXNGSearchProviderError(RuntimeError):
@@ -42,6 +59,17 @@ class SearXNGSearchRawResponse(BaseModel):
     connected_address: Literal["127.0.0.1"] = SEARXNG_HOST
     status_code: int
     content_type: str | None
+
+
+class SearXNGEngineFailure(BaseModel):
+    """DAP-normalized SearXNG engine failure metadata with raw text discarded."""
+
+    model_config = ConfigDict(frozen=True)
+
+    engine_name: str = Field(min_length=1, max_length=120)
+    failure_class: SearXNGEngineFailureClass
+    suspended: bool = False
+    raw_error_text_recorded: Literal[False] = False
 
 
 class SearXNGSearchDiscoveryResult(BaseModel):
@@ -63,6 +91,13 @@ class SearXNGSearchDiscoveryResult(BaseModel):
     dropped_unsafe_candidate_count: int = Field(ge=0)
     provider_zero_results: bool
     admissible_candidate_zero_after_filtering: bool
+    contributing_engines: tuple[str, ...] = Field(
+        default=(), max_length=MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS
+    )
+    unresponsive_engines: tuple[SearXNGEngineFailure, ...] = Field(
+        default=(), max_length=MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS
+    )
+    provider_engine_error_text_recorded: Literal[False] = False
     provider_is_local_only: Literal[True] = True
     provider_credential_required: Literal[False] = False
     provider_credential_exposed_to_model: Literal[False] = False
@@ -205,6 +240,93 @@ class SearXNGFixedLocalTransport:
 CandidateDisposition = Literal["accepted", "invalid", "policy-rejected"]
 
 
+def _safe_engine_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    if not normalized or any(ord(char) < 32 for char in normalized):
+        return None
+    return normalized[:120]
+
+
+def _normalize_engine_failure(message: Any) -> tuple[SearXNGEngineFailureClass, bool]:
+    if not isinstance(message, str):
+        return "other", False
+    normalized = " ".join(message.casefold().split())
+    suspended = normalized.startswith("suspended:")
+    if "too many requests" in normalized:
+        return "too-many-requests", suspended
+    if "captcha" in normalized:
+        return "captcha", suspended
+    if "access denied" in normalized:
+        return "access-denied", suspended
+    if "timeout" in normalized:
+        return "timeout", suspended
+    if "ssl error" in normalized:
+        return "ssl-error", suspended
+    if "proxy error" in normalized:
+        return "proxy-error", suspended
+    if "http protocol error" in normalized:
+        return "http-protocol-error", suspended
+    if "http connection error" in normalized or "network error" in normalized:
+        return "network-error", suspended
+    if "http error" in normalized:
+        return "http-error", suspended
+    if "parsing error" in normalized:
+        return "parsing-error", suspended
+    if "server api error" in normalized:
+        return "server-api-error", suspended
+    if "unexpected crash" in normalized:
+        return "unexpected-crash", suspended
+    return "other", suspended
+
+
+def _extract_contributing_engines(provider_results: list[Any]) -> tuple[str, ...]:
+    names: set[str] = set()
+    for item in provider_results[:MAX_SEARXNG_PROVIDER_RESULT_SCAN]:
+        if not isinstance(item, dict):
+            continue
+        raw_engines = item.get("engines")
+        if isinstance(raw_engines, list):
+            for value in raw_engines:
+                name = _safe_engine_name(value)
+                if name is not None:
+                    names.add(name)
+        raw_engine = item.get("engine")
+        name = _safe_engine_name(raw_engine)
+        if name is not None:
+            names.add(name)
+        if len(names) >= MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS:
+            break
+    return tuple(sorted(names)[:MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS])
+
+
+def _extract_unresponsive_engines(value: Any) -> tuple[SearXNGEngineFailure, ...]:
+    if not isinstance(value, list):
+        return ()
+    failures: list[SearXNGEngineFailure] = []
+    seen: set[tuple[str, str, bool]] = set()
+    for item in value[:MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS]:
+        if not isinstance(item, (list, tuple)) or len(item) < 2:
+            continue
+        engine_name = _safe_engine_name(item[0])
+        if engine_name is None:
+            continue
+        failure_class, suspended = _normalize_engine_failure(item[1])
+        key = (engine_name, failure_class, suspended)
+        if key in seen:
+            continue
+        seen.add(key)
+        failures.append(
+            SearXNGEngineFailure(
+                engine_name=engine_name,
+                failure_class=failure_class,
+                suspended=suspended,
+            )
+        )
+    return tuple(failures)
+
+
 class SearXNGWebSearchProvider:
     """Convert local SearXNG results into untrusted candidate URLs only."""
 
@@ -237,6 +359,11 @@ class SearXNGWebSearchProvider:
                 "searxng-json-invalid",
                 "Local SearXNG results must be a list.",
             )
+
+        contributing_engines = _extract_contributing_engines(provider_results)
+        unresponsive_engines = _extract_unresponsive_engines(
+            payload.get("unresponsive_engines")
+        )
 
         candidates: list[WebSearchCandidate] = []
         considered = 0
@@ -281,6 +408,10 @@ class SearXNGWebSearchProvider:
             "admissible_candidate_zero_after_filtering": (
                 admissible_candidate_zero_after_filtering
             ),
+            "contributing_engines": list(contributing_engines),
+            "unresponsive_engines": [
+                item.model_dump(mode="json") for item in unresponsive_engines
+            ],
         }
         canonical = json.dumps(discovery_payload, sort_keys=True, separators=(",", ":"))
         discovery_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -301,6 +432,8 @@ class SearXNGWebSearchProvider:
             admissible_candidate_zero_after_filtering=(
                 admissible_candidate_zero_after_filtering
             ),
+            contributing_engines=contributing_engines,
+            unresponsive_engines=unresponsive_engines,
         )
 
     def _candidate_from_item(self, rank: int, item: Any) -> WebSearchCandidate | None:
