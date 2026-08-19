@@ -72,7 +72,7 @@ for (const token of [
 
 for (const token of [
   "Read only",
-  "not source credibility",
+  "Not source credibility",
   "Automatic deletion and archive are disabled",
   "UI network authority: disabled",
   "Provider restart authority: disabled",
