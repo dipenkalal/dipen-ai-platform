@@ -1,6 +1,6 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — EXISTING-ISSUE REMEDIATION ONLY**
+Status: **IN PROGRESS — 16A/16B LIVE DIAGNOSTIC PASS; 16C.1 ENGINE TELEMETRY NEXT**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
@@ -53,15 +53,15 @@ The merged SearXNG deployment currently keeps only three engines:
 - Brave;
 - Startpage.
 
-SearXNG safe search is set to `2`. This may contribute to low coverage, but Phase 16 will not change provider configuration until the failure population is classified empirically.
+SearXNG safe search is set to `2`.
+
+Phase 16A/16B proved that configuration/output behavior is the current coverage bottleneck population, but it did not yet prove whether the dominant mechanism is upstream engine suspension/throttling/CAPTCHA/access denial or genuinely empty engine results. Provider settings therefore remain unchanged until 16C.1 captures engine-level diagnostics.
 
 ## Phase gates
 
-### 16A — failure taxonomy and diagnostic contract
+### 16A — failure taxonomy and diagnostic contract — PASS
 
-Goal: classify every provider attempt without exposing provider text.
-
-Required categories include:
+Implemented a safe isolated diagnostic contract that distinguishes:
 
 - provider zero raw results;
 - raw results returned but invalid candidate shape;
@@ -70,17 +70,61 @@ Required categories include:
 - benchmark case timeout;
 - provider transport/error condition.
 
-The diagnostic record must preserve per-attempt counts, fallback usage and safe timing metadata while continuing to exclude provider titles/snippets.
+The diagnostic preserves per-attempt counts, fallback usage and safe timing metadata while excluding provider titles/snippets.
 
-### 16B — frozen baseline replay
+Source/CI checkpoint before live replay: `70dfee5b76c9ed5ad06221a3ec0b448d689cc43c`.
 
-Re-run the same 30-case Phase 15 corpus with the new diagnostic contract in an isolated `/tmp` truth database. No production task/evidence/operations mutation.
+All 11 repository pull-request workflows passed on that exact checkpoint.
 
-The purpose is diagnosis, not to move thresholds or change queries.
+### 16B — frozen baseline replay — PASS
+
+The unchanged 30-case Phase 15 corpus was replayed on the Acer with the original provider configuration in an isolated `/tmp` truth database.
+
+Canonical diagnostic report SHA-256:
+
+`d497d4a4cca4451b3bcef3e0a4fd16d81932645fa28d28ef883ddb686d88baed`
+
+Observed failure population:
+
+- success: `9`;
+- provider-zero-results: `21`;
+- DAP-filtered-zero: `0`;
+- provider transport errors: `0`;
+- retrieval failures: `0`;
+- benchmark timeouts: `0`;
+- unclassified no-candidate: `0`.
+
+Category result:
+
+- official documentation: `9` success, `1` provider-zero-results;
+- standards: `10` provider-zero-results;
+- general factual: `5` provider-zero-results;
+- multi-source technical: `5` provider-zero-results.
+
+Sequence observation: the first nine cases succeeded, then every remaining 21 case returned zero raw results across all three bounded attempts. That is consistent with an order/burst-dependent upstream-engine problem, but Phase 16B intentionally did not capture engine error metadata and therefore does not yet prove the specific engine failure mechanism.
+
+Production task/evidence/operations counts were unchanged and the SearXNG settings SHA remained unchanged.
+
+Live evidence: `docs/phase16a-live-evidence-2026-08-19.md`.
 
 ### 16C — SearXNG engine/configuration remediation
 
-Only after 16B identifies the dominant failure class, make the smallest deterministic provider-side correction justified by evidence.
+#### 16C.1 — engine failure telemetry — NEXT
+
+Before any configuration mutation, capture only safe engine-level metadata already present in the local SearXNG JSON response:
+
+- engines that contributed returned results;
+- unresponsive engine names;
+- DAP-normalized failure classes such as rate limit, CAPTCHA, access denied, timeout, network/HTTP/proxy/SSL/parsing/API failure or unknown;
+- whether SearXNG reports an engine suspended.
+
+Do not persist raw engine error strings, titles, snippets, answers, corrections or suggestions.
+
+Run a bounded control-probe/replay that can distinguish order-dependent upstream engine exhaustion from genuinely empty query results.
+
+#### 16C.2 — minimal configuration correction
+
+Only after 16C.1 identifies the dominant engine failure class, make the smallest deterministic SearXNG-side correction justified by live evidence.
 
 No provider endpoint change and no provider switching.
 
@@ -123,4 +167,4 @@ A green Phase 16 engineering gate does not itself activate smart-routing researc
 
 ## Immediate next gate
 
-Implement 16A diagnostics first, then run 16B against the unchanged live provider configuration. Do not tune SearXNG before the failure distribution is captured.
+Implement 16C.1 engine-level telemetry and a bounded control probe. Do not change SearXNG engine selection, SafeSearch, provider endpoint or query semantics until the upstream engine failure mode is proven.
