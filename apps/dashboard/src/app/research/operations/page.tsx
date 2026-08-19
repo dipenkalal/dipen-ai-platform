@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
+  Cpu,
   Database,
   Globe2,
   LoaderCircle,
@@ -27,8 +28,12 @@ import {
 import {
   fetchResearchOperations,
   fetchResearchProviderHealth,
+  fetchResearchResourceSnapshot,
   fetchResearchRetentionPlan,
 } from "../api";
+import type {
+  ResearchResourceSnapshot,
+} from "../resource-types";
 import type {
   ResearchOperationsSummary,
   ResearchProviderHealth,
@@ -66,6 +71,8 @@ export default function ResearchOperationsPage() {
     useState<ResearchOperationsSummary | null>(null);
   const [health, setHealth] =
     useState<ResearchProviderHealth | null>(null);
+  const [resources, setResources] =
+    useState<ResearchResourceSnapshot | null>(null);
   const [retention, setRetention] =
     useState<ResearchRetentionPlan | null>(null);
   const [isLoading, setIsLoading] =
@@ -77,14 +84,20 @@ export default function ResearchOperationsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const [nextSummary, nextHealth, nextRetention] =
-        await Promise.all([
-          fetchResearchOperations(),
-          fetchResearchProviderHealth(),
-          fetchResearchRetentionPlan(),
-        ]);
+      const [
+        nextSummary,
+        nextHealth,
+        nextResources,
+        nextRetention,
+      ] = await Promise.all([
+        fetchResearchOperations(),
+        fetchResearchProviderHealth(),
+        fetchResearchResourceSnapshot(),
+        fetchResearchRetentionPlan(),
+      ]);
       setSummary(nextSummary);
       setHealth(nextHealth);
+      setResources(nextResources);
       setRetention(nextRetention);
     } catch (loadError) {
       setError(
@@ -216,6 +229,23 @@ export default function ResearchOperationsPage() {
             <p className="mt-3 text-sm text-slate-400">
               Completeness of citations, hashes, final URL and injection inspection. Not source credibility.
             </p>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+          <div className="flex items-center gap-2 text-cyan-300">
+            <Cpu className="h-4 w-4" />
+            <h2 className="text-sm font-semibold uppercase tracking-[0.16em]">Backend resource snapshot</h2>
+          </div>
+          <p className="mt-3 text-sm text-slate-400">
+            Current DAP backend process and host snapshot shown beside research reliability metrics. It is not per-request attribution and grants no process-control authority.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <Metric label="Backend RSS" value={resources ? `${resources.process_rss_mib.toFixed(1)} MiB` : "—"} />
+            <Metric label="Process user CPU" value={resources ? `${resources.process_user_cpu_seconds.toFixed(2)} s` : "—"} />
+            <Metric label="Process system CPU" value={resources ? `${resources.process_system_cpu_seconds.toFixed(2)} s` : "—"} />
+            <Metric label="Host memory" value={resources ? `${resources.system_memory_percent.toFixed(1)}%` : "—"} />
+            <Metric label="Host CPU sample" value={resources ? `${resources.system_cpu_percent.toFixed(1)}%` : "—"} />
           </div>
         </section>
 
