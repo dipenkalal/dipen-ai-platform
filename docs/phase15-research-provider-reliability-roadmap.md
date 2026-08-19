@@ -223,3 +223,5 @@ Phase 15 is **COMPLETE / SEALED** at `manual-research-provider-degraded`.
 Live evidence: `docs/phase15-research-provider-reliability-live-evidence-2026-08-19.md`.
 
 PR #69 remains draft/open/unmerged until explicit owner authorization. A future provider-reliability milestone may improve coverage/latency, but any smart-routing or broader network/provider authority must remain a separate owner-approved milestone.
+
+Any future authority expansion requires a separate owner-approved milestone.
