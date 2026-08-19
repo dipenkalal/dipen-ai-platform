@@ -382,6 +382,8 @@ class ResearchOperationsService:
     def _record_source_family(
         record: PersistedResearchRetrievalRecord,
     ) -> str | None:
+        if record.evidence.outcome != "succeeded":
+            return None
         url = record.evidence.final_url or record.evidence.requested_url
         try:
             return canonical_source_family(url)
