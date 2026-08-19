@@ -4,7 +4,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -73,30 +73,26 @@ class ResearchOperationsEvent(BaseModel):
             raise ValueError("research operations event ID mismatch")
         return self
 
-    def canonical_hash(self) -> str:
-        payload = self.model_dump(mode="json", exclude={"event_id", "event_sha256"})
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    @classmethod
-    def build(
-        cls,
+    @staticmethod
+    def _canonical_payload(
         *,
         event_type: ResearchOperationsEventType,
         provider_id: str,
         outcome: ResearchOperationsOutcome,
+        request_id: str | None,
+        evidence_id: str | None,
+        source_family: str | None,
+        stage: str | None,
+        error_code: str | None,
         duration_ms: float,
+        attempt_count: int,
+        transient_retry_count: int,
+        recovered_after_retry: bool,
         recorded_at: datetime,
-        request_id: str | None = None,
-        evidence_id: str | None = None,
-        source_family: str | None = None,
-        stage: str | None = None,
-        error_code: str | None = None,
-        attempt_count: int = 1,
-        transient_retry_count: int = 0,
-        recovered_after_retry: bool = False,
-    ) -> ResearchOperationsEvent:
-        payload = {
+    ) -> dict[str, Any]:
+        if recorded_at.tzinfo is None or recorded_at.utcoffset() is None:
+            raise ValueError("research operations event timestamp must be timezone-aware")
+        return {
             "event_type": event_type,
             "provider_id": provider_id,
             "outcome": outcome,
@@ -117,8 +113,65 @@ class ResearchOperationsEvent(BaseModel):
             "guardian_contacted": False,
             "privileged_host_action_performed": False,
         }
+
+    @staticmethod
+    def _hash_payload(payload: dict[str, Any]) -> str:
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        event_sha256 = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def canonical_hash(self) -> str:
+        return self._hash_payload(
+            self._canonical_payload(
+                event_type=self.event_type,
+                provider_id=self.provider_id,
+                outcome=self.outcome,
+                request_id=self.request_id,
+                evidence_id=self.evidence_id,
+                source_family=self.source_family,
+                stage=self.stage,
+                error_code=self.error_code,
+                duration_ms=self.duration_ms,
+                attempt_count=self.attempt_count,
+                transient_retry_count=self.transient_retry_count,
+                recovered_after_retry=self.recovered_after_retry,
+                recorded_at=self.recorded_at,
+            )
+        )
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        event_type: ResearchOperationsEventType,
+        provider_id: str,
+        outcome: ResearchOperationsOutcome,
+        duration_ms: float,
+        recorded_at: datetime,
+        request_id: str | None = None,
+        evidence_id: str | None = None,
+        source_family: str | None = None,
+        stage: str | None = None,
+        error_code: str | None = None,
+        attempt_count: int = 1,
+        transient_retry_count: int = 0,
+        recovered_after_retry: bool = False,
+    ) -> ResearchOperationsEvent:
+        payload = cls._canonical_payload(
+            event_type=event_type,
+            provider_id=provider_id,
+            outcome=outcome,
+            request_id=request_id,
+            evidence_id=evidence_id,
+            source_family=source_family,
+            stage=stage,
+            error_code=error_code,
+            duration_ms=duration_ms,
+            attempt_count=attempt_count,
+            transient_retry_count=transient_retry_count,
+            recovered_after_retry=recovered_after_retry,
+            recorded_at=recorded_at,
+        )
+        event_sha256 = cls._hash_payload(payload)
         return cls.model_validate(
             {
                 "event_id": f"research-ops-{event_sha256[:24]}",
