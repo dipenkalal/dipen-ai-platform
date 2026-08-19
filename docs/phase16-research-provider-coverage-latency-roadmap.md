@@ -61,16 +61,7 @@ Phase 16C.1 proved that all three configured engines are currently blocked upstr
 
 ### 16A — failure taxonomy and diagnostic contract — PASS
 
-Implemented a safe isolated diagnostic contract that distinguishes:
-
-- provider zero raw results;
-- raw results returned but invalid candidate shape;
-- raw results returned but rejected by DAP destination policy;
-- candidate selection succeeded but retrieval failed;
-- benchmark case timeout;
-- provider transport/error condition.
-
-The diagnostic preserves per-attempt counts, fallback usage and safe timing metadata while excluding provider titles/snippets.
+Implemented a safe isolated diagnostic contract that distinguishes provider zero raw results, DAP-filtered raw results, retrieval failures, case timeouts and provider transport/error conditions while excluding provider titles/snippets.
 
 Source/CI checkpoint before live replay: `70dfee5b76c9ed5ad06221a3ec0b448d689cc43c`.
 
@@ -134,7 +125,7 @@ Production truth, backend PID, SearXNG container identity/start time, loopback b
 
 Live evidence: `docs/phase16c1-engine-health-live-evidence-2026-08-19.md`.
 
-#### 16C.2 — minimal configuration correction — IN PROGRESS
+#### 16C.2 — minimal configuration correction — SOURCE CHECKPOINT
 
 The tracked candidate configuration replaces the blocked three-engine-only pool with a credential-free diversified pool while preserving the same local SearXNG provider:
 
@@ -153,7 +144,11 @@ The removed pool is:
 
 All six replacement engines are explicitly enabled in the tracked settings. The provider endpoint, local-only topology, SafeSearch value `2`, JSON search format, DAP query semantics, URL admission path and at-most-three retrieval ceiling remain unchanged.
 
-The engine-pool change must pass source/CI boundary checks before any Acer configuration mutation. Acer deployment must use a reversible one-container SearXNG recreation with exact pre/post configuration hashes, runtime safety checks and an immediate low-volume canary before any 30-case replay.
+The source boundary is frozen by `test_phase16_engine_pool_remediation_boundary.py`, which verifies the exact engine set, removal of the blocked pool, absence of credential fields, unchanged SafeSearch, fixed loopback provider endpoint and frozen Phase 16 authority language.
+
+Current source checkpoint: `15ccdce88466cafa234556f4cc10daaae94f0da9`.
+
+The engine-pool change must pass the complete repository CI matrix before any Acer configuration mutation. Acer deployment must use a reversible one-container SearXNG recreation with exact pre/post configuration hashes, runtime safety checks and an immediate low-volume canary before any 30-case replay.
 
 No provider endpoint change and no provider switching.
 
@@ -196,4 +191,4 @@ A green Phase 16 engineering gate does not itself activate smart-routing researc
 
 ## Immediate next gate
 
-Freeze the 16C.2 replacement engine-pool contract in CI. Only after that exact source checkpoint is green may the Acer SearXNG container be recreated with the new tracked settings. The first live action after recreation is a bounded engine-health canary; do not run the 30-case corpus until the replacement pool proves it can return candidates without immediately entering a blocked state.
+Run the complete CI matrix on source checkpoint `15ccdce88466cafa234556f4cc10daaae94f0da9`. Only after that exact source checkpoint is green may the Acer SearXNG container be recreated with the new tracked settings. The first live action after recreation is a bounded engine-health canary; do not run the 30-case corpus until the replacement pool proves it can return candidates without immediately entering a blocked state.
