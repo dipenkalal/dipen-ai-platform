@@ -121,9 +121,11 @@ jobs:
             tests/test_phase12i_research_workspace.py \
             tests/test_phase12j_research_benchmark.py \
             tests/test_phase13_provider_specific_research_activation.py
-      - name: Live operator shell syntax
+      - name: Live operator and recovery syntax
         working-directory: .
-        run: bash -n scripts/phase14-research-operations-live-burnin.sh
+        run: |
+          bash -n scripts/phase14-research-operations-live-burnin.sh
+          python -m py_compile scripts/phase14_research_operations_provider_recovery.py
 
   guardian-reliability:
     runs-on: ubuntu-latest
@@ -140,6 +142,7 @@ jobs:
           python -m compileall -q \
             tests/test_phase14_research_operations_boundary.py \
             tests/test_phase14_live_burnin_operator_boundary.py \
+            tests/test_phase14_provider_recovery_boundary.py \
             tests/test_phase13_provider_specific_research_activation_boundary.py \
             tests/test_phase12h_searxng_provider_boundary.py
       - name: Phase 14 Guardian boundary
@@ -147,6 +150,7 @@ jobs:
           python -m unittest -v \
             tests.test_phase14_research_operations_boundary \
             tests.test_phase14_live_burnin_operator_boundary \
+            tests.test_phase14_provider_recovery_boundary \
             tests.test_phase13_provider_specific_research_activation_boundary \
             tests.test_phase12h_searxng_provider_boundary
 
