@@ -16,6 +16,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -26,6 +27,8 @@ import type {
   ResearchRetrievalOutcome,
   ResearchWorkspaceListResponse,
 } from "./types";
+
+type EvidenceView = "agent-runs" | "all";
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -76,6 +79,8 @@ function outcomeClasses(
 export default function ResearchPage() {
   const [data, setData] =
     useState<ResearchWorkspaceListResponse | null>(null);
+  const [view, setView] =
+    useState<EvidenceView>("agent-runs");
   const [isLoading, setIsLoading] =
     useState(true);
   const [error, setError] =
@@ -109,6 +114,25 @@ export default function ResearchPage() {
       window.clearTimeout(timeoutId);
     };
   }, [loadEvidence]);
+
+  const agentRunItems = useMemo(
+    () => data?.items.filter((item) => item.run !== null) ?? [],
+    [data],
+  );
+  const visibleItems = useMemo(
+    () => (view === "agent-runs" ? agentRunItems : data?.items ?? []),
+    [agentRunItems, data, view],
+  );
+  const visibleSucceeded = visibleItems.filter(
+    (item) => item.evidence.outcome === "succeeded",
+  ).length;
+  const visibleFailed = visibleItems.filter(
+    (item) => item.evidence.outcome === "failed",
+  ).length;
+  const visibleCancelled = visibleItems.filter(
+    (item) => item.evidence.outcome === "cancelled",
+  ).length;
+  const standaloneCount = (data?.items.length ?? 0) - agentRunItems.length;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -162,22 +186,66 @@ export default function ResearchPage() {
           </div>
         </header>
 
+        <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Evidence view</p>
+              <p className="mt-1 max-w-3xl text-sm text-slate-400">
+                Research Agent runs are shown by default. Standalone evidence, including safety and validation records that are not correlated to an agent run, stays immutable and remains available in All evidence.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={view === "agent-runs"}
+                onClick={() => setView("agent-runs")}
+                className={[
+                  "rounded-xl border px-3 py-2 text-sm font-medium transition",
+                  view === "agent-runs"
+                    ? "border-cyan-300/30 bg-cyan-300/[0.10] text-cyan-100"
+                    : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]",
+                ].join(" ")}
+              >
+                Research Agent runs ({agentRunItems.length})
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === "all"}
+                onClick={() => setView("all")}
+                className={[
+                  "rounded-xl border px-3 py-2 text-sm font-medium transition",
+                  view === "all"
+                    ? "border-cyan-300/30 bg-cyan-300/[0.10] text-cyan-100"
+                    : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]",
+                ].join(" ")}
+              >
+                All evidence ({data?.items.length ?? 0})
+              </button>
+            </div>
+          </div>
+          {standaloneCount > 0 ? (
+            <p className="mt-3 text-xs text-slate-500">
+              Standalone evidence currently hidden in the default view: {standaloneCount}.
+            </p>
+          ) : null}
+        </section>
+
         <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Total</p>
-            <p className="mt-2 text-2xl font-semibold">{data?.total ?? 0}</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Visible</p>
+            <p className="mt-2 text-2xl font-semibold">{visibleItems.length}</p>
           </div>
           <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/70">Succeeded</p>
-            <p className="mt-2 text-2xl font-semibold text-emerald-200">{data?.succeeded ?? 0}</p>
+            <p className="mt-2 text-2xl font-semibold text-emerald-200">{visibleSucceeded}</p>
           </div>
           <div className="rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-rose-300/70">Failed</p>
-            <p className="mt-2 text-2xl font-semibold text-rose-200">{data?.failed ?? 0}</p>
+            <p className="mt-2 text-2xl font-semibold text-rose-200">{visibleFailed}</p>
           </div>
           <div className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] p-4">
             <p className="text-xs uppercase tracking-[0.18em] text-amber-300/70">Cancelled</p>
-            <p className="mt-2 text-2xl font-semibold text-amber-200">{data?.cancelled ?? 0}</p>
+            <p className="mt-2 text-2xl font-semibold text-amber-200">{visibleCancelled}</p>
           </div>
         </section>
 
@@ -213,14 +281,16 @@ export default function ResearchPage() {
           </div>
         ) : null}
 
-        {!isLoading && data?.items.length === 0 ? (
+        {!isLoading && visibleItems.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-10 text-center text-slate-400">
-            No persisted internet retrieval evidence is available yet.
+            {view === "agent-runs"
+              ? "No internet evidence correlated to a Research Agent run is available yet. Use All evidence to inspect standalone records."
+              : "No persisted internet retrieval evidence is available yet."}
           </div>
         ) : null}
 
         <div className="mt-6 space-y-3">
-          {data?.items.map((item) => {
+          {visibleItems.map((item) => {
             const evidence = item.evidence;
             const displayUrl = evidence.final_url ?? evidence.requested_url;
 
@@ -250,6 +320,9 @@ export default function ResearchPage() {
                       </span>
                       <span className="rounded-full border border-cyan-300/15 bg-cyan-300/[0.05] px-2.5 py-1 text-xs text-cyan-200">
                         {item.provenance_label}
+                      </span>
+                      <span className="rounded-full border border-violet-300/15 bg-violet-300/[0.05] px-2.5 py-1 text-xs text-violet-200">
+                        {item.run ? "Research Agent run" : "Standalone evidence"}
                       </span>
                     </div>
 
