@@ -12,6 +12,10 @@ from pydantic import BaseModel, ConfigDict
 
 from gateway.research_operations import ResearchOperationsService
 from gateway.research_operations_repository import ResearchOperationsEvent
+from gateway.research_resource_snapshot import (
+    ResearchResourceSnapshot,
+    capture_research_resource_snapshot,
+)
 from gateway.research_source_quality import select_source_diverse_candidates
 from gateway.searxng_search_provider import searxng_fixed_endpoint_is_loopback_only
 from gateway.web_search_provider import WebSearchCandidate
@@ -39,6 +43,8 @@ class ReliabilityBenchmarkReport(BaseModel):
     completion_rate: float
     all_cases_passed: bool
     cases: tuple[ReliabilityBenchmarkCase, ...]
+    resource_snapshot_before: ResearchResourceSnapshot
+    resource_snapshot_after: ResearchResourceSnapshot
     smart_routing_research_activated: bool = False
     network_authority_expanded: bool = False
     destructive_retention_action_performed: bool = False
@@ -225,6 +231,7 @@ def _provider_boundary_case() -> ReliabilityBenchmarkCase:
 
 
 def run_benchmark(*, source_commit: str) -> ReliabilityBenchmarkReport:
+    resource_before = capture_research_resource_snapshot()
     now = datetime.now(timezone.utc)
     cases = (
         _source_diversity_case(),
@@ -234,6 +241,7 @@ def run_benchmark(*, source_commit: str) -> ReliabilityBenchmarkReport:
         _provider_boundary_case(),
     )
     passed = sum(case.passed for case in cases)
+    resource_after = capture_research_resource_snapshot()
     payload: dict[str, Any] = {
         "benchmark_version": BENCHMARK_VERSION,
         "source_commit": source_commit,
@@ -243,6 +251,8 @@ def run_benchmark(*, source_commit: str) -> ReliabilityBenchmarkReport:
         "completion_rate": passed / len(cases),
         "all_cases_passed": passed == len(cases),
         "cases": [case.model_dump(mode="json") for case in cases],
+        "resource_snapshot_before": resource_before.model_dump(mode="json"),
+        "resource_snapshot_after": resource_after.model_dump(mode="json"),
         "smart_routing_research_activated": False,
         "network_authority_expanded": False,
         "destructive_retention_action_performed": False,
@@ -273,8 +283,22 @@ def main() -> int:
     )
     for case in report.cases:
         print(f"case|{case.name}|passed={str(case.passed).lower()}")
-    print(f"smart_routing_research_activated|{str(report.smart_routing_research_activated).lower()}")
-    print(f"network_authority_expanded|{str(report.network_authority_expanded).lower()}")
+    print(
+        "resource_before_rss_mib|"
+        f"{report.resource_snapshot_before.process_rss_mib}"
+    )
+    print(
+        "resource_after_rss_mib|"
+        f"{report.resource_snapshot_after.process_rss_mib}"
+    )
+    print(
+        "smart_routing_research_activated|"
+        f"{str(report.smart_routing_research_activated).lower()}"
+    )
+    print(
+        "network_authority_expanded|"
+        f"{str(report.network_authority_expanded).lower()}"
+    )
     return 0 if report.all_cases_passed else 1
 
 
