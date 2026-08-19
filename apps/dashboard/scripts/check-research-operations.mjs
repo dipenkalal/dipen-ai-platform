@@ -30,9 +30,10 @@ const retentionProxy = read("src/app/api/research/operations/retention-plan/rout
 const operationsPage = read("src/app/research/operations/page.tsx");
 const apiClient = read("src/app/research/api.ts");
 const evidencePage = read("src/app/research/page.tsx");
+const navigation = read("src/app/components/AppNavigation.tsx");
 
 const proxySources = `${summaryProxy}\n${healthProxy}\n${resourceProxy}\n${retentionProxy}`;
-const uiSources = `${operationsPage}\n${apiClient}\n${evidencePage}`;
+const uiSources = `${operationsPage}\n${apiClient}\n${evidencePage}\n${navigation}`;
 
 for (const proxy of [summaryProxy, healthProxy, resourceProxy, retentionProxy]) {
   requireContains(proxy, "export async function GET", "research operations GET-only proxy");
@@ -43,6 +44,11 @@ requireContains(healthProxy, "/api/v1/research/operations/provider-health", "pro
 requireContains(resourceProxy, "/api/v1/research/operations/resource-snapshot", "resource snapshot proxy");
 requireContains(retentionProxy, "/api/v1/research/operations/retention-plan", "retention proxy");
 requireContains(evidencePage, 'href="/research/operations"', "operations discoverability");
+requireContains(navigation, 'label: "Research"', "primary research navigation");
+requireContains(navigation, 'href: "/research"', "primary research navigation");
+requireContains(navigation, 'label: "Research Ops"', "primary research operations navigation");
+requireContains(navigation, 'href: "/research/operations"', "primary research operations navigation");
+requireAbsent(navigation, 'pathname === "/" ||', "Guardian landing research discoverability");
 
 for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
   requireAbsent(proxySources, `export async function ${method}`, "research operations proxy authority");

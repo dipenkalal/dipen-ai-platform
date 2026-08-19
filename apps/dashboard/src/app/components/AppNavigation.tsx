@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
+  Activity,
   BarChart3,
   Bot,
   BrainCircuit,
@@ -61,6 +62,12 @@ const navigationItems: NavigationItem[] = [
     label: "Research",
     href: "/research",
     icon: Globe2,
+    exact: true,
+  },
+  {
+    label: "Research Ops",
+    href: "/research/operations",
+    icon: Activity,
   },
   {
     label: "Agents",
@@ -117,7 +124,6 @@ export function AppNavigation() {
   const pathname = usePathname();
 
   if (
-    pathname === "/" ||
     pathname === "/chat" ||
     pathname.startsWith("/chat/")
   ) {
