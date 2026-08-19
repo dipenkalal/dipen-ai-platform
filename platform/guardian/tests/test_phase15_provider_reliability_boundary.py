@@ -14,6 +14,12 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         cls.discovery_source = (
             cls.repo_root / "platform/backend/gateway/web_search_discovery.py"
         ).read_text(encoding="utf-8")
+        cls.fallback_source = (
+            cls.repo_root / "platform/backend/gateway/research_query_fallback.py"
+        ).read_text(encoding="utf-8")
+        cls.selection_source = (
+            cls.repo_root / "platform/backend/gateway/research_source_quality.py"
+        ).read_text(encoding="utf-8")
         cls.navigation_source = (
             cls.repo_root / "apps/dashboard/src/app/components/AppNavigation.tsx"
         ).read_text(encoding="utf-8")
@@ -22,7 +28,10 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
     def test_provider_endpoint_remains_fixed_loopback(self) -> None:
-        self.assertIn('SEARXNG_HOST: Literal["127.0.0.1"] = "127.0.0.1"', self.provider_source)
+        self.assertIn(
+            'SEARXNG_HOST: Literal["127.0.0.1"] = "127.0.0.1"',
+            self.provider_source,
+        )
         self.assertIn("SEARXNG_PORT = 8888", self.provider_source)
         self.assertIn("socket.AI_NUMERICHOST", self.provider_source)
         self.assertIn("MAX_SEARXNG_PROVIDER_RESULT_SCAN = 20", self.provider_source)
@@ -58,8 +67,42 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         ):
             self.assertIn(token, self.discovery_source)
 
+    def test_query_fallback_is_owner_query_only_same_provider_and_bounded(self) -> None:
+        self.assertIn("MAX_SEARCH_QUERY_ATTEMPTS = 3", self.fallback_source)
+        self.assertIn("added_query_terms_allowed: bool = False", self.fallback_source)
+        self.assertIn("provider_switching_allowed: bool = False", self.fallback_source)
+        self.assertIn("model_generated_expansion_allowed: bool = False", self.fallback_source)
+        self.assertIn("build_research_query_attempts(query)", self.discovery_source)
+        self.assertIn("provider=SearXNGWebSearchProvider()", self.discovery_source)
+        for token in ("httpx", "requests", "urlopen", "socket", "openai"):
+            self.assertNotIn(token, self.fallback_source.lower())
+
+    def test_duplicate_normalization_never_rewrites_selected_retrieval_url(self) -> None:
+        self.assertIn(
+            'SOURCE_URL_DUPLICATE_POLICY_ID = "dap-source-url-dedup-v2"',
+            self.selection_source,
+        )
+        self.assertIn("canonical_source_url_duplicate_key", self.selection_source)
+        self.assertIn("selected_urls = tuple(candidate.url", self.selection_source)
+        self.assertIn("limit must be between 1 and 3", self.selection_source)
+        self.assertIn("provider_title_used_as_evidence: bool = False", self.selection_source)
+        self.assertIn("provider_snippet_used_as_evidence: bool = False", self.selection_source)
+
+    def test_provider_and_retrieval_latency_are_observation_only(self) -> None:
+        for token in (
+            "provider_search_duration_ms",
+            "retrieval_duration_ms",
+            "total_pipeline_duration_ms",
+        ):
+            self.assertIn(token, self.discovery_source)
+        for token in ("sleep(", "kill(", "terminate(", "send_signal("):
+            self.assertNotIn(token, self.discovery_source.lower())
+
     def test_phase15_adds_no_privileged_or_service_control_authority(self) -> None:
-        combined = f"{self.provider_source}\n{self.discovery_source}".lower()
+        combined = (
+            f"{self.provider_source}\n{self.discovery_source}\n"
+            f"{self.fallback_source}\n{self.selection_source}"
+        ).lower()
         for token in (
             "systemctl",
             "docker.sock",

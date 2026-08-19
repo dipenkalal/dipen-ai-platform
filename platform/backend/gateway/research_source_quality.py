@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from gateway.web_search_provider import WebSearchCandidate
 
 SOURCE_SELECTION_POLICY_ID = "dap-source-family-diversity-v1"
+SOURCE_URL_DUPLICATE_POLICY_ID = "dap-source-url-dedup-v2"
+_TRACKING_QUERY_NAMES = frozenset(
+    {
+        "fbclid",
+        "gclid",
+        "mc_cid",
+        "mc_eid",
+        "msclkid",
+    }
+)
 
 
 class ResearchSourceSelectionItem(BaseModel):
@@ -31,10 +41,12 @@ class ResearchSourceSelectionResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     policy_id: str = SOURCE_SELECTION_POLICY_ID
+    duplicate_normalization_policy_id: str = SOURCE_URL_DUPLICATE_POLICY_ID
     candidate_count: int = Field(ge=0)
     unique_url_count: int = Field(ge=0)
     unique_source_family_count: int = Field(ge=0)
     skipped_exact_duplicate_count: int = Field(ge=0)
+    skipped_canonical_duplicate_count: int = Field(default=0, ge=0)
     duplicate_family_fallback_count: int = Field(ge=0)
     selected_urls: tuple[str, ...]
     selected_source_families: tuple[str, ...]
@@ -54,6 +66,39 @@ def canonical_source_family(url: str) -> str:
     return hostname
 
 
+def canonical_source_url_duplicate_key(url: str) -> str:
+    """Normalize only duplicate-noise; selected URLs themselves are never rewritten."""
+
+    parsed = urlsplit(url)
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if not hostname:
+        raise ValueError("source URL must contain a hostname")
+
+    scheme = parsed.scheme.lower()
+    port = parsed.port
+    default_port = (scheme == "https" and port == 443) or (scheme == "http" and port == 80)
+    netloc = hostname if port is None or default_port else f"{hostname}:{port}"
+    path = parsed.path or "/"
+
+    query_pairs = []
+    for name, value in parse_qsl(parsed.query, keep_blank_values=True):
+        normalized_name = name.lower()
+        if normalized_name.startswith("utm_") or normalized_name in _TRACKING_QUERY_NAMES:
+            continue
+        query_pairs.append((name, value))
+    query_pairs.sort(key=lambda pair: (pair[0], pair[1]))
+
+    return urlunsplit(
+        (
+            scheme,
+            netloc,
+            path,
+            urlencode(query_pairs, doseq=True),
+            "",
+        )
+    )
+
+
 def select_source_diverse_candidates(
     candidates: Sequence[WebSearchCandidate],
     *,
@@ -65,7 +110,9 @@ def select_source_diverse_candidates(
     ordered = sorted(candidates, key=lambda candidate: candidate.rank)
     unique_candidates: list[WebSearchCandidate] = []
     seen_urls: set[str] = set()
+    seen_duplicate_keys: set[str] = set()
     skipped_exact_duplicates = 0
+    skipped_canonical_duplicates = 0
 
     for candidate in ordered:
         if not candidate.candidate_url_requires_dap_retrieval:
@@ -75,7 +122,12 @@ def select_source_diverse_candidates(
         if candidate.url in seen_urls:
             skipped_exact_duplicates += 1
             continue
+        duplicate_key = canonical_source_url_duplicate_key(candidate.url)
+        if duplicate_key in seen_duplicate_keys:
+            skipped_canonical_duplicates += 1
+            continue
         seen_urls.add(candidate.url)
+        seen_duplicate_keys.add(duplicate_key)
         unique_candidates.append(candidate)
 
     selected: list[WebSearchCandidate] = []
@@ -145,6 +197,7 @@ def select_source_diverse_candidates(
         unique_url_count=len(unique_candidates),
         unique_source_family_count=len(all_families),
         skipped_exact_duplicate_count=skipped_exact_duplicates,
+        skipped_canonical_duplicate_count=skipped_canonical_duplicates,
         duplicate_family_fallback_count=len(duplicate_family_fallback_urls),
         selected_urls=selected_urls,
         selected_source_families=selected_source_families,

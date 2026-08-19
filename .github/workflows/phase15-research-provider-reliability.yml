@@ -37,22 +37,32 @@ jobs:
           python -m ruff check \
             gateway/searxng_search_provider.py \
             gateway/web_search_discovery.py \
-            tests/test_phase15_searxng_provider_reliability.py
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py
       - name: Mypy Phase 15 provider boundary
         run: |
           python -m mypy \
             gateway/searxng_search_provider.py \
             gateway/web_search_discovery.py \
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
             --follow-imports=skip
       - name: Compile Phase 15 provider boundary
         run: |
           python -m compileall -q \
             gateway/searxng_search_provider.py \
             gateway/web_search_discovery.py \
-            tests/test_phase15_searxng_provider_reliability.py
+            gateway/research_query_fallback.py \
+            gateway/research_source_quality.py \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py
       - name: Phase 15 provider reliability tests
         run: |
-          python -m pytest -q tests/test_phase15_searxng_provider_reliability.py
+          python -m pytest -q \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py
       - name: Sealed search/retrieval regression matrix
         run: |
           python -m pytest -q \
