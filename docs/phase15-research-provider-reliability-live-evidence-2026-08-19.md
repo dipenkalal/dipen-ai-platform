@@ -180,3 +180,19 @@ No smart-routing research was enabled. No provider switching or generic network 
 Phase 15 is complete and sealed at this posture. Manual owner-supervised Research Agent execution remains the maximum research authority. The correct next engineering direction is provider coverage/reliability work, not authority expansion.
 
 Any merge of PR #69 remains an explicit owner decision. Any future smart-routing research or broader provider/network authority must be a separate owner-approved milestone with its own safety and live-evidence gates.
+
+## Post-live documentation CI seal
+
+The corrected post-live documentation checkpoint `ef7bc9d830f54fe8405e97b8535d2482bc39a10c` passed all nine repository workflows after restoring both frozen Phase 15 Guardian roadmap assertions:
+
+- CI — run `32209579699` — SUCCESS;
+- Phase 10 Ruflo Evaluation — run `32209579696` — SUCCESS;
+- Phase 11 Engineering Agent — run `32209579680` — SUCCESS;
+- Phase 12 Internet Research Gateway — run `32209579676` — SUCCESS;
+- Phase 12I Research Workspace Dashboard — run `32209579684` — SUCCESS;
+- Phase 12J Research Benchmark — run `32209579693` — SUCCESS;
+- Phase 13 Provider-Specific Research Activation — run `32209579674` — SUCCESS;
+- Phase 14 Research Operations Reliability — run `32209579697` — SUCCESS;
+- Phase 15 Research Provider Reliability — run `32209579672` — SUCCESS.
+
+The earlier post-live documentation attempts failed only because the roadmap wording no longer matched two intentionally frozen Guardian text assertions. The final roadmap restores both exact safety statements; no runtime implementation, empirical result, provider authority, or safety policy was weakened to obtain the green seal.
