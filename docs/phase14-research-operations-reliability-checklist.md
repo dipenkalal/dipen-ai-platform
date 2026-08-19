@@ -25,19 +25,39 @@
 - [x] Deterministic Phase 14 benchmark covers five frozen cases and emits a report SHA-256.
 - [x] Weekly deterministic regression benchmark is configured.
 - [x] Phase 14 core deterministic tests pass.
-- [x] Sealed Phase 12/13 regression matrix passes (112 tests).
+- [x] Sealed Phase 12/13 regression matrix passes (112 tests at the pre-live gate).
 - [x] Repository-wide pre-operator CI/regressions pass.
 - [x] Resumable Acer burn-in/deployment operator added.
-- [x] Operator prevents duplicate burn-in if a later deployment step must be resumed.
-- [ ] Final operator checkpoint passes all repository workflows.
-- [ ] Acer live burn-in produces at least five Phase 14 retrieval operations events from 2–3 bounded manual Research Agent runs.
-- [ ] Every live Research Agent run is correlated to exactly one completed instrumented task row.
-- [ ] Live source-selection family metadata is visible and provider snippets/titles remain excluded.
-- [ ] Live provider-health, resource, retention and operations endpoints pass read-only checks.
-- [ ] Operations POST attempts return 405 through backend and dashboard proxy.
-- [ ] Deterministic 5/5 reliability benchmark passes on the Acer.
-- [ ] Offline dashboard build/recreate succeeds without npm internet downloads.
-- [ ] `/research/operations` is healthy and owner-visible.
-- [ ] Final Guardian/Telegram/SearXNG/source safety invariants pass.
-- [ ] 14J empirical manual-research readiness posture recorded.
-- [ ] Phase 14 sealed/merged only after live burn-in evidence and final CI.
+- [x] Operator prevents duplicate successful burn-in if a later deployment step must be resumed.
+- [x] Bounded provider-failure recovery bridge added and Guardian-gated after first live no-candidate result.
+- [x] Failed run `2750295c-8acb-465b-86f1-417731d0a022` reconciled to exactly one failed instrumented Research Agent task.
+- [x] Failed no-candidate search produced no public-web evidence and no retrieval-operations event.
+- [x] Recovery completed exactly two successful manual Research Agent burn-in runs.
+- [x] Recovery successful run `84d6dc11-b044-479d-87d3-a6a82d1248bb` selected 3 URLs and produced +3 evidence/+3 operations events.
+- [x] Recovery successful run `746654d9-1be0-42a6-9970-0acf404e2419` selected 3 URLs and produced +3 evidence/+3 operations events.
+- [x] Acer live burn-in produced at least five Phase 14 retrieval operations events (`6`).
+- [x] Every successful live Research Agent run is correlated to exactly one completed instrumented task row.
+- [x] Live source-selection metadata is present and provider snippets/titles remain excluded.
+- [x] Live provider-health, resource, retention and operations endpoints pass read-only checks.
+- [x] Operations POST attempts return 405 through backend and dashboard proxy.
+- [x] Deterministic 5/5 reliability benchmark passes on the Acer.
+- [x] Acer benchmark report SHA-256 is `57cf45169f98675df7c7567dc0bbaefae4c4ad1db74805d72bfeac4903f45bfc`.
+- [x] Offline dashboard build/recreate succeeds without npm internet downloads.
+- [x] `/research/operations` is healthy and owner-visible.
+- [x] Final Guardian/Telegram/SearXNG/source safety invariants pass.
+- [x] Final task ledger count recorded as `15`.
+- [x] Final research evidence count recorded as `16`.
+- [x] Final research operations event count recorded as `6`.
+- [x] Final backend PID recorded as `487274` and active.
+- [x] Guardian remains inactive.
+- [x] Telegram approvals remain false.
+- [x] SearXNG remains bound only to `127.0.0.1:8888`.
+- [x] Dashboard remains healthy.
+- [x] Source checkout remains clean.
+- [x] 14J empirical manual-research readiness posture recorded as `manual-research-provider-degraded`.
+- [x] Smart-routing research remains disabled after 14J.
+- [x] Phase 14 completion criteria satisfied.
+- [ ] PR #67 final documentation checkpoint passes all repository workflows.
+- [ ] PR #67 merged to `main` only after final documentation CI is green.
+
+Live evidence: `docs/phase14-research-operations-live-evidence-2026-08-18.md`.

@@ -1,12 +1,16 @@
 # Phase 14 Status
 
-Status: **IN PROGRESS — 14A–14I GREEN; 14J PROVIDER-FAILURE RECOVERY GREEN / ACER RESUME NEXT**
+Status: **COMPLETE / SEALED — 14A–14J PASS; EMPIRICAL POSTURE `manual-research-provider-degraded`; FINAL MERGE PENDING CI**
 
 Base: Phase 13 final merged seal `5f4afa1869497aafee3d1cba3de9b96cdad2e8dd`.
 
 Branch: `phase14/research-operations-reliability`.
 
-## Implemented scope
+Live evidence checkpoint: `2c81aefc434a84b296cf9b0acb135be3663f3f6b`.
+
+Live evidence record: `docs/phase14-research-operations-live-evidence-2026-08-18.md`.
+
+## Completed scope
 
 - deterministic source-family diversity and exact URL duplicate suppression;
 - source-selection quality metadata explicitly separated from factual/source credibility;
@@ -22,42 +26,82 @@ Branch: `phase14/research-operations-reliability`.
 - weekly scheduled deterministic regression benchmark;
 - Phase 14 Guardian/browser authority boundaries;
 - resumable Acer live burn-in/deployment operator;
-- bounded provider-failure recovery bridge for a valid no-candidate SearXNG result.
+- bounded provider-failure recovery bridge.
 
 ## Preserved authority boundary
 
 Phase 14 does not activate smart-routing research, generic model network tools, arbitrary provider access, automatic Knowledge mutation, destructive evidence cleanup, Guardian/root/systemd authority, Docker privilege, or autonomous merge/release/deployment authority.
 
-The production research scope remains manual `research-agent` + explicit bounded search query + fixed local `searxng-local-v1` + sealed Phase 12 retrieval/evidence.
+Production research scope remains manual `research-agent` + explicit bounded search query + fixed local `searxng-local-v1` + sealed Phase 12 retrieval/evidence.
 
 ## Deterministic gate
 
-14A–14I are green across all eight repository workflows. The Phase 14-specific gate passes backend reliability tests, the deterministic 5/5 reliability benchmark, sealed Phase 12/13 regressions, the live operator/recovery syntax gate, Guardian boundaries, dashboard authority/lint/build checks and the production dashboard image build.
+All eight repository workflows were green before live execution. The Phase 14-specific gate passed backend reliability tests, the deterministic 5/5 reliability benchmark, sealed Phase 12/13 regressions, live operator/recovery syntax, Guardian boundaries, dashboard authority/lint/build checks and the production dashboard image build.
 
-## 14J first live observation
+## 14J live result
 
-The first Acer burn-in query (`IANA example domains RFC 2606`) reached the fixed local SearXNG provider successfully but returned no URL candidate eligible for bounded DAP retrieval. The Research Agent failed closed with no public-web evidence and no retrieval-operations event. Smart-routing research remained rejected and the read-only operations APIs remained GET-only.
+The first harmless burn-in query (`IANA example domains RFC 2606`) reached local SearXNG but returned zero URL candidates eligible for bounded DAP retrieval. DAP failed closed, created no public-web evidence, and preserved the manual-only authority boundary.
 
-The original operator then exposed an operator-only assumption bug: HTTP 200 was treated as equivalent to an agent `status=completed`, causing the shell to stop before persisting the failed attempt into resume state.
+The bounded recovery bridge then:
 
-The recovery path is intentionally narrow:
+- reconciled the single failed instrumented Research Agent task;
+- ran two successful manual Research Agent fallback searches;
+- selected exactly three URLs in each successful run;
+- added six immutable research evidence records;
+- added six append-only research operations events;
+- resumed the original live operator without a second backend restart;
+- passed operations visibility, deterministic benchmark, offline dashboard deployment and final production safety gates.
 
-- reconcile exactly one failed instrumented `research-agent` task by its `source_run_id`;
-- require no evidence or retrieval-operations delta from that failed search;
-- permit only operator/test/workflow/docs source changes since the already-loaded backend checkpoint;
-- run bounded manual fallback research queries until at least two successful runs and five retrieval-operation events are obtained, with at most three fallback attempts;
-- then mark the existing resumable burn-in state complete and delegate back to the guarded Phase 14 live operator for operations visibility, deterministic benchmark, offline dashboard deployment and final safety checks.
+Successful recovery run IDs:
 
-The recovery bridge cannot restart services, operate Docker, expand network authority, merge/release, or enable approvals.
+- `84d6dc11-b044-479d-87d3-a6a82d1248bb`
+- `746654d9-1be0-42a6-9970-0acf404e2419`
 
-## Remaining gate
+Failed provider run retained as evidence:
 
-14J now requires the controlled Acer recovery/resume. The already-loaded backend PID and failed task must be reconciled without a second backend restart. The final live evidence must leave Guardian inactive, Telegram approvals disabled, SearXNG loopback-only, retention non-destructive, and smart-routing research disabled.
+- `2750295c-8acb-465b-86f1-417731d0a022`
 
-14J then records one empirical posture:
+## Empirical metrics
 
-- `manual-research-production-ready`;
-- `manual-research-experimental-only`;
-- `manual-research-provider-degraded`.
+- reliability posture reported by operations layer: `degraded`
+- success rate: `0.8125`
+- failure rate: `0.1875`
+- retrieval p50: `279.737 ms`
+- retrieval p95: `2370.666 ms`
+- unique source-family rate: `0.5`
+- duplicate-content rate: `0.4615`
+- provenance-quality average: `83.12`
+- SearXNG health latency: `2.374 ms`
+- backend RSS snapshot: `147.86 MiB`
+- future archive candidates: `0`
 
-The observed no-candidate provider failure will be included in the final posture decision even if bounded fallback recovery succeeds. No 14J posture activates smart-routing research.
+Acer deterministic benchmark remained 5/5 green with report SHA-256 `57cf45169f98675df7c7567dc0bbaefae4c4ad1db74805d72bfeac4903f45bfc`.
+
+## Final production safety
+
+- task ledger: `15`
+- research evidence: `16`
+- research operations events: `6`
+- backend PID: `487274`
+- backend: `active`
+- Guardian: `inactive`
+- Telegram approvals: `false`
+- dashboard: `healthy`
+- SearXNG: `running`
+- SearXNG binding: `127.0.0.1:8888`
+- source tree: clean
+
+Final markers:
+
+- `PHASE14_RESEARCH_OPERATIONS_LIVE_BURNIN|PASS`
+- `PHASE14_OWNER_OPERATIONS_VISIBILITY|PASS`
+- `PHASE14_AUTHORITY_BOUNDARY|PASS`
+- `phase14_recovery_exit|0`
+
+## Readiness decision
+
+Final 14J posture: **`manual-research-provider-degraded`**.
+
+Phase 14 is therefore complete and sealable because its reliability, telemetry, recovery, dashboard, benchmark, retention, and authority-boundary goals all passed. The underlying provider-specific research path is **not** promoted to production-ready and smart-routing research remains disabled.
+
+Next reliability work should remediate provider query coverage, source-family diversity, duplicate-content rate and tail latency before any later authority-expansion review.
