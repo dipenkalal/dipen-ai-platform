@@ -48,7 +48,7 @@ async def check_searxng_health(
     writer: asyncio.StreamWriter | None = None
 
     try:
-        reader, writer = await asyncio.wait_for(
+        reader, connected_writer = await asyncio.wait_for(
             asyncio.open_connection(
                 host=SEARXNG_HOST,
                 port=SEARXNG_PORT,
@@ -57,7 +57,8 @@ async def check_searxng_health(
             ),
             timeout=connect_timeout_seconds,
         )
-        peer = writer.get_extra_info("peername")
+        writer = connected_writer
+        peer = connected_writer.get_extra_info("peername")
         if not isinstance(peer, tuple) or not peer or peer[0] != SEARXNG_HOST:
             error_code = "searxng-health-peer-mismatch"
         else:
@@ -69,8 +70,11 @@ async def check_searxng_health(
                 "Accept-Encoding: identity\r\n"
                 "Connection: close\r\n\r\n"
             ).encode("ascii")
-            writer.write(request)
-            await asyncio.wait_for(writer.drain(), timeout=read_timeout_seconds)
+            connected_writer.write(request)
+            await asyncio.wait_for(
+                connected_writer.drain(),
+                timeout=read_timeout_seconds,
+            )
             status_line = await asyncio.wait_for(
                 reader.readline(),
                 timeout=read_timeout_seconds,
