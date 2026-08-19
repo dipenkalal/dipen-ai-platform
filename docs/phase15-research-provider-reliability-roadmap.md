@@ -12,7 +12,7 @@ Live source checkpoint: `6fae0c2a6de7413bb093607c8558eced9877cd0f`.
 
 Remediate the provider-quality weaknesses measured in Phase 14 without widening DAP research authority. Phase 15 targeted provider query coverage, no-candidate diagnosis, source-family diversity, duplicate-result/content reduction, tail latency, benchmark breadth, and owner-visible frontend discoverability.
 
-The milestone did **not** activate smart-routing research. Manual owner-supervised Research Agent execution remains the maximum research authority.
+Phase 15 does **not** activate smart-routing research. Manual owner-supervised Research Agent execution remains the maximum research authority.
 
 ## Non-negotiable authority boundary — preserved
 
