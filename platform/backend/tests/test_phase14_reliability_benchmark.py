@@ -16,6 +16,11 @@ def test_phase14_reliability_benchmark_passes_without_authority_expansion() -> N
     assert report.smart_routing_research_activated is False
     assert report.network_authority_expanded is False
     assert report.destructive_retention_action_performed is False
+    assert report.resource_snapshot_before.scope == "dap-backend-process"
+    assert report.resource_snapshot_after.scope == "dap-backend-process"
+    assert report.resource_snapshot_before.research_specific_attribution is False
+    assert report.resource_snapshot_after.service_control_authority_granted is False
+    assert report.resource_snapshot_after.process_rss_mib >= 0
     assert len(report.report_sha256) == 64
     assert {case.name for case in report.cases} == {
         "source-family-diversity",
