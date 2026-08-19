@@ -1,6 +1,6 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — 16A/16B LIVE DIAGNOSTIC PASS; 16C.1 ENGINE TELEMETRY NEXT**
+Status: **IN PROGRESS — 16A/16B PASS; 16C.1 LIVE ENGINE BLOCKING CONFIRMED; 16C.2 SOURCE REMEDIATION IN PROGRESS**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
@@ -47,7 +47,7 @@ Any future authority expansion requires a separate owner-approved milestone.
 
 ## Current configuration observation
 
-The merged SearXNG deployment currently keeps only three engines:
+The original Phase 15/16 deployment kept only three engines:
 
 - DuckDuckGo;
 - Brave;
@@ -55,7 +55,7 @@ The merged SearXNG deployment currently keeps only three engines:
 
 SearXNG safe search is set to `2`.
 
-Phase 16A/16B proved that configuration/output behavior is the current coverage bottleneck population, but it did not yet prove whether the dominant mechanism is upstream engine suspension/throttling/CAPTCHA/access denial or genuinely empty engine results. Provider settings therefore remain unchanged until 16C.1 captures engine-level diagnostics.
+Phase 16C.1 proved that all three configured engines are currently blocked upstream under the live DAP workload. SafeSearch is not implicated by the captured failure metadata and remains unchanged during 16C.2 so the engine-pool variable is isolated.
 
 ## Phase gates
 
@@ -101,7 +101,7 @@ Category result:
 - general factual: `5` provider-zero-results;
 - multi-source technical: `5` provider-zero-results.
 
-Sequence observation: the first nine cases succeeded, then every remaining 21 case returned zero raw results across all three bounded attempts. That is consistent with an order/burst-dependent upstream-engine problem, but Phase 16B intentionally did not capture engine error metadata and therefore does not yet prove the specific engine failure mechanism.
+Sequence observation: the first nine cases succeeded, then every remaining 21 case returned zero raw results across all three bounded attempts.
 
 Production task/evidence/operations counts were unchanged and the SearXNG settings SHA remained unchanged.
 
@@ -109,22 +109,51 @@ Live evidence: `docs/phase16a-live-evidence-2026-08-19.md`.
 
 ### 16C — SearXNG engine/configuration remediation
 
-#### 16C.1 — engine failure telemetry — NEXT
+#### 16C.1 — engine failure telemetry — PASS
 
-Before any configuration mutation, capture only safe engine-level metadata already present in the local SearXNG JSON response:
+A six-query low-volume control probe captured only safe engine metadata already exposed by the local SearXNG JSON response.
 
-- engines that contributed returned results;
-- unresponsive engine names;
-- DAP-normalized failure classes such as rate limit, CAPTCHA, access denied, timeout, network/HTTP/proxy/SSL/parsing/API failure or unknown;
-- whether SearXNG reports an engine suspended.
+Canonical probe SHA-256:
 
-Do not persist raw engine error strings, titles, snippets, answers, corrections or suggestions.
+`6b2578d231e7f43f8dcc032b4764adbc749efb827f4120990473b6fd68ddf962`
 
-Run a bounded control-probe/replay that can distinguish order-dependent upstream engine exhaustion from genuinely empty query results.
+Observed result:
 
-#### 16C.2 — minimal configuration correction
+- all six probes returned zero results;
+- all three known-good Python controls also returned zero results;
+- Brave: `too-many-requests` on every probe and reported suspended after the first probe;
+- DuckDuckGo: `captcha` on every probe;
+- Startpage: `captcha` on every probe and reported suspended;
+- total normalized CAPTCHA failures: `12`;
+- total normalized rate-limit failures: `6`;
+- contributing engines: `0`.
 
-Only after 16C.1 identifies the dominant engine failure class, make the smallest deterministic SearXNG-side correction justified by live evidence.
+This proves `upstream-engine-blocking` as the dominant current coverage defect rather than DAP filtering or query-specific zero results.
+
+Production truth, backend PID, SearXNG container identity/start time, loopback binding and tracked configuration remained unchanged.
+
+Live evidence: `docs/phase16c1-engine-health-live-evidence-2026-08-19.md`.
+
+#### 16C.2 — minimal configuration correction — IN PROGRESS
+
+The tracked candidate configuration replaces the blocked three-engine-only pool with a credential-free diversified pool while preserving the same local SearXNG provider:
+
+- Google;
+- Bing;
+- Qwant;
+- Mojeek;
+- Wikipedia;
+- Wiby.
+
+The removed pool is:
+
+- DuckDuckGo;
+- Brave;
+- Startpage.
+
+All six replacement engines are explicitly enabled in the tracked settings. The provider endpoint, local-only topology, SafeSearch value `2`, JSON search format, DAP query semantics, URL admission path and at-most-three retrieval ceiling remain unchanged.
+
+The engine-pool change must pass source/CI boundary checks before any Acer configuration mutation. Acer deployment must use a reversible one-container SearXNG recreation with exact pre/post configuration hashes, runtime safety checks and an immediate low-volume canary before any 30-case replay.
 
 No provider endpoint change and no provider switching.
 
@@ -167,4 +196,4 @@ A green Phase 16 engineering gate does not itself activate smart-routing researc
 
 ## Immediate next gate
 
-Implement 16C.1 engine-level telemetry and a bounded control probe. Do not change SearXNG engine selection, SafeSearch, provider endpoint or query semantics until the upstream engine failure mode is proven.
+Freeze the 16C.2 replacement engine-pool contract in CI. Only after that exact source checkpoint is green may the Acer SearXNG container be recreated with the new tracked settings. The first live action after recreation is a bounded engine-health canary; do not run the 30-case corpus until the replacement pool proves it can return candidates without immediately entering a blocked state.
