@@ -1,0 +1,98 @@
+name: Phase 15.1 Research UI Data Hygiene
+
+on:
+  pull_request:
+  push:
+    branches:
+      - maintenance/phase15-1-research-ui-data-hygiene
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase15-1-research-ui-data-hygiene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-data-hygiene:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff research operations hygiene
+        run: |
+          python -m ruff check \
+            gateway/research_operations.py \
+            tests/test_phase14_research_operations.py
+      - name: Mypy research operations hygiene
+        run: |
+          python -m mypy gateway/research_operations.py --follow-imports=skip
+      - name: Compile research operations hygiene
+        run: |
+          python -m compileall -q \
+            gateway/research_operations.py \
+            tests/test_phase14_research_operations.py
+      - name: Research operations regression
+        run: |
+          python -m pytest -q \
+            tests/test_phase14_research_operations.py \
+            tests/test_phase15_provider_readiness.py
+
+  guardian-hygiene-boundary:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Guardian hygiene boundary
+        run: |
+          python -m compileall -q \
+            tests/test_phase15_1_research_ui_hygiene_boundary.py \
+            tests/test_phase15_provider_reliability_boundary.py
+      - name: Research UI hygiene Guardian boundary
+        run: |
+          python -m unittest -v \
+            tests.test_phase15_1_research_ui_hygiene_boundary \
+            tests.test_phase15_provider_reliability_boundary
+
+  dashboard-ui-hygiene:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/dashboard/package-lock.json
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Research workspace boundary
+        run: npm run test:research-workspace
+      - name: Research operations boundary
+        run: npm run test:research-operations
+      - name: Lint dashboard
+        run: npm run lint
+      - name: Build dashboard
+        run: npm run build
+      - name: Build production dashboard image
+        run: docker build --pull=false -t dap-dashboard-phase15-1-ci .
