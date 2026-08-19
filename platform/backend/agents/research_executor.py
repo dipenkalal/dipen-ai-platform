@@ -208,6 +208,11 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
             except (WebSearchDiscoveryError, SearXNGSearchProviderError) as exc:
                 search_completed = datetime.now(timezone.utc)
                 error_detail = getattr(exc, "detail", str(exc))
+                safe_diagnostics = (
+                    dict(exc.diagnostics)
+                    if isinstance(exc, WebSearchDiscoveryError)
+                    else {}
+                )
                 steps.append(
                     AgentStep(
                         step_number=len(steps) + 1,
@@ -223,8 +228,11 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
                         output={
                             "provider_id": "searxng-local-v1",
                             "provider_endpoint_fixed": True,
+                            "search_diagnostics": safe_diagnostics,
                             "provider_snippets_are_evidence": False,
                             "provider_titles_are_evidence": False,
+                            "provider_snippets_exposed_to_model": False,
+                            "provider_titles_exposed_to_model": False,
                             "candidate_urls_require_full_dap_retrieval": True,
                         },
                         error=error_detail,
@@ -258,10 +266,26 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
                     "discovery_id": search_result.discovery_id,
                     "discovery_sha256": search_result.discovery_sha256,
                     "query": search_result.query,
+                    "original_query": search_result.original_query,
+                    "search_attempt_count": search_result.search_attempt_count,
+                    "search_queries_attempted": list(
+                        search_result.search_queries_attempted
+                    ),
+                    "search_fallback_policy_id": (
+                        search_result.search_fallback_policy_id
+                    ),
+                    "fallback_used": search_result.fallback_used,
+                    "search_attempts": [
+                        item.model_dump(mode="json")
+                        for item in search_result.search_attempts
+                    ],
                     "candidate_count": search_result.candidate_count,
                     "selected_urls": list(search_result.selected_urls),
                     "source_selection_policy_id": (
                         search_result.source_selection_policy_id
+                    ),
+                    "duplicate_normalization_policy_id": (
+                        search_result.duplicate_normalization_policy_id
                     ),
                     "unique_source_family_count": (
                         search_result.unique_source_family_count
@@ -275,11 +299,21 @@ class ResearchEnabledAgentExecutor(AgentExecutor):
                     "skipped_exact_duplicate_count": (
                         search_result.skipped_exact_duplicate_count
                     ),
+                    "skipped_canonical_duplicate_count": (
+                        search_result.skipped_canonical_duplicate_count
+                    ),
                     "duplicate_family_fallback_count": (
                         search_result.duplicate_family_fallback_count
                     ),
                     "selection_quality_is_factual_credibility": (
                         search_result.selection_quality_is_factual_credibility
+                    ),
+                    "provider_search_duration_ms": (
+                        search_result.provider_search_duration_ms
+                    ),
+                    "retrieval_duration_ms": search_result.retrieval_duration_ms,
+                    "total_pipeline_duration_ms": (
+                        search_result.total_pipeline_duration_ms
                     ),
                     "retrieval_tool_id": search_result.retrieval_tool_id,
                     "retrieval_success": search_result.retrieval_success,

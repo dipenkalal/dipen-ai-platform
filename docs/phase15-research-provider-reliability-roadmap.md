@@ -1,10 +1,12 @@
 # Phase 15 — Research Provider Reliability Remediation Roadmap
 
-Status: **IN PROGRESS — 15A FRONTEND VISIBILITY STARTED; NO AUTHORITY EXPANSION**
+Status: **IN PROGRESS — 15A–15H SOURCE COMPLETE / CI GREEN; 15I–15J PENDING LIVE EMPIRICAL GATE**
 
 Base: Phase 14 final merged documentation seal `512c03aaab6c49f7c7ec4c351dcd82e35f36b4bc`.
 
 Branch: `phase15/research-provider-reliability`.
+
+Pre-live code checkpoint: `d3c6289cc7a32da14a18552937826d8f81a99da2`.
 
 ## Mission
 
@@ -33,116 +35,125 @@ The active provider boundary remains:
 manual research-agent
   -> explicit bounded research_search_query
   -> fixed local searxng-local-v1 on 127.0.0.1:8888
+  -> bounded provider scan / deterministic owner-query-only fallback
   -> bounded candidate selection (<= 3)
   -> sealed Phase 12 retrieval/evidence pipeline
 ```
 
 ## Gates
 
-### 15A — Frontend visibility and runtime baseline
+### 15A — Frontend visibility and runtime baseline — SOURCE COMPLETE / LIVE UI PROOF PENDING
 
-Deliver:
-- Research navigation visible from the normal Guardian landing page;
-- direct owner-visible Research Operations navigation;
+Delivered in source:
+- Research navigation visible on the normal Guardian landing page;
+- direct Research Operations navigation;
 - existing `/research` and `/research/operations` routes preserved;
-- browser authority remains read-only/no-network;
-- deployment proof that the Acer is serving the expected dashboard source checkpoint.
+- browser remains read-only/no-network;
+- dashboard boundary/lint/build/production-image CI green.
 
-Exit gate:
-- owner can reach Research and Research Ops from the normal DAP landing screen without typing a URL.
+Remaining exit proof: deploy the Phase 15 dashboard on Acer and confirm owner-visible navigation from `/` without typing a URL.
 
-### 15B — No-candidate diagnosis and bounded provider scanning
+### 15B — No-candidate diagnosis and bounded provider scanning — COMPLETE
 
-Deliver:
-- distinguish provider-zero-results from malformed/unsafe/policy-rejected results;
-- expose provider result count, considered count and rejection counts to internal diagnostics;
-- scan a bounded provider result window until requested admissible candidates are collected instead of truncating before policy filtering;
-- preserve candidate ceiling and sealed URL preflight.
+Delivered:
+- provider-zero differentiated from malformed/unsafe/policy-filtered zero;
+- provider result, considered, invalid and policy-rejected counts;
+- provider scan continues past rejected top entries within a fixed 20-result window;
+- accepted candidate count remains bounded by the request;
+- downstream retrieval ceiling remains `<= 3` and destination policy is unchanged.
 
-Exit gate:
-- no extra destination authority; only more complete use of the single fixed local provider response.
+Exit gate: PASS in deterministic tests and Guardian boundary.
 
-### 15C — Deterministic query fallback contract
+### 15C — Deterministic query fallback contract — COMPLETE
 
-Deliver:
-- bounded deterministic fallback only when the original local-provider query yields zero admissible candidates;
-- strict maximum attempt count;
-- fallback variants derived only from the owner-supplied query;
-- every attempt uses the same fixed local SearXNG endpoint;
-- original and fallback query identities retained for telemetry.
+Delivered:
+- original owner query always first;
+- fallback only after zero admissible candidates;
+- maximum three attempts;
+- variants may remove edge tokens but cannot add terms;
+- same fixed local SearXNG provider for every attempt;
+- no model-generated expansion/provider switching;
+- safe attempt/query identities and timing diagnostics recorded in Research Agent history without provider titles/snippets.
 
-Exit gate:
-- no model-generated autonomous query expansion and no provider switching.
+Exit gate: PASS in deterministic tests and Guardian boundary.
 
-### 15D — Candidate diversity and duplicate suppression v2
+### 15D — Candidate diversity and duplicate suppression v2 — COMPLETE
 
-Deliver:
-- stronger canonical URL duplicate handling;
-- hostname/source-family balancing before duplicate-family fallback;
-- bounded normalization for tracking/query-fragment duplicates;
-- selected URL count remains <= 3;
-- provider titles/snippets remain non-evidence.
+Delivered:
+- canonical duplicate key normalizes host/default ports, fragments and known tracking parameters;
+- selected retrieval URLs themselves are not rewritten;
+- unique source families preferred before duplicate-family fallback;
+- selected URL count remains `<= 3`;
+- provider titles/snippets remain non-evidence;
+- selection quality remains explicitly non-credibility.
 
-Exit gate:
-- deterministic tests prove better diversity without credibility claims.
+Exit gate: PASS in deterministic tests.
 
-### 15E — Duplicate-content reduction
+### 15E — Duplicate-content reduction/readiness measurement — COMPLETE FOR PHASE 15 DESIGN
 
-Deliver:
-- use immutable retrieved-content hashes from Phase 14 telemetry to identify recurring duplicate families;
-- benchmark duplicate rate independently from candidate URL duplication;
-- no destructive deletion or rewriting of immutable evidence.
+Delivered:
+- immutable normalized-text hashes remain the duplicate-content signal;
+- duplicate-content rate is a frozen readiness metric;
+- duplicate groups remain owner-visible;
+- no destructive evidence deletion/rewrite introduced.
 
-Exit gate:
-- duplicate-content visibility improves selection/benchmark reporting only.
+Exit gate: PASS for non-destructive measurement/visibility. Final empirical rate remains a 15I result.
 
-### 15F — Tail-latency remediation
+### 15F — Tail-latency remediation and benchmark wall clock — COMPLETE FOR PRE-LIVE DESIGN
 
-Deliver:
-- provider/retrieval stage timing separation;
-- bounded timeout/retry tuning based on Phase 14 evidence;
-- no retries for destination/content/policy rejection or cancellation;
-- deterministic maximum wall-clock budget.
+Delivered:
+- provider-search, retrieval and total-pipeline timing separated;
+- sealed retry policy preserved;
+- policy/cancellation failures remain non-retryable;
+- frozen live-case wall-clock maximum: `60 s`;
+- readiness retrieval p95 target frozen at `1500 ms`.
 
-Exit gate:
-- p95 budget is explicit and retries cannot broaden destinations or methods.
+Exit gate: PASS in tests/Guardian. Final empirical latency remains a 15I result.
 
-### 15G — Provider readiness model and owner dashboard
+### 15G — Provider readiness model and owner dashboard — SOURCE COMPLETE / LIVE DATA PENDING
 
-Deliver:
-- owner-visible provider state with explicit reasons: healthy, degraded, unavailable;
-- query-coverage, diversity, duplicate and latency indicators;
-- Research Ops page surfaces Phase 15 readiness without service-control actions;
-- direct link remains visible from primary navigation.
+Delivered:
+- GET-only provider readiness endpoint and dashboard proxy;
+- states: insufficient-data, healthy, degraded, unavailable;
+- stable reason codes;
+- query coverage, no-candidate, diversity, duplicate and retrieval-p95 indicators;
+- missing live report reports pending rather than fabricated readiness;
+- no provider restart/reconfiguration controls;
+- direct Research Ops navigation.
 
-Exit gate:
-- dashboard is read-only and cannot restart/reconfigure SearXNG.
+Remaining exit proof: deployed Acer page reads the live hashed report correctly after 15I.
 
-### 15H — Expanded deterministic benchmark corpus
+### 15H — Expanded deterministic benchmark corpus — COMPLETE
 
-Deliver:
-- frozen 30-case minimum benchmark corpus across official documentation, technical facts, standards, general factual discovery and multi-source topics;
-- machine-readable per-case diagnostics;
-- success, no-candidate, diversity, duplicate and latency distributions;
-- deterministic offline provider-response fixtures for CI plus a separate live Acer corpus.
+Delivered:
+- exactly 30 frozen cases;
+- categories: official documentation, standards, general factual, multi-source technical;
+- deterministic offline fixtures in CI;
+- separate real-provider Acer runner;
+- per-case diagnostics and success/no-candidate/diversity/duplicate/latency distributions;
+- canonical report SHA-256;
+- isolated `/tmp` benchmark truth database required for live execution;
+- production task truth/evidence mutation explicitly false.
 
-Exit gate:
-- benchmark authority remains identical to manual provider research.
+CI result: deterministic benchmark `30/30` PASS.
 
-### 15I — Acer live reliability burn-in
+### 15I — Acer live reliability burn-in — PENDING
 
-Deliver:
-- run the live corpus through fixed local SearXNG and sealed retrieval;
-- capture resource, latency, success, diversity and duplicate metrics;
-- confirm frontend visibility from the deployed dashboard;
+Required:
+- deploy exact CI-green Phase 15 source checkpoint;
+- prove frontend visibility from normal `/` landing page;
+- run all 30 frozen cases through fixed local SearXNG + sealed retrieval;
+- use isolated `/tmp` benchmark truth DB;
+- persist only the hashed live metrics report outside the temp DB;
+- verify production task ledger/research evidence/research operations counts are unchanged by the corpus;
+- capture success, no-candidate, family, duplicate, latency and resource metrics;
 - preserve Guardian inactive, Telegram approvals false and SearXNG loopback-only.
 
-Exit gate:
-- empirical evidence is complete enough for a readiness decision.
+Exit gate: empirical report complete and authority/safety invariants pass. Meeting the numeric production-ready targets is not required for the gate itself; a degraded or experimental result is valid evidence.
 
-### 15J — Provider readiness decision
+### 15J — Provider readiness decision — PENDING
 
-Choose exactly one posture from empirical evidence:
+Choose exactly one posture from the frozen live evidence:
 
 - `manual-research-production-ready`;
 - `manual-research-experimental-only`;
@@ -150,15 +161,20 @@ Choose exactly one posture from empirical evidence:
 
 A Phase 15 readiness result does **not** activate smart-routing research. Any future authority expansion requires a separate owner-approved milestone.
 
-## Initial target thresholds
+## Frozen target thresholds
 
-These are engineering targets, not claims about current performance:
+Frozen before the final live corpus:
 
-- live query success rate >= 0.95;
-- provider no-candidate rate <= 0.05;
-- selected unique-source-family rate >= 0.80 where at least three distinct admissible families exist;
-- duplicate-content rate <= 0.20;
-- retrieval p95 <= 1500 ms for the frozen live corpus, excluding explicitly recorded remote-source outliers only when the benchmark policy says so in advance;
+- live query success rate `>= 0.95`;
+- provider no-candidate rate `<= 0.05`;
+- selected unique-source-family rate `>= 0.80`;
+- duplicate-content rate `<= 0.20`;
+- retrieval-source p95 `<= 1500 ms`;
+- maximum wall clock per live corpus case `60 s`;
 - zero authority-boundary regressions.
 
-Thresholds may be revised only by a documented source change before the final live corpus is run; they must not be changed after seeing the final result merely to force a pass.
+These thresholds must not be changed after seeing the final live result merely to force a pass.
+
+## Pre-live validation
+
+All nine repository workflows were green on pre-live code checkpoint `d3c6289cc7a32da14a18552937826d8f81a99da2`, including the Phase 15 backend/Guardian/dashboard gate, deterministic `30/30` benchmark, sealed search/retrieval regressions and production dashboard image build.

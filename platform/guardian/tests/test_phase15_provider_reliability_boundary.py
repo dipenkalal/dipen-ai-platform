@@ -32,6 +32,9 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         cls.routes_source = (
             cls.repo_root / "platform/backend/gateway/research_routes.py"
         ).read_text(encoding="utf-8")
+        cls.executor_source = (
+            cls.repo_root / "platform/backend/agents/research_executor.py"
+        ).read_text(encoding="utf-8")
         cls.navigation_source = (
             cls.repo_root / "apps/dashboard/src/app/components/AppNavigation.tsx"
         ).read_text(encoding="utf-8")
@@ -123,6 +126,7 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
 
     def test_live_benchmark_uses_isolated_truth_and_cannot_mutate_production_truth(self) -> None:
         self.assertIn("not str(resolved).startswith(\"/tmp/\")", self.live_benchmark_source)
+        self.assertIn("LIVE_CASE_TIMEOUT_SECONDS = 60.0", self.live_benchmark_source)
         self.assertIn(
             "production_task_truth_mutation_performed",
             self.live_benchmark_source,
@@ -148,11 +152,33 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         ):
             self.assertIn(token, self.readiness_source)
 
+    def test_research_agent_history_exposes_only_safe_phase15_diagnostics(self) -> None:
+        for token in (
+            '"search_diagnostics"',
+            '"original_query"',
+            '"search_attempt_count"',
+            '"search_queries_attempted"',
+            '"search_fallback_policy_id"',
+            '"fallback_used"',
+            '"search_attempts"',
+            '"duplicate_normalization_policy_id"',
+            '"skipped_canonical_duplicate_count"',
+            '"provider_search_duration_ms"',
+            '"retrieval_duration_ms"',
+            '"total_pipeline_duration_ms"',
+        ):
+            self.assertIn(token, self.executor_source)
+        self.assertIn('"provider_snippets_exposed_to_model": False', self.executor_source)
+        self.assertIn('"provider_titles_exposed_to_model": False', self.executor_source)
+        self.assertNotIn("candidate.title", self.executor_source)
+        self.assertNotIn("candidate.snippet", self.executor_source)
+
     def test_phase15_adds_no_privileged_or_service_control_authority(self) -> None:
         combined = (
             f"{self.provider_source}\n{self.discovery_source}\n"
             f"{self.fallback_source}\n{self.selection_source}\n"
-            f"{self.live_benchmark_source}\n{self.readiness_source}"
+            f"{self.live_benchmark_source}\n{self.readiness_source}\n"
+            f"{self.executor_source}"
         ).lower()
         for token in (
             "systemctl",
