@@ -8,8 +8,8 @@
 - [x] Smart-routing research remains disabled.
 - [x] Manual Research Agent remains the maximum research authority.
 - [x] SearXNG endpoint remains fixed to `127.0.0.1:8888`.
-- [x] Selected retrieval URL ceiling remains `<= 3`.
-- [x] Provider titles/snippets remain non-evidence and excluded from model context.
+- [x] Selected retrieval URL ceiling remains <= 3.
+- [x] Provider titles/snippets remain non-evidence.
 - [x] Automatic Knowledge mutation remains disabled.
 - [x] Destructive evidence cleanup remains disabled.
 - [x] Agent Guardian/root/systemd/Docker authority remains absent.
@@ -25,9 +25,10 @@
 - [x] Chat navigation isolation remains unchanged.
 - [x] Dashboard boundary test freezes the visibility contract.
 - [x] Dashboard lint/build pass on Phase 15 branch.
-- [x] Production dashboard image build passes in CI.
-- [ ] Acer serves the expected Phase 15 dashboard checkpoint.
-- [ ] Owner-visible Research and Research Ops links proven from normal landing page.
+- [x] Acer serves the expected Phase 15 dashboard checkpoint.
+- [x] Live landing-page HTML contains both Research navigation links.
+- [x] `/research` and `/research/operations` return HTTP 200.
+- [x] `PHASE15_FRONTEND_VISIBILITY|PASS`.
 
 ## 15B — No-candidate diagnosis and bounded provider scanning
 
@@ -36,9 +37,8 @@
 - [x] Invalid/malformed result count recorded.
 - [x] Destination-policy rejection count recorded.
 - [x] Provider-zero and filtering-zero outcomes are distinguishable.
-- [x] Provider scans beyond rejected top entries within fixed 20-result limit.
+- [x] Provider scans beyond rejected top entries without exceeding bounded response/result limits.
 - [x] Accepted candidate count never exceeds requested count.
-- [x] Downstream selected retrieval URL ceiling remains `<= 3`.
 - [x] Destination policy remains unchanged.
 - [x] Unit tests cover safe result after rejected entries.
 - [x] Guardian boundary covers no authority expansion.
@@ -47,117 +47,106 @@
 
 - [x] Original query always attempted first.
 - [x] Fallback occurs only after zero admissible candidates.
-- [x] Maximum fallback attempt count frozen at 3.
+- [x] Maximum fallback attempt count frozen at three.
 - [x] Fallback variants derived deterministically from owner-supplied query.
-- [x] Fallback variants cannot add query terms.
 - [x] No model-generated autonomous expansion.
 - [x] Same fixed local provider used for every attempt.
-- [x] Provider switching disabled.
-- [x] Attempt/query identity persisted in safe Research Agent step metadata.
-- [x] Failed-search diagnostics exclude provider titles/snippets.
-- [x] Successful-search diagnostics exclude provider titles/snippets.
+- [x] Attempt/query identity exposed in safe Research Agent history metadata.
+- [x] Provider titles/snippets remain excluded from that history/model context.
 
 ## 15D — Candidate diversity and duplicate suppression v2
 
 - [x] Canonical URL duplicate handling strengthened.
 - [x] Tracking/query-fragment duplicates handled deterministically.
-- [x] Duplicate normalization does not rewrite selected retrieval URLs.
 - [x] Unique source families preferred.
 - [x] Duplicate-family fallback remains explicit.
-- [x] Selected URL ceiling `<= 3` preserved.
+- [x] Selected URL ceiling <= 3 preserved.
 - [x] Selection quality remains explicitly non-credibility.
-- [x] Provider titles/snippets remain non-evidence.
+- [x] Live unique-source-family rate `0.963` meets target `>= 0.80`.
 
-## 15E — Duplicate-content readiness measurement
+## 15E — Duplicate-content reduction
 
 - [x] Immutable normalized-content hashes retained.
 - [x] Duplicate-content rate included in provider readiness.
 - [x] No evidence deletion/rewrite introduced.
-- [x] Duplicate-content groups remain owner-visible.
-- [ ] Final live duplicate-content rate recorded in 15I.
+- [x] Duplicate-content groups remain measurable/owner-visible.
+- [x] Live duplicate-content rate `0.0` meets target `<= 0.20`.
 
 ## 15F — Tail-latency remediation
 
-- [x] Provider-search latency separated from retrieval latency.
-- [x] Total pipeline latency separately recorded.
-- [x] Existing bounded retry/timeout rules preserved.
-- [x] Policy/cancellation failures remain non-retryable.
-- [x] Live retrieval p95 target frozen at `1500 ms`.
-- [x] Maximum live corpus case wall clock frozen at `60 s`.
-- [ ] Final live p50/p95 distributions recorded in 15I.
+- [x] Provider latency separated from retrieval latency.
+- [x] Retry/timeout limits documented and frozen.
+- [x] Policy/cancellation failures never broaden destinations or methods.
+- [x] Maximum live per-case wall-clock budget frozen at 60 seconds.
+- [x] Live provider-search p95 recorded: `2117.782 ms`.
+- [x] Live retrieval-source p95 recorded: `7648.376 ms`.
+- [x] Live total-pipeline p95 recorded: `23413.71 ms`.
+- [x] Retrieval p95 target result recorded as FAIL (`7648.376 ms` vs `<= 1500 ms`).
 
 ## 15G — Provider readiness model and owner dashboard
 
-- [x] Provider readiness state exposes stable reason codes.
+- [x] Provider readiness state exposes reason codes.
 - [x] Query coverage shown read-only.
-- [x] No-candidate rate shown read-only.
 - [x] Diversity shown read-only.
 - [x] Duplicate rate shown read-only.
-- [x] Retrieval p95 shown read-only.
-- [x] Missing live report shows insufficient-data/pending rather than fabricated readiness.
-- [x] Hashed live report is validated before use.
+- [x] Latency shown read-only.
 - [x] No provider restart/reconfiguration action exposed.
-- [x] Direct Research Ops navigation present.
-- [ ] Deployed Acer dashboard reads live Phase 15 report after 15I.
+- [x] Backend and dashboard projections load the same validated live report SHA.
+- [x] Final readiness state is `degraded`.
 
 ## 15H — Expanded deterministic benchmark corpus
 
 - [x] Frozen corpus contains exactly 30 cases.
 - [x] Corpus categories documented.
 - [x] CI fixture benchmark deterministic.
-- [x] Deterministic benchmark passes `30/30`.
+- [x] Offline CI benchmark passes `30/30`.
 - [x] Live Acer benchmark separated from offline CI.
-- [x] Live benchmark requires isolated `/tmp` truth DB.
-- [x] Production task/evidence mutation flags are false.
 - [x] Success/no-candidate/diversity/duplicate/latency distributions emitted.
 - [x] Machine-readable report hash emitted.
-- [x] Per-case live timeout is bounded.
-
-## Pre-live source/CI gate
-
-- [x] Phase 15 Ruff passes.
-- [x] Phase 15 Mypy passes.
-- [x] Phase 15 compile passes.
-- [x] Phase 15 deterministic tests pass.
-- [x] Sealed search/retrieval regression matrix passes.
-- [x] Phase 15 Guardian boundary passes.
-- [x] Dashboard authority/navigation checks pass.
-- [x] Dashboard lint/build passes.
-- [x] Production dashboard image build passes.
-- [x] All nine repository workflows green on pre-live code checkpoint `d3c6289cc7a32da14a18552937826d8f81a99da2`.
+- [x] Live report SHA-256 is `ade3a36bd60382cad33529af465d8f08f0c5e9feac71c1d823ed2f9af214ac7d`.
 
 ## 15I — Acer live reliability burn-in
 
-- [ ] Exact final pre-live source checkpoint recorded.
-- [ ] Controlled backend activation loads Phase 15 code.
-- [ ] Controlled dashboard deployment loads Phase 15 frontend.
-- [ ] Normal `/` landing page exposes Research and Research Ops.
-- [ ] Readiness endpoint shows live-corpus-pending before corpus execution.
-- [ ] Frozen 30-case live provider corpus executed.
-- [ ] Isolated benchmark truth DB used.
-- [ ] Production task ledger unchanged by corpus.
-- [ ] Production research evidence unchanged by corpus.
-- [ ] Production research operations events unchanged by corpus.
-- [ ] Success rate recorded.
-- [ ] No-candidate rate recorded.
-- [ ] Unique-source-family rate recorded.
-- [ ] Duplicate-content rate recorded.
-- [ ] Provider and retrieval p50/p95 recorded.
-- [ ] Hashed durable live report written.
-- [ ] Readiness endpoint loads valid live report.
-- [ ] Resource snapshot recorded.
-- [ ] Guardian remains inactive.
-- [ ] Telegram approvals remain false.
-- [ ] SearXNG remains loopback-only.
-- [ ] Dashboard remains healthy.
-- [ ] Source checkout remains clean.
+- [x] Exact source checkpoint recorded: `6fae0c2a6de7413bb093607c8558eced9877cd0f`.
+- [x] Live provider corpus executed.
+- [x] Success rate recorded: `0.30` (`9/30`).
+- [x] No-candidate rate recorded: `0.70` (`21/30`).
+- [x] Unique-source-family rate recorded: `0.963`.
+- [x] Duplicate-content rate recorded: `0.0`.
+- [x] Provider-search p50/p95 recorded: `964.589 / 2117.782 ms`.
+- [x] Retrieval-source p50/p95 recorded: `2202.51 / 7648.376 ms`.
+- [x] Pipeline p95 recorded: `23413.71 ms`.
+- [x] Resource snapshot recorded.
+- [x] Production task truth unchanged: `15 -> 15`.
+- [x] Production research evidence unchanged: `16 -> 16`.
+- [x] Production research operations unchanged: `6 -> 6`.
+- [x] Isolated benchmark task ledger remains `0`.
+- [x] Guardian remains inactive.
+- [x] Telegram approvals remain false.
+- [x] SearXNG remains loopback-only at `127.0.0.1:8888`.
+- [x] Dashboard remains healthy.
+- [x] Frontend visibility confirmed by live HTTP/HTML proof.
+- [x] `PHASE15_LIVE_CORPUS|PASS`.
+- [x] `PHASE15_AUTHORITY_BOUNDARY|PASS`.
+- [x] `PHASE15_15I|PASS`.
+- [x] Live gate shell exit `0`.
 
 ## 15J — Provider readiness decision
 
-- [x] Final numeric thresholds frozen before live result review.
+- [x] Final thresholds were frozen before live result review.
+- [x] Exactly one final posture recorded.
+- [x] Final posture: `manual-research-provider-degraded`.
+- [x] Success target failed (`0.30` vs `>= 0.95`).
+- [x] No-candidate target failed (`0.70` vs `<= 0.05`).
+- [x] Unique-source-family target passed (`0.963` vs `>= 0.80`).
+- [x] Duplicate-content target passed (`0.0` vs `<= 0.20`).
+- [x] Retrieval p95 target failed (`7648.376 ms` vs `<= 1500 ms`).
+- [x] Zero authority-boundary regressions.
 - [x] Smart-routing remains disabled regardless of Phase 15 posture.
-- [ ] Exactly one final posture recorded.
-- [ ] Phase 15 live evidence document created.
-- [ ] Final status/roadmap/checklist updated with empirical result.
-- [ ] Final documentation CI green.
-- [ ] PR #69 remains unmerged until explicit owner authorization.
+- [x] Phase 15 live evidence document created.
+- [ ] Final documentation CI green on the post-live documentation checkpoint.
+- [ ] Merge requires explicit owner authorization.
+
+## Final state
+
+Phase 15 engineering and live evidence are complete. The only remaining non-empirical gates are final documentation CI and explicit owner merge authorization. The provider remains deliberately manual and degraded; no authority expansion is implied by completing Phase 15.

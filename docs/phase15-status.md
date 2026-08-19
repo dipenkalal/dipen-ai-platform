@@ -1,104 +1,110 @@
 # Phase 15 Status
 
-Status: **IN PROGRESS — 15A–15H SOURCE/CI GREEN; 15I ACER LIVE DEPLOYMENT + 30-CASE CORPUS NEXT**
+Status: **COMPLETE / SEALED — `manual-research-provider-degraded`**
 
 Base: Phase 14 final merged documentation seal `512c03aaab6c49f7c7ec4c351dcd82e35f36b4bc`.
 
 Branch: `phase15/research-provider-reliability`.
 
-Draft PR: #69. Do not merge without explicit owner authorization after live evidence and final CI.
+Live source checkpoint: `6fae0c2a6de7413bb093607c8558eced9877cd0f`.
 
-Pre-live code checkpoint: `d3c6289cc7a32da14a18552937826d8f81a99da2`.
+PR #69 remains draft/open/unmerged. Merge requires explicit owner authorization.
 
-## Why Phase 15 exists
+## What Phase 15 completed
 
-Phase 14 proved the reliability/operations layer and exposed a provider-quality problem rather than an authority problem. Its final posture was `manual-research-provider-degraded`, with a real no-candidate failure, `0.8125` success rate, `0.5` unique-source-family rate, `0.4615` duplicate-content rate and `2370.666 ms` retrieval p95.
+Phase 15 remediated the provider-quality weaknesses exposed by Phase 14 while preserving manual-only research authority.
 
-Phase 15 remediates those measured weaknesses while preserving manual-only research authority.
+Completed engineering gates:
 
-## 15A–15H implemented scope
+- 15A — frontend visibility and runtime baseline;
+- 15B — no-candidate diagnosis and bounded provider scanning;
+- 15C — deterministic owner-query-only fallback;
+- 15D — stronger canonical duplicate suppression and source-family diversity;
+- 15E — duplicate-content measurement without evidence rewriting/deletion;
+- 15F — provider/retrieval/pipeline timing and bounded live wall-clock policy;
+- 15G — read-only provider readiness model and Research Ops dashboard projection;
+- 15H — frozen exactly-30-case deterministic benchmark corpus;
+- 15I — Acer deployment + isolated 30-case live corpus + frontend/safety proof;
+- 15J — empirical provider-readiness decision.
 
-### 15A — Frontend visibility
+## Frontend visibility result
 
-The Research routes were already present, but the global navigation was hidden on the normal `/` Guardian landing page. Phase 15 makes the primary navigation visible there and exposes direct `Research` and `Research Ops` entries while keeping chat navigation isolated. Dashboard boundary, lint, Next build and production-image build are green. Acer deployment/owner visual proof remains part of 15I.
+The original frontend issue is fixed and live.
 
-### 15B — No-candidate diagnosis and bounded provider scanning
+The Phase 15 dashboard deployment proved:
 
-Local SearXNG scanning is bounded to at most 20 provider results while accepted candidate count remains bounded by the request and downstream retrieval remains `<= 3` URLs. DAP now distinguishes true provider-zero results from malformed/invalid/destination-policy-filtered results and records provider/considered/rejection counts without exposing provider titles or snippets.
+- the normal Guardian landing page exposes `Research`;
+- the normal Guardian landing page exposes direct `Research Ops`;
+- `/research` returns HTTP 200;
+- `/research/operations` returns HTTP 200;
+- the dashboard readiness projection is reachable;
+- the dashboard finished healthy.
 
-### 15C — Deterministic query fallback
+`PHASE15_FRONTEND_VISIBILITY|PASS`
 
-A fixed three-attempt maximum fallback policy is implemented only for the fixed local SearXNG path. The original owner query is always first; fallback variants may remove edge tokens but never add terms, switch providers or invoke model-generated query expansion. Successful and failed search steps expose safe attempt/query diagnostics in Research Agent run history while provider titles/snippets remain excluded.
+## Empirical provider result
 
-### 15D — Candidate diversity and duplicate suppression v2
+Frozen live targets were intentionally not changed after seeing the result.
 
-Canonical duplicate comparison drops fragments and known tracking parameters, normalizes host/default ports and sorts remaining query parameters. This affects duplicate comparison only; retrieval uses the original admitted URL. Unique source families are preferred before duplicate-family fallback, and the retrieval ceiling remains `<= 3`.
+Live 30-case result:
 
-### 15E — Duplicate-content readiness measurement
+- success: `9/30` = `0.30` versus target `>= 0.95`;
+- no-candidate: `21/30` = `0.70` versus target `<= 0.05`;
+- unique-source-family rate: `0.963` versus target `>= 0.80`;
+- duplicate-content rate: `0.0` versus target `<= 0.20`;
+- retrieval-source p95: `7648.376 ms` versus target `<= 1500 ms`;
+- provider-search p95: `2117.782 ms`;
+- total-pipeline p95: `23413.71 ms`;
+- fallback used on `21` cases.
 
-Immutable normalized-text SHA-256 values remain the duplicate-content signal. Phase 15 includes duplicate-content rate in the live provider report/readiness view without deleting, rewriting or destructively consolidating evidence.
+Canonical live report SHA-256:
 
-### 15F — Timing and bounded live execution
+`ade3a36bd60382cad33529af465d8f08f0c5e9feac71c1d823ed2f9af214ac7d`
 
-Provider-search duration, retrieval duration and total pipeline duration are separated. Existing sealed retry rules remain intact. The live 30-case benchmark adds a frozen `60 s` per-case wall-clock ceiling so an external stall becomes a case failure rather than an unbounded run.
+Final read-only readiness state: `degraded`.
 
-### 15G — Read-only provider readiness
+Final reason codes:
 
-A GET-only `/api/v1/research/operations/provider-readiness` endpoint and dashboard proxy were added. The Research Ops page exposes provider state/reason codes, live query coverage, no-candidate rate, source-family rate, duplicate-content rate and retrieval p95. Before the hashed live report exists it deliberately reports `insufficient-data` / live corpus pending. It exposes no SearXNG restart/reconfiguration action and grants no new network/mutation authority.
+- `operations-reliability-degraded`;
+- `query-coverage-below-target`;
+- `no-candidate-rate-above-target`;
+- `retrieval-p95-above-target`.
 
-### 15H — Frozen 30-case benchmark corpus
+Final Phase 15 posture:
 
-The corpus is frozen at exactly 30 cases across official documentation, standards, general factual and multi-source technical categories. CI uses deterministic fixtures; the Acer runner is separate and uses the real fixed local provider plus sealed retrieval. The live runner must use an isolated `/tmp` truth database and therefore must not mutate production task truth or production research evidence.
+**`manual-research-provider-degraded`**
 
-## Pre-live CI gate
+## Safety result
 
-All nine repository workflows were green on `d3c6289cc7a32da14a18552937826d8f81a99da2`:
+The provider-quality result is degraded, but the Phase 15 safety/live gate passed completely.
 
-- CI — `32207590532`;
-- Phase 10 Ruflo Evaluation — `32207590572`;
-- Phase 11 Engineering Agent — `32207590496`;
-- Phase 12 Internet Research Gateway — `32207590516`;
-- Phase 12I Research Workspace Dashboard — `32207590512`;
-- Phase 12J Research Benchmark — `32207590450`;
-- Phase 13 Provider-Specific Research Activation — `32207590653`;
-- Phase 14 Research Operations Reliability — `32207590413`;
-- Phase 15 Research Provider Reliability — `32207590460`.
+Production truth before and after the isolated corpus was unchanged:
 
-The dedicated Phase 15 workflow passed Ruff, Mypy, compile, Phase 15 tests, the deterministic `30/30` provider benchmark, the sealed search/retrieval regression matrix, Guardian boundaries, dashboard authority tests, lint/build and the production dashboard image build.
+- task ledger: `15 -> 15`;
+- immutable research evidence: `16 -> 16`;
+- research operations events: `6 -> 6`.
 
-## Frozen live targets
+The isolated benchmark DB contained `0` task rows and `27` retrieval-evidence / `27` operations rows.
 
-The live result must be measured against the thresholds frozen before 15I:
+Final runtime boundary:
 
-- query success rate `>= 0.95`;
-- no-candidate rate `<= 0.05`;
-- selected unique-source-family rate `>= 0.80`;
-- duplicate-content rate `<= 0.20`;
-- retrieval-source p95 `<= 1500 ms`;
-- per-case wall-clock maximum `60 s`;
-- zero authority-boundary regressions.
+- backend active;
+- Guardian broker inactive;
+- Telegram approvals false;
+- dashboard healthy;
+- SearXNG running and bound only to `127.0.0.1:8888`;
+- source branch/head unchanged and clean;
+- smart-routing research still disabled;
+- no generic model network authority;
+- no provider switching;
+- no automatic Knowledge mutation;
+- no destructive evidence cleanup;
+- no agent Guardian/root/systemd/Docker authority.
 
-These thresholds are not changed after seeing the live result merely to force a pass.
+## Final engineering interpretation
 
-## Current authority boundary
+Phase 15 proved that source selection diversity and duplicate suppression can meet their targets with the fixed provider. It also proved that the dominant remaining limitations are provider coverage/no-candidate behavior and retrieval tail latency.
 
-- smart-routing research: disabled;
-- automatic research on unrelated agent requests: disabled;
-- provider: fixed local `searxng-local-v1` at `127.0.0.1:8888`;
-- selected retrieval URLs: `<= 3`;
-- provider titles/snippets: non-evidence and excluded from model context;
-- automatic Knowledge mutation: disabled;
-- destructive evidence cleanup: disabled;
-- agent Guardian/root/systemd/Docker authority: absent.
+Those provider-quality limitations do not justify authority expansion. Manual owner-supervised Research Agent execution remains the maximum research authority.
 
-## Remaining gates
-
-15I requires one controlled Acer deployment/live block that loads the Phase 15 backend/dashboard, proves the new navigation from the normal landing page, runs the frozen 30-case corpus against the real local provider using an isolated benchmark DB, writes the hashed live report, verifies the read-only readiness projection, and proves production task/evidence/operations truth was unchanged by the corpus.
-
-15J then records exactly one empirical posture:
-
-- `manual-research-production-ready`;
-- `manual-research-experimental-only`;
-- `manual-research-provider-degraded`.
-
-No Phase 15 posture activates smart-routing research.
+Live evidence: `docs/phase15-research-provider-reliability-live-evidence-2026-08-19.md`.
