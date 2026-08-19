@@ -1,0 +1,43 @@
+# Phase 14 — Research Operations & Reliability Gate Checklist
+
+- [x] Phase 13 merged and remains sealed.
+- [x] Phase 14 isolated on `phase14/research-operations-reliability`.
+- [x] Smart-routing research remains out of scope.
+- [x] Source-family diversity prefers unique hostname families before duplicate-family fallback.
+- [x] Exact duplicate candidate URLs are suppressed.
+- [x] Source-selection quality is explicitly not factual/source credibility.
+- [x] Provider titles/snippets remain non-evidence and out of model context.
+- [x] Selected URL ceiling remains <= 3.
+- [x] Every selected URL still traverses sealed Phase 12 retrieval/admission.
+- [x] Transient GET retry ceiling is exactly one retry per explicit URL.
+- [x] Destination-policy, content-policy, redirect-policy and cancellation failures are not retried.
+- [x] Retrieval duration, attempts, retries and recovery are owner-visible.
+- [x] Research operations telemetry is append-only and contains no retrieved source body/provider snippets.
+- [x] Duplicate-content groups use immutable normalized-text SHA-256.
+- [x] Retention policy is dry-run only with default preserve-all.
+- [x] Automatic evidence deletion/archive remains disabled.
+- [x] SearXNG health check is fixed-loopback and grants no service-control authority.
+- [x] Backend resource snapshot is read-only and not per-research-request attribution.
+- [x] Research Operations backend APIs are GET-only.
+- [x] Research Operations dashboard proxies are GET-only.
+- [x] `/research/operations` exposes reliability, source-family, duplicate, retry, failure, provenance, retention and resource visibility.
+- [x] Dashboard exposes no arbitrary fetch, cleanup, retry, provider restart or process-control actions.
+- [x] Deterministic Phase 14 benchmark covers five frozen cases and emits a report SHA-256.
+- [x] Weekly deterministic regression benchmark is configured.
+- [x] Phase 14 core deterministic tests pass.
+- [x] Sealed Phase 12/13 regression matrix passes (112 tests).
+- [x] Repository-wide pre-operator CI/regressions pass.
+- [x] Resumable Acer burn-in/deployment operator added.
+- [x] Operator prevents duplicate burn-in if a later deployment step must be resumed.
+- [ ] Final operator checkpoint passes all repository workflows.
+- [ ] Acer live burn-in produces at least five Phase 14 retrieval operations events from 2–3 bounded manual Research Agent runs.
+- [ ] Every live Research Agent run is correlated to exactly one completed instrumented task row.
+- [ ] Live source-selection family metadata is visible and provider snippets/titles remain excluded.
+- [ ] Live provider-health, resource, retention and operations endpoints pass read-only checks.
+- [ ] Operations POST attempts return 405 through backend and dashboard proxy.
+- [ ] Deterministic 5/5 reliability benchmark passes on the Acer.
+- [ ] Offline dashboard build/recreate succeeds without npm internet downloads.
+- [ ] `/research/operations` is healthy and owner-visible.
+- [ ] Final Guardian/Telegram/SearXNG/source safety invariants pass.
+- [ ] 14J empirical manual-research readiness posture recorded.
+- [ ] Phase 14 sealed/merged only after live burn-in evidence and final CI.
