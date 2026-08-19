@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - phase16/research-provider-coverage-latency
+      - phase16/research-provider-coverage-latency-canary
 
 permissions:
   contents: read
@@ -37,15 +38,18 @@ jobs:
           python -m ruff check \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_latency_probe.py \
             gateway/searxng_search_provider.py \
             tests/test_phase16_provider_diagnostic.py \
             tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase15_searxng_provider_reliability.py
       - name: Mypy Phase 16 diagnostic
         run: |
           python -m mypy \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_latency_probe.py \
             gateway/searxng_search_provider.py \
             --follow-imports=skip
       - name: Compile Phase 16 diagnostic
@@ -53,15 +57,18 @@ jobs:
           python -m compileall -q \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_latency_probe.py \
             gateway/searxng_search_provider.py \
             tests/test_phase16_provider_diagnostic.py \
             tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase15_searxng_provider_reliability.py
       - name: Phase 16 provider diagnostic tests
         run: |
           python -m pytest -q \
             tests/test_phase16_provider_diagnostic.py \
-            tests/test_phase16_engine_health_probe.py
+            tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py
       - name: Sealed Phase 15 regressions
         run: |
           python -m pytest -q \
@@ -84,10 +91,12 @@ jobs:
           python -m compileall -q \
             tests/test_phase16_provider_diagnostic_boundary.py \
             tests/test_phase16_engine_health_probe_boundary.py \
-            tests/test_phase16_engine_pool_remediation_boundary.py
+            tests/test_phase16_engine_pool_remediation_boundary.py \
+            tests/test_phase16_retrieval_latency_probe_boundary.py
       - name: Phase 16 Guardian boundary
         run: |
           python -m unittest -v \
             tests.test_phase16_provider_diagnostic_boundary \
             tests.test_phase16_engine_health_probe_boundary \
-            tests.test_phase16_engine_pool_remediation_boundary
+            tests.test_phase16_engine_pool_remediation_boundary \
+            tests.test_phase16_retrieval_latency_probe_boundary
