@@ -1,9 +1,26 @@
 use_default_settings:
   engines:
     keep_only:
-      - duckduckgo
-      - brave
-      - startpage
+      - google
+      - bing
+      - qwant
+      - mojeek
+      - wikipedia
+      - wiby
+
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: wiby
+    disabled: false
 
 general:
   debug: false
