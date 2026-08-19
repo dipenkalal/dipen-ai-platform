@@ -80,10 +80,19 @@ for (const token of [
   "Backend resource snapshot",
   "not per-request attribution",
   "Phase 15 provider readiness",
-  "The 30-case live corpus is the readiness gate",
+  "The isolated 30-case live corpus is the Phase 15 provider-quality gate",
   "Smart-routing research remains disabled regardless of this panel",
+  "Historical evidence success",
+  "Historical evidence failure",
+  "Metric scopes:",
+  "percentages are not expected to match",
+  "reachability only",
+  "Only successful retrieval evidence contributes to source-family analytics",
+  "loopback safety probes",
+  "Recent production retrieval latency",
+  "Recent retrieval-operation failures",
 ]) {
-  requireContains(operationsPage, token, "research operations authority labels");
+  requireContains(operationsPage, token, "research operations scope and authority labels");
 }
 
 console.log("research_operations_dashboard_boundary|PASS");

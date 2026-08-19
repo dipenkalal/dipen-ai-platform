@@ -96,7 +96,7 @@ def test_summary_surfaces_duplicates_families_latency_and_recovery() -> None:
         _record(
             "evidence-4",
             outcome="failed",
-            url="https://failed.example/d",
+            url="https://127.0.0.1/blocked-safety-probe",
             digest=None,
             stored_at=now,
         ),
@@ -134,7 +134,19 @@ def test_summary_surfaces_duplicates_families_latency_and_recovery() -> None:
     assert summary.succeeded == 4
     assert summary.failed == 1
     assert summary.success_rate == 0.8
-    assert summary.unique_source_family_count == 5
+    assert summary.unique_source_family_count == 4
+    assert summary.unique_source_family_rate == 1.0
+    assert {item.source_family for item in summary.source_families} == {
+        "example.com",
+        "example.org",
+        "example.net",
+        "docs.example.edu",
+    }
+    assert all(item.source_family != "127.0.0.1" for item in summary.source_families)
+    failed_provenance = next(
+        item for item in summary.provenance_quality if item.evidence_id == "evidence-4"
+    )
+    assert failed_provenance.source_family is None
     assert summary.duplicate_content_group_count == 1
     assert summary.duplicate_content_evidence_count == 1
     assert summary.retrieval_attempt_count == 6

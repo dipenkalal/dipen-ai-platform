@@ -156,7 +156,7 @@ export function AppNavigation() {
 
         <nav
           aria-label="Primary navigation"
-          className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto"
+          className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -176,6 +176,8 @@ export function AppNavigation() {
                     ? "page"
                     : undefined
                 }
+                aria-label={item.label}
+                title={item.label}
                 className={[
                   "inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition",
                   active

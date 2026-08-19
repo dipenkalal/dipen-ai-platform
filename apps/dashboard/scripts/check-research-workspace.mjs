@@ -60,8 +60,12 @@ for (const token of [
   "Internet Evidence",
   "Knowledge mutation: disabled",
   "UI network authority: disabled",
+  "Research Agent runs",
+  "All evidence",
+  "Standalone evidence",
+  "stays immutable and remains available in All evidence",
 ]) {
-  requireContains(listPage, token, "research list provenance");
+  requireContains(listPage, token, "research list provenance and scope");
 }
 
 for (const token of [
@@ -77,5 +81,8 @@ for (const token of [
 
 requireContains(navigation, 'href: "/research"', "research navigation");
 requireContains(navigation, 'label: "Research"', "research navigation");
+requireContains(navigation, "[scrollbar-width:none]", "navigation scrollbar hygiene");
+requireContains(navigation, "[&::-webkit-scrollbar]:hidden", "navigation scrollbar hygiene");
+requireContains(navigation, "aria-label={item.label}", "icon navigation accessibility");
 
 console.log("research_workspace_dashboard_boundary|PASS");
