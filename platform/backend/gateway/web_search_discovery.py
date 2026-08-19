@@ -27,10 +27,17 @@ MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 3
 class WebSearchDiscoveryError(RuntimeError):
     """Fail-closed discovery orchestration error with a stable code."""
 
-    def __init__(self, code: str, detail: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        detail: str,
+        *,
+        diagnostics: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(detail)
         self.code = code
         self.detail = detail
+        self.diagnostics = dict(diagnostics or {})
 
 
 class WebSearchDiscoveryProtocol(Protocol):
@@ -148,9 +155,25 @@ class WebSearchRetrievalPipeline:
         selection = self._select_urls(discovery)
         selected_urls = selection.selected_urls
         if not selected_urls:
+            diagnostics = self._no_candidate_diagnostics(discovery)
+            if diagnostics.get("provider_zero_results") is True:
+                detail = (
+                    "Search provider returned zero raw results for the bounded query; "
+                    "no URL candidate was available for DAP retrieval."
+                )
+            elif diagnostics.get("admissible_candidate_zero_after_filtering") is True:
+                detail = (
+                    "Search provider returned raw results, but none survived DAP candidate "
+                    "validation and destination policy."
+                )
+            else:
+                detail = (
+                    "Search provider returned no URL candidate eligible for bounded DAP retrieval."
+                )
             raise WebSearchDiscoveryError(
                 "no-search-candidates",
-                "Search provider returned no URL candidate eligible for bounded DAP retrieval.",
+                detail,
+                diagnostics=diagnostics,
             )
 
         retrieval = await self._retrieval_tool.execute(
@@ -195,6 +218,25 @@ class WebSearchRetrievalPipeline:
             discovery.candidates,
             limit=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL,
         )
+
+    @staticmethod
+    def _no_candidate_diagnostics(
+        discovery: WebSearchDiscoveryProtocol,
+    ) -> dict[str, Any]:
+        diagnostics: dict[str, Any] = {}
+        for field_name in (
+            "provider_result_count",
+            "considered_result_count",
+            "invalid_candidate_count",
+            "policy_rejected_candidate_count",
+            "accepted_candidate_count",
+            "provider_zero_results",
+            "admissible_candidate_zero_after_filtering",
+        ):
+            value = getattr(discovery, field_name, None)
+            if value is not None:
+                diagnostics[field_name] = value
+        return diagnostics
 
     @staticmethod
     def _pipeline_sha256(
