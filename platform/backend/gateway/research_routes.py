@@ -7,7 +7,14 @@ from gateway.research_operations import (
     ResearchRetentionPlan,
 )
 from gateway.research_operations_repository import ResearchOperationsRepository
-from gateway.research_provider_health import ResearchProviderHealth, check_searxng_health
+from gateway.research_provider_health import (
+    ResearchProviderHealth,
+    check_searxng_health,
+)
+from gateway.research_resource_snapshot import (
+    ResearchResourceSnapshot,
+    capture_research_resource_snapshot,
+)
 from gateway.research_retrieval_repository import ResearchRetrievalRepository
 from gateway.research_workspace import (
     ResearchWorkspaceEvidenceItem,
@@ -91,6 +98,14 @@ async def get_research_operations(
 )
 async def get_research_provider_health() -> ResearchProviderHealth:
     return await check_searxng_health()
+
+
+@router.get(
+    "/operations/resource-snapshot",
+    response_model=ResearchResourceSnapshot,
+)
+async def get_research_resource_snapshot() -> ResearchResourceSnapshot:
+    return capture_research_resource_snapshot()
 
 
 @router.get(
