@@ -11,7 +11,10 @@ from gateway.searxng_search_provider import (
     SearXNGSearchRawResponse,
     SearXNGWebSearchProvider,
 )
-from gateway.web_search_discovery import WebSearchDiscoveryError, WebSearchRetrievalPipeline
+from gateway.web_search_discovery import (
+    WebSearchDiscoveryError,
+    WebSearchRetrievalPipeline,
+)
 from gateway.web_search_provider import WebSearchQuery
 
 
