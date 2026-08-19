@@ -1,4 +1,7 @@
 import type {
+  ResearchResourceSnapshot,
+} from "./resource-types";
+import type {
   ResearchOperationsSummary,
   ResearchProviderHealth,
   ResearchRetentionPlan,
@@ -66,6 +69,12 @@ export async function fetchResearchOperations(): Promise<ResearchOperationsSumma
 export async function fetchResearchProviderHealth(): Promise<ResearchProviderHealth> {
   return getJson<ResearchProviderHealth>(
     "/api/research/operations/provider-health",
+  );
+}
+
+export async function fetchResearchResourceSnapshot(): Promise<ResearchResourceSnapshot> {
+  return getJson<ResearchResourceSnapshot>(
+    "/api/research/operations/resource-snapshot",
   );
 }
 
