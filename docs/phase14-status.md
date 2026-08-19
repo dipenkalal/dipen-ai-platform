@@ -1,6 +1,6 @@
 # Phase 14 Status
 
-Status: **IN PROGRESS — 14A–14I GREEN; 14J LIVE BURN-IN RECOVERY IN PROGRESS**
+Status: **IN PROGRESS — 14A–14I GREEN; 14J PROVIDER-FAILURE RECOVERY GREEN / ACER RESUME NEXT**
 
 Base: Phase 13 final merged seal `5f4afa1869497aafee3d1cba3de9b96cdad2e8dd`.
 
@@ -32,7 +32,7 @@ The production research scope remains manual `research-agent` + explicit bounded
 
 ## Deterministic gate
 
-14A–14I are green across the Phase 14 backend, Guardian and dashboard gates, including the deterministic 5/5 reliability benchmark, production dashboard image build, and sealed Phase 12/13 regression matrix.
+14A–14I are green across all eight repository workflows. The Phase 14-specific gate passes backend reliability tests, the deterministic 5/5 reliability benchmark, sealed Phase 12/13 regressions, the live operator/recovery syntax gate, Guardian boundaries, dashboard authority/lint/build checks and the production dashboard image build.
 
 ## 14J first live observation
 
@@ -52,7 +52,7 @@ The recovery bridge cannot restart services, operate Docker, expand network auth
 
 ## Remaining gate
 
-14J still requires the controlled Acer burn-in and dashboard deployment proof to finish. The live evidence must leave Guardian inactive, Telegram approvals disabled, SearXNG loopback-only, retention non-destructive, and smart-routing research disabled.
+14J now requires the controlled Acer recovery/resume. The already-loaded backend PID and failed task must be reconciled without a second backend restart. The final live evidence must leave Guardian inactive, Telegram approvals disabled, SearXNG loopback-only, retention non-destructive, and smart-routing research disabled.
 
 14J then records one empirical posture:
 
@@ -60,4 +60,4 @@ The recovery bridge cannot restart services, operate Docker, expand network auth
 - `manual-research-experimental-only`;
 - `manual-research-provider-degraded`.
 
-The observed no-candidate provider failure will be included in the final posture decision even if the bounded fallback recovery succeeds. No 14J posture activates smart-routing research.
+The observed no-candidate provider failure will be included in the final posture decision even if bounded fallback recovery succeeds. No 14J posture activates smart-routing research.
