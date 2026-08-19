@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone
 from typing import Literal
 
-import psutil
+import psutil  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, Field
 
 
