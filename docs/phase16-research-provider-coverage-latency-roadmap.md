@@ -1,133 +1,93 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — 16A/16B PASS; 16C.1 LIVE ENGINE BLOCKING CONFIRMED; 16C.2 SOURCE REMEDIATION IN PROGRESS**
+Status: **IN PROGRESS — 16A–16F CLOSED; 16G REVIEW NEXT; 16H–16J PENDING**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
-Branch: `phase16/research-provider-coverage-latency`.
+Active PR branch: `phase16/research-provider-coverage-latency-canary`.
 
 ## Why Phase 16 exists
 
-Phase 15 and Phase 15.1 are complete, sealed, merged and deployed. Their safety, UI, data-hygiene, provenance-diversity and duplicate-suppression gates passed. The remaining known defect is provider usefulness/retrieval performance, not authority or frontend hygiene.
+Phase 15 and Phase 15.1 were complete, sealed and merged, but their live provider baseline was not useful enough for readiness:
 
-Frozen Phase 15 live baseline:
+- frozen 30-case corpus success: `9/30` = `0.30`;
+- no-candidate rate: `21/30` = `0.70`;
+- provider search p95: `2117.782 ms`;
+- retrieval-source p95: `7648.376 ms`;
+- pipeline p95: `23413.71 ms`;
+- selected unique-source-family rate: `0.963`;
+- duplicate-content rate: `0.0`;
+- final posture: `manual-research-provider-degraded`.
 
-- 30-case corpus;
-- success `9/30` = `0.30`;
-- no-candidate `21/30` = `0.70`;
-- provider search p50 `964.589 ms`;
-- provider search p95 `2117.782 ms`;
-- retrieval source p50 `2202.51 ms`;
-- retrieval source p95 `7648.376 ms`;
-- pipeline p95 `23413.71 ms`;
-- selected unique-source-family rate `0.963`;
-- duplicate-content rate `0.0`;
-- final posture `manual-research-provider-degraded`.
+Phase 16 is an existing-defect remediation milestone. It must not expand research authority.
 
 ## Frozen authority boundary
 
-Phase 16 must not expand research authority. It does **not** activate smart-routing research.
-
-Preserved invariants:
+Preserved throughout Phase 16:
 
 - manual owner-supervised `research-agent` remains the maximum research authority;
-- provider remains `searxng-local-v1` on fixed loopback `127.0.0.1:8888`;
+- provider remains fixed local `searxng-local-v1` on `127.0.0.1:8888`;
 - selected retrieval ceiling remains at most three URLs;
-- every selected URL still goes through sealed DAP destination admission, HTTPS retrieval, untrusted-content handling and immutable evidence;
-- no provider titles/snippets become evidence or model context;
-- no model-callable generic HTTP/socket/browser tool;
+- every selected URL still uses sealed DAP destination admission, pinned HTTPS retrieval, untrusted-content handling and immutable evidence;
+- provider titles/snippets never become evidence or model context;
+- no model-callable generic HTTP/socket/browser authority;
 - no provider switching or arbitrary remote endpoint;
 - no automatic Knowledge mutation;
 - no destructive evidence cleanup;
 - no Guardian/root/systemd/Docker authority granted to agents;
 - Telegram approvals remain disabled;
-- no autonomous merge/release/deployment authority.
+- no autonomous merge/release/deployment authority;
+- smart-routing research remains disabled.
 
 Any future authority expansion requires a separate owner-approved milestone.
-
-## Current configuration observation
-
-The original Phase 15/16 deployment kept only three engines:
-
-- DuckDuckGo;
-- Brave;
-- Startpage.
-
-SearXNG safe search is set to `2`.
-
-Phase 16C.1 proved that all three configured engines are currently blocked upstream under the live DAP workload. SafeSearch is not implicated by the captured failure metadata and remains unchanged during 16C.2 so the engine-pool variable is isolated.
 
 ## Phase gates
 
 ### 16A — failure taxonomy and diagnostic contract — PASS
 
-Implemented a safe isolated diagnostic contract that distinguishes provider zero raw results, DAP-filtered raw results, retrieval failures, case timeouts and provider transport/error conditions while excluding provider titles/snippets.
+Implemented an isolated diagnostic contract distinguishing provider-zero-results, DAP-filtered-zero, provider transport errors, retrieval failures, benchmark timeouts and success while excluding provider titles/snippets.
 
-Source/CI checkpoint before live replay: `70dfee5b76c9ed5ad06221a3ec0b448d689cc43c`.
-
-All 11 repository pull-request workflows passed on that exact checkpoint.
+Source/CI checkpoint: `70dfee5b76c9ed5ad06221a3ec0b448d689cc43c`.
 
 ### 16B — frozen baseline replay — PASS
 
-The unchanged 30-case Phase 15 corpus was replayed on the Acer with the original provider configuration in an isolated `/tmp` truth database.
+The unchanged 30-case Phase 15 corpus was replayed in an isolated `/tmp` truth DB.
 
-Canonical diagnostic report SHA-256:
+Canonical diagnostic SHA-256:
 
 `d497d4a4cca4451b3bcef3e0a4fd16d81932645fa28d28ef883ddb686d88baed`
 
-Observed failure population:
+Observed:
 
 - success: `9`;
 - provider-zero-results: `21`;
-- DAP-filtered-zero: `0`;
-- provider transport errors: `0`;
-- retrieval failures: `0`;
-- benchmark timeouts: `0`;
-- unclassified no-candidate: `0`.
+- every other failure class: `0`.
 
-Category result:
+The first nine cases succeeded; all remaining 21 returned zero raw provider results across all bounded attempts. Production truth and runtime remained unchanged.
 
-- official documentation: `9` success, `1` provider-zero-results;
-- standards: `10` provider-zero-results;
-- general factual: `5` provider-zero-results;
-- multi-source technical: `5` provider-zero-results.
+Evidence: `docs/phase16a-live-evidence-2026-08-19.md`.
 
-Sequence observation: the first nine cases succeeded, then every remaining 21 case returned zero raw results across all three bounded attempts.
-
-Production task/evidence/operations counts were unchanged and the SearXNG settings SHA remained unchanged.
-
-Live evidence: `docs/phase16a-live-evidence-2026-08-19.md`.
-
-### 16C — SearXNG engine/configuration remediation
+### 16C — SearXNG engine/configuration remediation — PASS
 
 #### 16C.1 — engine failure telemetry — PASS
 
-A six-query low-volume control probe captured only safe engine metadata already exposed by the local SearXNG JSON response.
+Live engine-health telemetry proved the original DuckDuckGo/Brave/Startpage-only pool was upstream-blocked:
+
+- all 6/6 probes zero-result;
+- Brave: repeated `too-many-requests`;
+- DuckDuckGo: repeated `captcha`;
+- Startpage: repeated `captcha` and suspension;
+- contributing engines: `0`.
 
 Canonical probe SHA-256:
 
 `6b2578d231e7f43f8dcc032b4764adbc749efb827f4120990473b6fd68ddf962`
 
-Observed result:
+Evidence: `docs/phase16c1-engine-health-live-evidence-2026-08-19.md`.
 
-- all six probes returned zero results;
-- all three known-good Python controls also returned zero results;
-- Brave: `too-many-requests` on every probe and reported suspended after the first probe;
-- DuckDuckGo: `captcha` on every probe;
-- Startpage: `captcha` on every probe and reported suspended;
-- total normalized CAPTCHA failures: `12`;
-- total normalized rate-limit failures: `6`;
-- contributing engines: `0`.
+#### 16C.2 — bounded replacement engine pool — PASS
 
-This proves `upstream-engine-blocking` as the dominant current coverage defect rather than DAP filtering or query-specific zero results.
-
-Production truth, backend PID, SearXNG container identity/start time, loopback binding and tracked configuration remained unchanged.
-
-Live evidence: `docs/phase16c1-engine-health-live-evidence-2026-08-19.md`.
-
-#### 16C.2 — minimal configuration correction — SOURCE CHECKPOINT
-
-The tracked candidate configuration replaces the blocked three-engine-only pool with a credential-free diversified pool while preserving the same local SearXNG provider:
+The tracked provider pool was changed to credential-free diversified engines while keeping the same local provider and SafeSearch value:
 
 - Google;
 - Bing;
@@ -136,59 +96,123 @@ The tracked candidate configuration replaces the blocked three-engine-only pool 
 - Wikipedia;
 - Wiby.
 
-The removed pool is:
+DuckDuckGo, Brave and Startpage were removed from the bounded pool. Provider endpoint, loopback topology, JSON format, DAP query semantics, URL admission and at-most-three retrieval ceiling remained unchanged.
 
-- DuckDuckGo;
-- Brave;
-- Startpage.
+The replacement pool passed source/CI, shadow canary and controlled live one-container SearXNG promotion. The unchanged frozen 30-case corpus then reached:
 
-All six replacement engines are explicitly enabled in the tracked settings. The provider endpoint, local-only topology, SafeSearch value `2`, JSON search format, DAP query semantics, URL admission path and at-most-three retrieval ceiling remain unchanged.
+- success/query coverage: `30/30` = `1.00`;
+- no-candidate: `0/30` = `0.00`;
+- canonical post-remediation diagnostic SHA-256: `55f5864899248d6bf266ab3d39c0efaac36f85e7ec5b8031c5bc2ca4f5cd375d`.
 
-The source boundary is frozen by `test_phase16_engine_pool_remediation_boundary.py`, which verifies the exact engine set, removal of the blocked pool, absence of credential fields, unchanged SafeSearch, fixed loopback provider endpoint and frozen Phase 16 authority language.
+Coverage/no-candidate provider defects are resolved.
 
-Engine-remediation behavior checkpoint: `15ccdce88466cafa234556f4cc10daaae94f0da9`.
+### 16D — deterministic query-coverage remediation — PASS / NO CHANGE REQUIRED
 
-The engine-pool change must pass the complete repository CI matrix before any Acer configuration mutation. Acer deployment must use a reversible one-container SearXNG recreation with exact pre/post configuration hashes, runtime safety checks and an immediate low-volume canary before any 30-case replay.
+No query semantic expansion was justified after 16C.2. The unchanged frozen corpus already achieved 100% coverage with the corrected engine pool.
 
-No provider endpoint change and no provider switching.
+Decision:
 
-### 16D — deterministic query-coverage remediation
+- do not add model-generated search expansion;
+- do not add new deterministic semantic terms merely to optimize the benchmark;
+- preserve the existing bounded owner-query fallback contract.
 
-Improve bounded owner-query normalization/fallback only where evidence supports it. No model-generated search expansion and no added semantic terms outside deterministic rules.
+### 16E — retrieval latency stage instrumentation — PASS
 
-### 16E — retrieval latency stage instrumentation
+#### 16E.1 — live bounded stage instrumentation — PASS
 
-Separate retrieval tail latency into bounded stages where practical, including connection/TLS/read/body processing/retry costs, without adding network authority.
+Exact source head: `78e72acf917487b0296bfa91eef51815caf61581`.
 
-### 16F — latency remediation
+Acer result:
 
-Make only the transport/retry/timeout changes justified by 16E evidence. Preserve fail-closed destination and content-size/time budgets.
+- cases: `30/30` successful;
+- retriever traces: `92` total / `84` successful;
+- bounded retriever P50/P95: `363.489 / 1311.186 ms`;
+- fetch P50/P95: `246.082 / 1029.870 ms`;
+- DNS P50/P95: `37.175 / 258.355 ms`;
+- report SHA-256: `1703569a7e691e683adbc02159272b59334b45a2001c2cbe399eea8019545ab9`.
 
-### 16G — Research Operations diagnostics
+#### 16E.2 — detailed decomposition — PASS
 
-Expose read-only owner-visible root-cause and latency summaries. No mutation/service-control controls.
+Exact source head: `39ef70ab17582a295ada926e9ec3a43b3fec291c`.
 
-### 16H — regression corpus
+Acer result:
 
-Preserve the frozen 30-case Phase 15 corpus for comparability and add an independent Phase 16 validation corpus rather than modifying cases to fit the implementation.
+- cases: `30/30` successful;
+- retriever traces: `93`;
+- source records: `90` / `86` successful;
+- frozen successful per-source P50/P95: `329.377 / 1698.145 ms`;
+- frozen target: `<=1500 ms` — FAIL in that sample by `198.145 ms`;
+- retriever P95: `1432.904 ms`;
+- fetch P95: `1008.358 ms`;
+- DNS P95: `207.958 ms`;
+- fetch component P95: connect/TLS `329.803 ms`, response-header `301.919 ms`, response-body `375.469 ms`;
+- successful sources with retries: `0`;
+- report SHA-256: `9f93d2c9ccf61c1a21c44b3d6cf8a5bc95c5b5d2992823c188aae3d7c2f58c1b`.
 
-### 16I — Acer live burn-in
+The slow tail was heterogeneous and upstream-driven rather than a single DAP subsystem defect.
 
-Run isolated live validation with production-truth counts frozen and all authority/runtime invariants rechecked.
+### 16F — latency remediation — PASS / NO PRODUCTION CHANGE REQUIRED
 
-### 16J — empirical readiness decision
+#### 16F.1 — bounded gzip shadow A/B — PASS
 
-Targets remain at least:
+Exact source head: `be03a2eebc2c38503ffe3f60a0efb0b42612db4b`.
+
+All 11 pull-request workflows passed on that head before Acer execution.
+
+Same-session unchanged identity control:
+
+- `30/30` successful;
+- frozen successful per-source P50/P95: `364.027 / 1223.962 ms`;
+- frozen `<=1500 ms` target: **PASS**;
+- identity report SHA-256: `7a9392c9a8f2b60857ee8b61c40b280e3fe49b6f522071c73b24b536e83a60cc`.
+
+Bounded gzip shadow:
+
+- `30/30` successful;
+- actual gzip responses observed: `68`;
+- identity responses: `18`;
+- frozen successful per-source P50/P95: `285.725 / 1047.676 ms`;
+- same-session improvement: `176.286 ms`;
+- frozen target: **PASS**;
+- gzip report SHA-256: `97a1ffed0a17d2a539c254a0eb5fd26a9c2dd8821989ba947dd219ee403930b3`.
+
+Decision:
+
+`PHASE16_F1_AB_DECISION|IDENTITY_ALREADY_MEETS_TARGET`
+
+Production transport therefore remains unchanged and identity-only. Gzip is not promoted during Phase 16 because the existing production transport already clears the frozen latency target. This is the minimum-change outcome required by the Phase 16 authority boundary.
+
+Evidence: `docs/phase16f1-gzip-shadow-live-evidence-2026-08-19.md`.
+
+### 16G — Research Operations diagnostics — REVIEW NEXT
+
+Confirm whether the existing Phase 14/15 Research Operations read-only surfaces already expose enough owner-visible provider root-cause, reliability and latency information to satisfy the Phase 16 requirement.
+
+If existing GET-only diagnostics already cover the required information, close 16G as no-change. Otherwise add only the smallest read-only summary needed. No mutation or service-control controls.
+
+### 16H — independent validation corpus — PENDING
+
+Preserve the frozen 30-case Phase 15 corpus unchanged for comparability and add an independent Phase 16 validation corpus so readiness is not decided from the remediation corpus alone.
+
+### 16I — Acer live burn-in — PENDING
+
+Run isolated live validation with production truth counts frozen and all source/runtime/authority invariants rechecked.
+
+### 16J — empirical readiness decision — PENDING
+
+Frozen minimum targets:
 
 - success/query coverage `>= 0.95`;
 - no-candidate rate `<= 0.05`;
 - unique source-family rate `>= 0.80`;
 - duplicate-content rate `<= 0.20`;
-- retrieval-source p95 `<= 1500 ms`;
+- retrieval-source P95 `<= 1500 ms`;
 - zero authority-boundary regressions.
 
-A green Phase 16 engineering gate does not itself activate smart-routing research.
+Current empirical state already demonstrates the first, second and latency targets on the frozen corpus. 16H/16I must independently validate the complete readiness posture before 16J seals the milestone.
+
+A green Phase 16 readiness decision does not activate smart-routing research.
 
 ## Immediate next gate
 
-Run the complete CI matrix on the current branch head containing the 16C.2 behavior checkpoint. Only after that exact source state is green may the Acer SearXNG container be recreated with the new tracked settings. The first live action after recreation is a bounded engine-health canary; do not run the 30-case corpus until the replacement pool proves it can return candidates without immediately entering a blocked state.
+Review the existing GET-only Research Operations reliability/provider-health/readiness surfaces against 16G. Prefer closing 16G with no source change if the current owner-visible diagnostics already cover provider root cause and latency/reliability status. Then add and run the independent 16H validation corpus before the final 16I burn-in and 16J readiness seal.
