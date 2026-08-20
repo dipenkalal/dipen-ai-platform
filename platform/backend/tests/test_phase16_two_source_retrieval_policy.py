@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from gateway.research_retrieval_hedge import (
+    AUTOMATIC_RETRIEVAL_HEDGE_DELAY_SECONDS,
+    AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES,
+    AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID,
+    AUTOMATIC_RETRIEVAL_HEDGE_TARGET_SUCCESSES,
+)
 from gateway.research_source_quality import (
     select_source_diverse_candidates,
 )
@@ -7,6 +13,7 @@ from gateway.searxng_search_provider import (
     SEARXNG_CANDIDATE_RESERVOIR_LIMIT,
 )
 from gateway.web_search_discovery import (
+    MAX_AUTOMATIC_RETRIEVAL_CANDIDATES,
     MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL,
 )
 from gateway.web_search_provider import (
@@ -30,10 +37,18 @@ def _candidate(
     )
 
 
-def test_phase16_automatic_search_retrieval_is_bounded_to_two_sources() -> None:
+def test_phase16_automatic_search_evidence_target_remains_two_sources() -> None:
+    assert MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL == 2
+    assert AUTOMATIC_RETRIEVAL_HEDGE_TARGET_SUCCESSES == 2
+
+
+def test_phase16_automatic_hedge_is_bounded_to_one_standby_candidate() -> None:
+    assert MAX_AUTOMATIC_RETRIEVAL_CANDIDATES == 3
+    assert AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES == 3
+    assert AUTOMATIC_RETRIEVAL_HEDGE_DELAY_SECONDS == 0.75
     assert (
-        MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
-        == 2
+        AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID
+        == "dap-bounded-two-of-three-retrieval-hedge-v1"
     )
 
 
@@ -151,7 +166,7 @@ def test_phase16_two_source_selection_keeps_duplicate_family_fallback_bounded() 
     )
 
 
-def test_phase16_low_level_selector_still_supports_three_when_explicitly_requested() -> None:
+def test_phase16_low_level_selector_still_supports_three_for_bounded_standby() -> None:
     result = select_source_diverse_candidates(
         (
             _candidate(
