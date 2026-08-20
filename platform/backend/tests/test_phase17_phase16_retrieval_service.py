@@ -575,3 +575,120 @@ async def test_operations_repository_is_optional_for_injected_fake_repository() 
     )
 
     assert len(repository.records) == 1
+
+
+
+def test_phase17_structured_profile_preserves_large_json() -> None:
+    import hashlib
+    import json
+
+    from gateway.internet_transport import (
+        InternetRetrievalResult,
+    )
+    from gateway.research_retrieval_service import (
+        MAX_MODEL_CONTEXT_CHARS_PER_SOURCE,
+        STRUCTURED_CONTENT_MAX_NORMALIZED_CHARS,
+        build_phase16_structured_content_normalizer,
+    )
+
+    payload = {
+        "jobs": [
+            {
+                "id": 1,
+                "title": "X" * 60_000,
+            }
+        ],
+        "meta": {
+            "total": 1,
+        },
+    }
+
+    body = json.dumps(
+        payload,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    url = "https://example.invalid/large-structured.json"
+
+    retrieval = InternetRetrievalResult(
+        requested_url=url,
+        final_url=url,
+        method="GET",
+        status_code=200,
+        reason="OK",
+        content_type="application/json",
+        content_length=len(body),
+        body=body,
+        body_sha256=hashlib.sha256(body).hexdigest(),
+        byte_count=len(body),
+        hops=(),
+    )
+
+    normalizer = (
+        build_phase16_structured_content_normalizer()
+    )
+
+    content = normalizer.normalize(
+        retrieval
+    )
+
+    assert (
+        MAX_MODEL_CONTEXT_CHARS_PER_SOURCE
+        == 30_000
+    )
+
+    assert (
+        STRUCTURED_CONTENT_MAX_NORMALIZED_CHARS
+        == 1_000_000
+    )
+
+    assert (
+        normalizer
+        ._limits
+        .max_normalized_chars
+        == 1_000_000
+    )
+
+    assert (
+        content.normalized_char_count
+        > 30_000
+    )
+
+    assert content.truncated is False
+
+    assert (
+        json.loads(content.normalized_text)
+        == payload
+    )
+
+
+def test_phase17_default_service_retains_model_context_profile() -> None:
+    from gateway.research_retrieval_service import (
+        MAX_MODEL_CONTEXT_CHARS_PER_SOURCE,
+        Phase16ExplicitRetrievalService,
+        build_phase16_structured_content_normalizer,
+    )
+
+    default_service = (
+        Phase16ExplicitRetrievalService()
+    )
+
+    structured = (
+        build_phase16_structured_content_normalizer()
+    )
+
+    assert (
+        default_service
+        ._normalizer
+        ._limits
+        .max_normalized_chars
+        == MAX_MODEL_CONTEXT_CHARS_PER_SOURCE
+        == 30_000
+    )
+
+    assert (
+        structured
+        ._limits
+        .max_normalized_chars
+        == 1_000_000
+    )

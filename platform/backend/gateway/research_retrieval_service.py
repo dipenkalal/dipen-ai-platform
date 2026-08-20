@@ -56,6 +56,29 @@ from gateway.untrusted_internet_content import (
 
 
 MAX_MODEL_CONTEXT_CHARS_PER_SOURCE = 30_000
+
+
+# Structured deterministic consumers need complete bounded
+# documents rather than model-context fragments.
+STRUCTURED_CONTENT_MAX_NORMALIZED_CHARS = 1_000_000
+
+
+def build_phase16_structured_content_normalizer(
+) -> UntrustedInternetContentNormalizer:
+    """
+    Build the Phase16-owned bounded profile for deterministic
+    structured-content consumers.
+
+    This does not change the public research-tool model-context
+    profile, transport body ceiling, or network policy.
+    """
+    return UntrustedInternetContentNormalizer(
+        limits=InternetContentLimits(
+            max_normalized_chars=(
+                STRUCTURED_CONTENT_MAX_NORMALIZED_CHARS
+            ),
+        ),
+    )
 MAX_TRANSIENT_RETRIES_PER_URL = 1
 TRANSIENT_RETRY_BACKOFF_SECONDS = 0.25
 

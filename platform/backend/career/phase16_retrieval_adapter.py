@@ -8,6 +8,7 @@ from gateway.research_retrieval_service import (
     Phase16ExplicitRetrievalFailure,
     Phase16ExplicitRetrievalService,
     Phase16ExplicitRetrievalSuccess,
+    build_phase16_structured_content_normalizer,
 )
 
 from career.retrieval import (
@@ -46,7 +47,11 @@ class CareerPhase16RetrievalAdapter:
     ) -> None:
         self._service = (
             service
-            or Phase16ExplicitRetrievalService()
+            or Phase16ExplicitRetrievalService(
+                normalizer=(
+                    build_phase16_structured_content_normalizer()
+                ),
+            )
         )
 
     async def retrieve_public_url(
@@ -114,6 +119,13 @@ class CareerPhase16RetrievalAdapter:
                     "returned an unsupported "
                     "terminal result."
                 )
+            )
+
+        if terminal.content.truncated:
+            raise CareerPhase16RetrievalAdapterError(
+                "Phase16 structured retrieval content "
+                "was truncated and cannot be parsed "
+                "deterministically."
             )
 
         return CareerPhase16RetrievalBundle(

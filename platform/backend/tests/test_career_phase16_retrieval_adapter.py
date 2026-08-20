@@ -333,3 +333,97 @@ async def test_cancellation_is_propagated_from_phase16() -> None:
         .evidence.outcome
         == "cancelled"
     )
+
+
+
+def test_default_adapter_uses_phase16_structured_profile() -> None:
+    adapter = (
+        CareerPhase16RetrievalAdapter()
+    )
+
+    assert (
+        adapter
+        ._service
+        ._normalizer
+        ._limits
+        .max_normalized_chars
+        == 1_000_000
+    )
+
+
+@pytest.mark.asyncio
+async def test_structured_content_truncation_fails_closed_before_bundle() -> None:
+    import hashlib
+    import json
+
+    from gateway.internet_transport import (
+        InternetRetrievalResult,
+    )
+    from gateway.research_retrieval_service import (
+        Phase16ExplicitRetrievalService,
+        build_phase16_structured_content_normalizer,
+    )
+
+    payload = {
+        "blob": "X" * 1_010_000,
+    }
+
+    body = json.dumps(
+        payload,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    retrieval = InternetRetrievalResult(
+        requested_url=URL,
+        final_url=URL,
+        method="GET",
+        status_code=200,
+        reason="OK",
+        content_type="application/json",
+        content_length=len(body),
+        body=body,
+        body_sha256=hashlib.sha256(body).hexdigest(),
+        byte_count=len(body),
+        hops=(),
+    )
+
+    repository = FakeRepository()
+
+    service = (
+        Phase16ExplicitRetrievalService(
+            retriever=FakeRetriever(
+                retrieval
+            ),
+            normalizer=(
+                build_phase16_structured_content_normalizer()
+            ),
+            repository_factory=(
+                lambda: repository
+            ),
+            now_provider=lambda: NOW,
+            timer_provider=lambda: 1.0,
+        )
+    )
+
+    adapter = (
+        CareerPhase16RetrievalAdapter(
+            service=service
+        )
+    )
+
+    with pytest.raises(
+        CareerPhase16RetrievalAdapterError,
+        match="truncated",
+    ):
+        await adapter.retrieve_public_url(
+            objective="Retrieve bounded structured jobs",
+            url=URL,
+        )
+
+    assert len(repository.records) == 1
+
+    assert (
+        repository.records[0]
+        .evidence.outcome
+        == "succeeded"
+    )
