@@ -25,6 +25,8 @@ SEARXNG_PATH = "/search"
 SEARXNG_ENDPOINT = f"http://{SEARXNG_HOST}:{SEARXNG_PORT}{SEARXNG_PATH}"
 MAX_SEARXNG_PROVIDER_RESULT_SCAN = 20
 MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS = 16
+SEARXNG_CANDIDATE_RESERVOIR_LIMIT = 8
+SEARXNG_CANDIDATE_RESILIENCE_POLICY_ID = "dap-searxng-provider-support-reservoir-v1"
 _MAX_PROVIDER_RESPONSE_BYTES = 1024 * 1024
 
 SearXNGEngineFailureClass = Literal[
@@ -91,6 +93,13 @@ class SearXNGSearchDiscoveryResult(BaseModel):
     dropped_unsafe_candidate_count: int = Field(ge=0)
     provider_zero_results: bool
     admissible_candidate_zero_after_filtering: bool
+    candidate_reservoir_limit: int = Field(ge=1, le=10)
+    candidate_resilience_policy_id: str = SEARXNG_CANDIDATE_RESILIENCE_POLICY_ID
+    candidate_original_ranks: tuple[int, ...] = Field(default=(), max_length=10)
+    candidate_provider_support_counts: tuple[int, ...] = Field(default=(), max_length=10)
+    candidate_provider_support_names_recorded: Literal[False] = False
+    provider_titles_or_snippets_used_for_candidate_ranking: Literal[False] = False
+    additional_provider_request_performed: Literal[False] = False
     contributing_engines: tuple[str, ...] = Field(
         default=(), max_length=MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS
     )
@@ -301,6 +310,34 @@ def _extract_contributing_engines(provider_results: list[Any]) -> tuple[str, ...
     return tuple(sorted(names)[:MAX_SEARXNG_ENGINE_TELEMETRY_ITEMS])
 
 
+def _candidate_provider_support_count(item: Any) -> int:
+    if not isinstance(item, dict):
+        return 1
+    names: set[str] = set()
+    raw_engines = item.get("engines")
+    if isinstance(raw_engines, list):
+        for value in raw_engines:
+            name = _safe_engine_name(value)
+            if name is not None:
+                names.add(name)
+    raw_engine = item.get("engine")
+    name = _safe_engine_name(raw_engine)
+    if name is not None:
+        names.add(name)
+    return max(1, min(len(names), 6))
+
+
+def _candidate_reservoir_limit(requested_count: int) -> int:
+    if requested_count < 5:
+        return requested_count
+    return min(10, max(requested_count, SEARXNG_CANDIDATE_RESERVOIR_LIMIT))
+
+
+def _candidate_provider_resilience_score(raw_rank: int, support_count: int) -> int:
+    support_bonus = min(max(support_count - 1, 0), 2) * 10
+    return 100 - ((raw_rank - 1) * 8) + support_bonus
+
+
 def _extract_unresponsive_engines(value: Any) -> tuple[SearXNGEngineFailure, ...]:
     if not isinstance(value, list):
         return ()
@@ -365,16 +402,19 @@ class SearXNGWebSearchProvider:
             payload.get("unresponsive_engines")
         )
 
-        candidates: list[WebSearchCandidate] = []
+        candidate_records: list[tuple[WebSearchCandidate, int, int]] = []
         considered = 0
         invalid = 0
         policy_rejected = 0
+        reservoir_limit = _candidate_reservoir_limit(query.count)
         bounded_results = provider_results[:MAX_SEARXNG_PROVIDER_RESULT_SCAN]
-        for rank, item in enumerate(bounded_results, start=1):
-            if len(candidates) >= query.count:
+        for raw_rank, item in enumerate(bounded_results, start=1):
+            if len(candidate_records) >= reservoir_limit:
                 break
             considered += 1
-            candidate, disposition = self._candidate_from_item_with_disposition(rank, item)
+            candidate, disposition = self._candidate_from_item_with_disposition(
+                raw_rank, item
+            )
             if disposition == "invalid":
                 invalid += 1
                 continue
@@ -382,7 +422,34 @@ class SearXNGWebSearchProvider:
                 policy_rejected += 1
                 continue
             if candidate is not None:
-                candidates.append(candidate)
+                candidate_records.append(
+                    (
+                        candidate,
+                        raw_rank,
+                        _candidate_provider_support_count(item),
+                    )
+                )
+
+        candidate_records.sort(
+            key=lambda record: (
+                -_candidate_provider_resilience_score(record[1], record[2]),
+                record[1],
+                record[0].url,
+            )
+        )
+        candidates = [
+            WebSearchCandidate(
+                rank=selection_rank,
+                title=record[0].title,
+                url=record[0].url,
+                snippet=record[0].snippet,
+            )
+            for selection_rank, record in enumerate(candidate_records, start=1)
+        ]
+        candidate_original_ranks = tuple(record[1] for record in candidate_records)
+        candidate_provider_support_counts = tuple(
+            record[2] for record in candidate_records
+        )
 
         dropped = invalid + policy_rejected
         provider_result_count = len(provider_results)
@@ -408,6 +475,12 @@ class SearXNGWebSearchProvider:
             "admissible_candidate_zero_after_filtering": (
                 admissible_candidate_zero_after_filtering
             ),
+            "candidate_reservoir_limit": reservoir_limit,
+            "candidate_resilience_policy_id": SEARXNG_CANDIDATE_RESILIENCE_POLICY_ID,
+            "candidate_original_ranks": list(candidate_original_ranks),
+            "candidate_provider_support_counts": list(
+                candidate_provider_support_counts
+            ),
             "contributing_engines": list(contributing_engines),
             "unresponsive_engines": [
                 item.model_dump(mode="json") for item in unresponsive_engines
@@ -432,6 +505,9 @@ class SearXNGWebSearchProvider:
             admissible_candidate_zero_after_filtering=(
                 admissible_candidate_zero_after_filtering
             ),
+            candidate_reservoir_limit=reservoir_limit,
+            candidate_original_ranks=candidate_original_ranks,
+            candidate_provider_support_counts=candidate_provider_support_counts,
             contributing_engines=contributing_engines,
             unresponsive_engines=unresponsive_engines,
         )
