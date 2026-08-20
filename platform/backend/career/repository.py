@@ -1164,6 +1164,367 @@ class CareerRepository:
             dict(row)
         )
 
+
+    def get_research_evidence_projection(
+        self,
+        evidence_id: str,
+    ) -> dict[str, str | None] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    outcome,
+                    evidence_json
+                FROM research_retrieval_evidence
+                WHERE evidence_id = ?
+                """,
+                (evidence_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        try:
+            payload = json.loads(
+                str(row["evidence_json"])
+            )
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "Research retrieval evidence contains "
+                "invalid persisted JSON."
+            ) from error
+
+        normalized_hash = payload.get(
+            "normalized_text_sha256"
+        )
+        final_url = payload.get("final_url")
+
+        return {
+            "outcome": str(row["outcome"]),
+            "normalized_text_sha256": (
+                str(normalized_hash)
+                if normalized_hash is not None
+                else None
+            ),
+            "final_url": (
+                str(final_url)
+                if final_url is not None
+                else None
+            ),
+        }
+
+    def create_application_with_event(
+        self,
+        application: CareerApplication,
+        event: CareerApplicationEvent,
+    ) -> CareerApplication:
+        if event.application_id != application.application_id:
+            raise ValueError(
+                "Initial application event identity "
+                "does not match application."
+            )
+
+        if event.from_state is not None:
+            raise ValueError(
+                "Initial application event must have "
+                "from_state=None."
+            )
+
+        if event.to_state != application.state:
+            raise ValueError(
+                "Initial application event state does "
+                "not match application."
+            )
+
+        try:
+            with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+
+                existing = connection.execute(
+                    """
+                    SELECT 1
+                    FROM career_applications
+                    WHERE application_id = ?
+                    """,
+                    (application.application_id,),
+                ).fetchone()
+
+                if existing is not None:
+                    connection.rollback()
+                    raise CareerPersistenceConflict(
+                        "Career application already exists."
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO career_applications (
+                        application_id,
+                        job_id,
+                        state,
+                        owner_approved_at,
+                        applied_confirmed_at,
+                        applied_confirmation_kind,
+                        notes,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        application.application_id,
+                        application.job_id,
+                        application.state,
+                        (
+                            application.owner_approved_at
+                            .isoformat()
+                            if application.owner_approved_at
+                            else None
+                        ),
+                        (
+                            application.applied_confirmed_at
+                            .isoformat()
+                            if application.applied_confirmed_at
+                            else None
+                        ),
+                        application.applied_confirmation_kind,
+                        application.notes,
+                        application.created_at.isoformat(),
+                        application.updated_at.isoformat(),
+                    ),
+                )
+
+                connection.execute(
+                    """
+                    INSERT INTO career_application_events (
+                        event_id,
+                        application_id,
+                        from_state,
+                        to_state,
+                        actor_kind,
+                        actor_id,
+                        reason,
+                        evidence_id,
+                        occurred_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.application_id,
+                        event.from_state,
+                        event.to_state,
+                        event.actor_kind,
+                        event.actor_id,
+                        event.reason,
+                        event.evidence_id,
+                        event.occurred_at.isoformat(),
+                    ),
+                )
+
+                connection.commit()
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Atomic Career application creation "
+                f"failed integrity checks: {error}"
+            ) from error
+
+        stored = self.get_application(
+            application.application_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Career application disappeared after "
+                "atomic creation."
+            )
+
+        return stored
+
+    def transition_application_atomic(
+        self,
+        *,
+        expected: CareerApplication,
+        updated: CareerApplication,
+        event: CareerApplicationEvent,
+    ) -> CareerApplication:
+        if (
+            expected.application_id
+            != updated.application_id
+        ):
+            raise ValueError(
+                "Application identity cannot change "
+                "during transition."
+            )
+
+        if expected.job_id != updated.job_id:
+            raise ValueError(
+                "Application job identity cannot change."
+            )
+
+        if expected.created_at != updated.created_at:
+            raise ValueError(
+                "Application created_at is immutable."
+            )
+
+        if updated.updated_at < expected.updated_at:
+            raise ValueError(
+                "Application updated_at cannot move backward."
+            )
+
+        if event.application_id != expected.application_id:
+            raise ValueError(
+                "Transition event application identity "
+                "does not match."
+            )
+
+        if event.from_state != expected.state:
+            raise ValueError(
+                "Transition event from_state does not "
+                "match expected application state."
+            )
+
+        if event.to_state != updated.state:
+            raise ValueError(
+                "Transition event to_state does not "
+                "match updated application state."
+            )
+
+        if event.occurred_at != updated.updated_at:
+            raise ValueError(
+                "Transition event timestamp must match "
+                "application updated_at."
+            )
+
+        try:
+            with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+
+                row = connection.execute(
+                    """
+                    SELECT *
+                    FROM career_applications
+                    WHERE application_id = ?
+                    """,
+                    (expected.application_id,),
+                ).fetchone()
+
+                if row is None:
+                    connection.rollback()
+                    raise KeyError(
+                        "Unknown Career application: "
+                        f"{expected.application_id}"
+                    )
+
+                current = (
+                    CareerApplication.model_validate(
+                        dict(row)
+                    )
+                )
+
+                if current != expected:
+                    connection.rollback()
+                    raise CareerPersistenceConflict(
+                        "Career application transition "
+                        "rejected because persisted state "
+                        "changed."
+                    )
+
+                event_row = connection.execute(
+                    """
+                    SELECT 1
+                    FROM career_application_events
+                    WHERE event_id = ?
+                    """,
+                    (event.event_id,),
+                ).fetchone()
+
+                if event_row is not None:
+                    connection.rollback()
+                    raise CareerPersistenceConflict(
+                        "Career application transition "
+                        "event already exists."
+                    )
+
+                connection.execute(
+                    """
+                    UPDATE career_applications
+                    SET
+                        state = ?,
+                        owner_approved_at = ?,
+                        applied_confirmed_at = ?,
+                        applied_confirmation_kind = ?,
+                        notes = ?,
+                        updated_at = ?
+                    WHERE application_id = ?
+                    """,
+                    (
+                        updated.state,
+                        (
+                            updated.owner_approved_at
+                            .isoformat()
+                            if updated.owner_approved_at
+                            else None
+                        ),
+                        (
+                            updated.applied_confirmed_at
+                            .isoformat()
+                            if updated.applied_confirmed_at
+                            else None
+                        ),
+                        updated.applied_confirmation_kind,
+                        updated.notes,
+                        updated.updated_at.isoformat(),
+                        updated.application_id,
+                    ),
+                )
+
+                connection.execute(
+                    """
+                    INSERT INTO career_application_events (
+                        event_id,
+                        application_id,
+                        from_state,
+                        to_state,
+                        actor_kind,
+                        actor_id,
+                        reason,
+                        evidence_id,
+                        occurred_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.application_id,
+                        event.from_state,
+                        event.to_state,
+                        event.actor_kind,
+                        event.actor_id,
+                        event.reason,
+                        event.evidence_id,
+                        event.occurred_at.isoformat(),
+                    ),
+                )
+
+                connection.commit()
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Atomic Career application transition "
+                f"failed integrity checks: {error}"
+            ) from error
+
+        stored = self.get_application(
+            updated.application_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Career application disappeared after "
+                "atomic transition."
+            )
+
+        return stored
+
     def list_application_events(
         self,
         application_id: str,
