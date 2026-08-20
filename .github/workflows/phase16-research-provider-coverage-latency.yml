@@ -40,11 +40,13 @@ jobs:
             gateway/research_engine_health_probe.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
             gateway/searxng_search_provider.py \
             tests/test_phase16_provider_diagnostic.py \
             tests/test_phase16_engine_health_probe.py \
             tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py \
             tests/test_phase15_searxng_provider_reliability.py
       - name: Mypy Phase 16 diagnostic
         run: |
@@ -53,6 +55,7 @@ jobs:
             gateway/research_engine_health_probe.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
             gateway/searxng_search_provider.py \
             --follow-imports=skip
       - name: Compile Phase 16 diagnostic
@@ -62,11 +65,13 @@ jobs:
             gateway/research_engine_health_probe.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
             gateway/searxng_search_provider.py \
             tests/test_phase16_provider_diagnostic.py \
             tests/test_phase16_engine_health_probe.py \
             tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py \
             tests/test_phase15_searxng_provider_reliability.py
       - name: Phase 16 provider diagnostic tests
         run: |
@@ -74,7 +79,8 @@ jobs:
             tests/test_phase16_provider_diagnostic.py \
             tests/test_phase16_engine_health_probe.py \
             tests/test_phase16_retrieval_latency_probe.py \
-            tests/test_phase16_retrieval_latency_probe_e2.py
+            tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py
       - name: Sealed Phase 15 regressions
         run: |
           python -m pytest -q \
@@ -99,7 +105,8 @@ jobs:
             tests/test_phase16_engine_health_probe_boundary.py \
             tests/test_phase16_engine_pool_remediation_boundary.py \
             tests/test_phase16_retrieval_latency_probe_boundary.py \
-            tests/test_phase16_retrieval_latency_probe_e2_boundary.py
+            tests/test_phase16_retrieval_latency_probe_e2_boundary.py \
+            tests/test_phase16_gzip_shadow_boundary.py
       - name: Phase 16 Guardian boundary
         run: |
           python -m unittest -v \
@@ -107,4 +114,5 @@ jobs:
             tests.test_phase16_engine_health_probe_boundary \
             tests.test_phase16_engine_pool_remediation_boundary \
             tests.test_phase16_retrieval_latency_probe_boundary \
-            tests.test_phase16_retrieval_latency_probe_e2_boundary
+            tests.test_phase16_retrieval_latency_probe_e2_boundary \
+            tests.test_phase16_gzip_shadow_boundary
