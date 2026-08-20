@@ -7,6 +7,7 @@ import json
 import zlib
 from pathlib import Path
 from typing import Any, Literal, cast
+from unittest.mock import patch
 
 from agents.cancellation import raise_if_current_cancellation_requested
 from gateway import internet_transport as transport
@@ -205,15 +206,11 @@ async def run_phase16f1_gzip_experiment(
 ) -> dict[str, Any]:
     _GzipPinnedHTTPSFetcher.gzip_response_count = 0
     _GzipPinnedHTTPSFetcher.identity_response_count = 0
-    original_fetcher = e2._TimedFetcher
-    e2._TimedFetcher = _GzipTimedFetcher
-    try:
+    with patch.object(e2, "_TimedFetcher", _GzipTimedFetcher):
         detail_report = await e2.run_phase16e2_latency_probe(
             source_commit=source_commit,
             truth_db=truth_db,
         )
-    finally:
-        e2._TimedFetcher = original_fetcher
 
     gzip_p95 = detail_report.frozen_retrieval_source_p95_ms
     delta = (
