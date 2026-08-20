@@ -1,6 +1,6 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — 16A–16G CLOSED; 16H LIVE METRIC FAIL; 16H.1 LATENCY DIAGNOSIS NEXT; 16I–16J BLOCKED**
+Status: **IN PROGRESS — 16A–16G CLOSED; 16H INITIAL LIVE LATENCY FAIL DIAGNOSED; 16H.2 SOURCE-SELECTION RESILIENCE IMPLEMENTED; FULL 24-CASE REVALIDATION NEXT; 16I–16J BLOCKED**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
@@ -151,13 +151,11 @@ Acer result:
 
 The slow tail was heterogeneous and upstream-driven rather than a single DAP subsystem defect.
 
-### 16F — latency remediation — PASS / NO PRODUCTION CHANGE REQUIRED
+### 16F — latency remediation — PASS / NO PRODUCTION TRANSPORT CHANGE REQUIRED
 
 #### 16F.1 — bounded gzip shadow A/B — PASS
 
 Exact source head: `be03a2eebc2c38503ffe3f60a0efb0b42612db4b`.
-
-All 11 pull-request workflows passed on that head before Acer execution.
 
 Same-session unchanged identity control:
 
@@ -170,7 +168,6 @@ Bounded gzip shadow:
 
 - `30/30` successful;
 - actual gzip responses observed: `68`;
-- identity responses: `18`;
 - frozen successful per-source P50/P95: `285.725 / 1047.676 ms`;
 - same-session improvement: `176.286 ms`;
 - frozen target: **PASS**;
@@ -180,7 +177,7 @@ Decision:
 
 `PHASE16_F1_AB_DECISION|IDENTITY_ALREADY_MEETS_TARGET`
 
-Production transport therefore remains unchanged and identity-only. Gzip is not promoted during Phase 16 because the existing production transport already clears the frozen latency target. This is the minimum-change outcome required by the Phase 16 authority boundary.
+Production transport remains unchanged and identity-only. Gzip was not promoted because the existing production transport already clears the frozen latency target in the same-session control.
 
 Evidence: `docs/phase16f1-gzip-shadow-live-evidence-2026-08-19.md`.
 
@@ -195,7 +192,7 @@ The sealed read-only Research Operations surfaces already satisfy the Phase 16 o
 
 No mutation, service-control or provider-reconfiguration authority is exposed. No Phase 16 API/dashboard change is required.
 
-### 16H — independent validation corpus — LIVE COMPLETE / METRIC FAIL
+### 16H — independent validation corpus — INITIAL LIVE COMPLETE / LATENCY METRIC FAIL
 
 The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus was validated with:
 
@@ -205,14 +202,14 @@ The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus
 - no Phase 15 case IDs reused;
 - no Phase 15 query strings reused.
 
-Exact all-CI-green Acer validation head:
+Exact initial validation head:
 
 `4c12910d013df75e0db43a28ed9dc1c857e9f158`
 
-Live metrics:
+Initial live metrics:
 
 - success/query coverage: `24/24` = `1.0000` — PASS;
-- no-candidate: `0/24` = `0.0000` — PASS;
+- no-candidate: `0.0000` — PASS;
 - selected unique-source-family rate: `0.9861` — PASS;
 - duplicate-content rate: `0.1806` — PASS;
 - retrieval-source P50: `399.014 ms`;
@@ -228,28 +225,77 @@ Canonical report SHA-256:
 
 Exactly four of 72 successful retrieval-source durations exceeded `1500 ms`. The nearest-rank P95 landed on the fourth-largest duration (`1731.707 ms`), a `231.707 ms` miss.
 
-Production truth remained `15/16/6`, backend PID remained `677911`, Guardian remained inactive, Telegram approvals remained false, SearXNG runtime/container/binding remained unchanged, production transport remained identity-only, and the source checkout remained clean.
-
 Evidence: `docs/phase16h-independent-validation-live-evidence-2026-08-19.md`.
 
-#### 16H.1 — targeted slow-tail latency diagnosis — NEXT
+#### 16H.1 — targeted slow-tail latency diagnosis — PASS
 
-Do not alter the independent corpus and do not lower the frozen threshold.
+Exact source head:
 
-Replay the cases implicated in the slow tail using the existing Phase 16E.2 detailed timing instrumentation, three iterations per case, under isolated `/tmp` truth. Diagnose DNS, connect/TLS, response-header, response-body, retry/backoff and tool-overhead contributions while recording only bounded safe source identity metadata.
+`c4457ae394f6f835f7e2aa03fdf443a676b9fa24`
 
-The initial target set is:
+The four cases implicated in the initial tail were replayed three times each using E2 timing decomposition under isolated truth:
 
-- `p16-usgs-earthquake-magnitude`;
-- `p16-overlay-filesystems`;
-- `p16-rfc9293-tcp`;
-- `p16-dns-over-https`.
+- `12/12` runs successful;
+- `36/36` source records successful;
+- source P50/P95: `298.305 / 1628.755 ms`;
+- max: `1953.731 ms`;
+- four sources above `1500 ms`;
+- dominant fetch component: response-header;
+- retry/backoff was not the cause.
 
-16H.1 is diagnostic-only and cannot modify provider configuration, production transport, timeout/retry/concurrency policy, production truth, Guardian state, smart-routing authority or host privileges.
+A repeatable source-specific upstream TTFB pattern was isolated: `atscontainers.com` exceeded the target in all three overlay-filesystem iterations (`1556.426`, `1522.586`, `1628.755 ms`), dominated by response-header wait (`948.956`, `916.311`, `1045.895 ms`). A `github.com` RFC source had one transient `1953.731 ms` event but the next two iterations fell to `566.226` and `675.700 ms`.
+
+H.1 therefore does not justify changing the threshold, corpus, transport, timeout/retry policy or adding a source blacklist.
+
+Canonical report SHA-256:
+
+`c9cfa723ef69ff554aadaeba8936b719352b12319e485d599c90a0b8355559f6`
+
+Evidence: `docs/phase16h1-slow-tail-live-evidence-2026-08-19.md`.
+
+#### 16H.2 — deterministic source-selection resilience — IMPLEMENTED / CI GATE
+
+H.2 addresses the repeatable source-selection tail generically rather than special-casing observed domains or benchmark cases.
+
+Implemented source-selection policy:
+
+- `dap-source-family-diversity-url-resilience-v2`;
+- `dap-url-retrieval-resilience-v1`;
+- `dap-searxng-provider-support-reservoir-v1`.
+
+The fixed local SearXNG request is unchanged. For the normal five-candidate research request, DAP may retain up to eight already-returned admissible candidates from the same provider JSON response, still within the existing maximum 20-result scan. No additional provider request is made. Small explicit requests below five retain their exact requested candidate count.
+
+Candidate ordering may use only bounded non-content metadata:
+
+- original provider rank;
+- count of contributing SearXNG engines for that result, without persisting per-candidate engine names;
+- URL-structure signals for documentation/standards/static-document/government/education paths and hosts.
+
+The selection policy does not use provider title/snippet text, does not fetch or probe candidates before selection, does not assess factual credibility, contains no observed-domain or corpus-specific blacklist/allowlist, and does not change query semantics.
+
+Source-family diversity and canonical URL duplicate suppression remain active. Final remote retrieval remains capped at exactly the existing at-most-three URL ceiling. Every selected URL still passes the same sealed DAP admission and identity-only pinned HTTPS retrieval path.
+
+Dedicated backend tests and Guardian boundaries freeze:
+
+- reservoir `<=8` and raw scan `<=20`;
+- one fixed provider request only;
+- final retrieval `<=3`;
+- provider titles/snippets not used for selection or evidence;
+- no per-candidate engine names persisted;
+- no remote pre-probe;
+- no provider switching;
+- no timeout/retry/concurrency change;
+- no production transport change;
+- no source-specific exception;
+- independent 24-case corpus and `1500 ms` target unchanged.
+
+The source implementation passed Phase 16 Ruff, mypy, compile, H.2 tests, sealed Phase 15 regressions and Guardian boundary. A historical Phase 15 Guardian assertion that froze the old `query.count` admission implementation was updated to freeze the stronger current invariant: scan `<=20`, reservoir `<=8`, no extra provider request, final retrieval `<=3`.
+
+The full unchanged 24-case Phase 16H corpus must now be rerun once against H.2. H.1 is not rerun and cannot substitute for this full validation.
 
 ### 16I — Acer live burn-in — BLOCKED
 
-16I remains blocked because the independent 16H latency target failed. It may begin only after 16H.1 establishes a justified resolution and the full frozen target set is independently satisfied without weakening thresholds or authority boundaries.
+16I remains blocked until the unchanged full 24-case independent corpus passes every frozen Phase 16 target after H.2. No targeted subset may unblock 16I.
 
 ### 16J — empirical readiness decision — BLOCKED
 
@@ -262,10 +308,8 @@ Frozen minimum targets:
 - retrieval-source P95 `<= 1500 ms`;
 - zero authority-boundary regressions.
 
-The independent 16H corpus currently passes every frozen readiness target except retrieval-source P95. Phase 16 cannot be sealed and cannot move to a production-ready research posture while that target remains failed.
-
 A future green Phase 16 readiness decision still does not activate smart-routing research.
 
 ## Immediate next gate
 
-Implement and CI-gate the diagnostic-only Phase 16H.1 targeted slow-tail replay. Then run it on Acer using the exact all-CI-green source head. Preserve the 24-case corpus, all frozen thresholds, the identity-only production transport and the complete Phase 16 authority boundary. Do not advance to 16I unless the latency defect is empirically resolved.
+Complete the full pull-request CI matrix on the exact H.2 source/documentation head, then run exactly one unchanged `phase16-validation-corpus-v1` 24-case isolated validation on Acer. Do not rerun H.1, modify the independent corpus, lower any threshold, promote gzip, or change runtime/service configuration for this validation. If the full corpus passes every frozen target, proceed to 16I. If it fails, use that single full report to decide the next source change before asking the owner for another Acer action.
