@@ -38,6 +38,8 @@ jobs:
           python -m ruff check \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
             gateway/research_retrieval_gzip_experiment.py \
@@ -51,6 +53,8 @@ jobs:
             tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase16_retrieval_latency_probe_e2.py \
             tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
             tests/test_phase16_independent_validation.py \
             tests/test_phase16_slow_tail_probe.py \
             tests/test_phase16_source_selection_resilience.py \
@@ -60,6 +64,8 @@ jobs:
           python -m mypy \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
             gateway/research_retrieval_gzip_experiment.py \
@@ -74,6 +80,8 @@ jobs:
           python -m compileall -q \
             gateway/research_provider_diagnostic.py \
             gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
             gateway/research_retrieval_latency_probe.py \
             gateway/research_retrieval_latency_probe_e2.py \
             gateway/research_retrieval_gzip_experiment.py \
@@ -87,6 +95,8 @@ jobs:
             tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase16_retrieval_latency_probe_e2.py \
             tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
             tests/test_phase16_independent_validation.py \
             tests/test_phase16_slow_tail_probe.py \
             tests/test_phase16_source_selection_resilience.py \
@@ -99,6 +109,8 @@ jobs:
             tests/test_phase16_retrieval_latency_probe.py \
             tests/test_phase16_retrieval_latency_probe_e2.py \
             tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
             tests/test_phase16_independent_validation.py \
             tests/test_phase16_slow_tail_probe.py \
             tests/test_phase16_source_selection_resilience.py
