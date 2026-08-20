@@ -184,7 +184,7 @@ def _decode_gzip_bounded(payload: bytes, max_decoded_bytes: int) -> bytes:
     return decoded
 
 
-class _GzipTimedFetcher:
+class _GzipTimedFetcher(e2._TimedFetcher):
     def __init__(
         self,
         accumulator: e2._TimingAccumulator,
@@ -197,14 +197,6 @@ class _GzipTimedFetcher:
         self._accumulator = accumulator
         self._timer = timer
 
-    async def fetch(self, admission: Any) -> Any:
-        started = self._timer()
-        try:
-            return await self._delegate.fetch(admission)
-        finally:
-            self._accumulator.fetch_ms += e2._elapsed_ms(self._timer, started)
-            self._accumulator.fetch_count += 1
-
 
 async def run_phase16f1_gzip_experiment(
     *,
@@ -214,14 +206,14 @@ async def run_phase16f1_gzip_experiment(
     _GzipPinnedHTTPSFetcher.gzip_response_count = 0
     _GzipPinnedHTTPSFetcher.identity_response_count = 0
     original_fetcher = e2._TimedFetcher
-    setattr(e2, "_TimedFetcher", _GzipTimedFetcher)
+    e2._TimedFetcher = _GzipTimedFetcher
     try:
         detail_report = await e2.run_phase16e2_latency_probe(
             source_commit=source_commit,
             truth_db=truth_db,
         )
     finally:
-        setattr(e2, "_TimedFetcher", original_fetcher)
+        e2._TimedFetcher = original_fetcher
 
     gzip_p95 = detail_report.frozen_retrieval_source_p95_ms
     delta = (
