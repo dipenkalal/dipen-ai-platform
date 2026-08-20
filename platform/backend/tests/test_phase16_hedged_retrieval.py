@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-import gateway.web_search_discovery as web_search_discovery
+from gateway import web_search_discovery
 from gateway.internet_transport import (
     InternetRetrievalHop,
     InternetRetrievalResult,
