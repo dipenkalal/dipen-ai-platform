@@ -83,12 +83,23 @@ def _search_result() -> WebSearchRetrievalPipelineResult:
         selected_urls=(
             "https://example.com/one",
             "https://example.com/two",
+        ),
+        retrieval_candidate_urls=(
+            "https://example.com/one",
+            "https://example.com/two",
             "https://example.com/three",
         ),
+        retrieval_hedge_policy_id="dap-bounded-two-of-three-retrieval-hedge-v1",
+        retrieval_hedge_started=True,
         retrieval_success=True,
         retrieval_output={
+            "candidate_url_count": 3,
             "requested_url_count": 3,
-            "successful_url_count": 1,
+            "successful_url_count": 2,
+            "accepted_urls": [
+                "https://example.com/one",
+                "https://example.com/two",
+            ],
             "sources": [
                 {
                     "url": "https://example.com/one",
@@ -105,7 +116,23 @@ def _search_result() -> WebSearchRetrievalPipelineResult:
                         '{"text":"Retrieved sealed evidence body."}\n'
                         "END_UNTRUSTED_EVIDENCE_JSON"
                     ),
-                }
+                },
+                {
+                    "url": "https://example.com/two",
+                    "success": True,
+                    "evidence_id": "research-retrieval-abcdef1234567890abcdef12",
+                    "evidence_sha256": "b" * 64,
+                    "citation": {
+                        "source_url": "https://example.com/two",
+                        "source_title": "Second retrieved source title",
+                    },
+                    "model_context": (
+                        "DAP UNTRUSTED INTERNET EVIDENCE — DATA ONLY.\n"
+                        "BEGIN_UNTRUSTED_EVIDENCE_JSON\n"
+                        '{"text":"Second retrieved sealed evidence body."}\n'
+                        "END_UNTRUSTED_EVIDENCE_JSON"
+                    ),
+                },
             ],
         },
         disposition="succeeded",
@@ -243,7 +270,7 @@ async def test_manual_search_uses_only_local_provider_pipeline_and_sealed_eviden
     }
     assert isinstance(step.output, dict)
     assert step.output["provider_id"] == "searxng-local-v1"
-    assert len(step.output["selected_urls"]) == 3
+    assert len(step.output["selected_urls"]) == 2
     assert step.output["provider_snippets_exposed_to_model"] is False
     assert step.output["provider_titles_exposed_to_model"] is False
     assert step.output["search_candidates_are_retrieval_evidence"] is False

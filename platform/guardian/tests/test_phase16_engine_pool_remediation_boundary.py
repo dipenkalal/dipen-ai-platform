@@ -8,15 +8,16 @@ SETTINGS = REPO_ROOT / "deploy/phase12h-searxng/settings.yml"
 PROVIDER = REPO_ROOT / "platform/backend/gateway/searxng_search_provider.py"
 ROADMAP = REPO_ROOT / "docs/phase16-research-provider-coverage-latency-roadmap.md"
 
-EXPECTED_ENGINES = {
+EXPECTED_ENGINES = {"bing", "wiby"}
+EXCLUDED_UNQUALIFIED_ENGINES = {
     "google",
-    "bing",
     "qwant",
     "mojeek",
     "wikipedia",
-    "wiby",
+    "duckduckgo",
+    "brave",
+    "startpage",
 }
-REMOVED_BLOCKED_ENGINES = {"duckduckgo", "brave", "startpage"}
 
 
 def _keep_only_engines(source: str) -> set[str]:
@@ -66,11 +67,11 @@ class Phase16EnginePoolRemediationBoundaryTests(unittest.TestCase):
         for prohibited in ("api_key", "token:", "secret_key", "password"):
             self.assertNotIn(prohibited, lowered)
 
-    def test_blocked_pool_is_removed_from_active_engine_selection(self) -> None:
+    def test_unqualified_pool_is_removed_from_active_engine_selection(self) -> None:
         source = SETTINGS.read_text(encoding="utf-8")
         selected = _keep_only_engines(source) | set(_explicit_engine_states(source))
 
-        self.assertTrue(REMOVED_BLOCKED_ENGINES.isdisjoint(selected))
+        self.assertTrue(EXCLUDED_UNQUALIFIED_ENGINES.isdisjoint(selected))
 
     def test_safe_search_and_local_service_shape_are_unchanged(self) -> None:
         settings = SETTINGS.read_text(encoding="utf-8")

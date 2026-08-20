@@ -67,9 +67,14 @@ class Phase15ProviderReliabilityBoundaryTests(unittest.TestCase):
         self.assertIn("reservoir_limit = _candidate_reservoir_limit(query.count)", self.provider_source)
         self.assertIn("if len(candidate_records) >= reservoir_limit", self.provider_source)
         self.assertIn("additional_provider_request_performed: Literal[False]", self.provider_source)
-        self.assertIn("MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 3", self.discovery_source)
+        self.assertIn("MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 2", self.discovery_source)
         self.assertIn(
-            "limit=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL",
+            "MAX_AUTOMATIC_RETRIEVAL_CANDIDATES = "
+            "AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES",
+            self.discovery_source,
+        )
+        self.assertIn(
+            "limit=MAX_AUTOMATIC_RETRIEVAL_CANDIDATES",
             self.discovery_source,
         )
 

@@ -47,11 +47,11 @@ class Phase12HSearchDiscoveryBoundaryTests(unittest.TestCase):
     def test_hedge_reuses_sealed_tool_without_new_network_or_privileged_surface(self) -> None:
         self.assertIn("InternetResearchRetrieveTool", self.hedge_source)
         self.assertIn("tool._retriever.retrieve", self.hedge_source)
+        self.assertIn('"guardian_contacted": False', self.hedge_source)
         self.assertNotIn("BoundedInternetRetriever", self.hedge_source)
         self.assertNotIn("asyncio.open_connection", self.hedge_source)
         self.assertNotIn("socket.", self.hedge_source)
         self.assertNotIn("subprocess.", self.hedge_source)
-        self.assertNotIn("guardian", self.hedge_source.lower())
         self.assertNotIn("docker", self.hedge_source.lower())
 
     def test_provider_snippets_and_titles_are_not_model_evidence(self) -> None:

@@ -52,13 +52,18 @@ class Phase16SourceSelectionResilienceBoundaryTests(unittest.TestCase):
         self.assertIn('"Accept-Encoding: identity"', provider)
         self.assertNotIn('"count": query.count', provider)
 
-    def test_h2_keeps_final_remote_retrieval_ceiling_at_three(self) -> None:
+    def test_h5_keeps_two_evidence_sources_with_three_candidate_remote_ceiling(self) -> None:
         quality = SOURCE_QUALITY.read_text(encoding="utf-8")
         discovery = DISCOVERY.read_text(encoding="utf-8")
 
         self.assertIn("if limit < 1 or limit > 3:", quality)
-        self.assertIn("MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 3", discovery)
-        self.assertIn("limit=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL", discovery)
+        self.assertIn("MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 2", discovery)
+        self.assertIn(
+            "MAX_AUTOMATIC_RETRIEVAL_CANDIDATES = "
+            "AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES",
+            discovery,
+        )
+        self.assertIn("limit=MAX_AUTOMATIC_RETRIEVAL_CANDIDATES", discovery)
         self.assertIn('remote_scope_expansion_allowed: Literal[False]', discovery)
 
     def test_h2_does_not_use_provider_text_or_remote_probe_for_selection(self) -> None:
