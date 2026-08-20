@@ -6,8 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gateway.research_provider_corpus import PHASE15_PROVIDER_CORPUS
 
-PHASE16_VALIDATION_CORPUS_VERSION = "phase16-validation-corpus-v1"
-PHASE16_VALIDATION_CORPUS_CASE_COUNT = 24
+PHASE16_VALIDATION_CORPUS_VERSION: Literal["phase16-validation-corpus-v1"] = (
+    "phase16-validation-corpus-v1"
+)
+PHASE16_VALIDATION_CORPUS_CASE_COUNT: Literal[24] = 24
 
 
 class Phase16ValidationCorpusCase(BaseModel):
