@@ -1,6 +1,6 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — 16A–16G CLOSED; 16H SOURCE/CI IN PROGRESS; 16I–16J PENDING**
+Status: **IN PROGRESS — 16A–16G CLOSED; 16H LIVE METRIC FAIL; 16H.1 LATENCY DIAGNOSIS NEXT; 16I–16J BLOCKED**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
@@ -195,9 +195,9 @@ The sealed read-only Research Operations surfaces already satisfy the Phase 16 o
 
 No mutation, service-control or provider-reconfiguration authority is exposed. No Phase 16 API/dashboard change is required.
 
-### 16H — independent validation corpus — SOURCE/CI IN PROGRESS
+### 16H — independent validation corpus — LIVE COMPLETE / METRIC FAIL
 
-The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus has been added with:
+The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus was validated with:
 
 - version `phase16-validation-corpus-v1`;
 - `24` independent cases;
@@ -205,15 +205,53 @@ The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus
 - no Phase 15 case IDs reused;
 - no Phase 15 query strings reused.
 
-The validation runner uses the same fixed local provider, same bounded query fallback, same retrieval/evidence path, same 60-second case ceiling and the same frozen readiness thresholds. It writes only to an isolated `/tmp` truth DB and carries explicit no-authority-expansion fields.
+Exact all-CI-green Acer validation head:
 
-16H must pass the complete CI matrix before any Acer validation run.
+`4c12910d013df75e0db43a28ed9dc1c857e9f158`
 
-### 16I — Acer live burn-in — PENDING
+Live metrics:
 
-Run isolated live validation with production truth counts frozen and all source/runtime/authority invariants rechecked.
+- success/query coverage: `24/24` = `1.0000` — PASS;
+- no-candidate: `0/24` = `0.0000` — PASS;
+- selected unique-source-family rate: `0.9861` — PASS;
+- duplicate-content rate: `0.1806` — PASS;
+- retrieval-source P50: `399.014 ms`;
+- retrieval-source P95: `1731.707 ms` — FAIL against frozen `<=1500 ms`;
+- provider search P95: `614.669 ms`;
+- pipeline P95: `3952.765 ms`;
+- all four category success rates: `1.0000`;
+- failed cases: none.
 
-### 16J — empirical readiness decision — PENDING
+Canonical report SHA-256:
+
+`05c5417abdbbf2d13c75ec464ff4afd5fee733316cea68bbe288010a8e583cc1`
+
+Exactly four of 72 successful retrieval-source durations exceeded `1500 ms`. The nearest-rank P95 landed on the fourth-largest duration (`1731.707 ms`), a `231.707 ms` miss.
+
+Production truth remained `15/16/6`, backend PID remained `677911`, Guardian remained inactive, Telegram approvals remained false, SearXNG runtime/container/binding remained unchanged, production transport remained identity-only, and the source checkout remained clean.
+
+Evidence: `docs/phase16h-independent-validation-live-evidence-2026-08-19.md`.
+
+#### 16H.1 — targeted slow-tail latency diagnosis — NEXT
+
+Do not alter the independent corpus and do not lower the frozen threshold.
+
+Replay the cases implicated in the slow tail using the existing Phase 16E.2 detailed timing instrumentation, three iterations per case, under isolated `/tmp` truth. Diagnose DNS, connect/TLS, response-header, response-body, retry/backoff and tool-overhead contributions while recording only bounded safe source identity metadata.
+
+The initial target set is:
+
+- `p16-usgs-earthquake-magnitude`;
+- `p16-overlay-filesystems`;
+- `p16-rfc9293-tcp`;
+- `p16-dns-over-https`.
+
+16H.1 is diagnostic-only and cannot modify provider configuration, production transport, timeout/retry/concurrency policy, production truth, Guardian state, smart-routing authority or host privileges.
+
+### 16I — Acer live burn-in — BLOCKED
+
+16I remains blocked because the independent 16H latency target failed. It may begin only after 16H.1 establishes a justified resolution and the full frozen target set is independently satisfied without weakening thresholds or authority boundaries.
+
+### 16J — empirical readiness decision — BLOCKED
 
 Frozen minimum targets:
 
@@ -224,10 +262,10 @@ Frozen minimum targets:
 - retrieval-source P95 `<= 1500 ms`;
 - zero authority-boundary regressions.
 
-Current empirical state already demonstrates the first, second and latency targets on the frozen corpus. 16H/16I must independently validate the complete readiness posture before 16J seals the milestone.
+The independent 16H corpus currently passes every frozen readiness target except retrieval-source P95. Phase 16 cannot be sealed and cannot move to a production-ready research posture while that target remains failed.
 
-A green Phase 16 readiness decision does not activate smart-routing research.
+A future green Phase 16 readiness decision still does not activate smart-routing research.
 
 ## Immediate next gate
 
-Complete all CI gates for the independent 16H corpus and runner. Only after the exact source head is fully green may the Acer execute the 24-case isolated validation. Then perform the 16I burn-in and 16J readiness seal without changing production authority.
+Implement and CI-gate the diagnostic-only Phase 16H.1 targeted slow-tail replay. Then run it on Acer using the exact all-CI-green source head. Preserve the 24-case corpus, all frozen thresholds, the identity-only production transport and the complete Phase 16 authority boundary. Do not advance to 16I unless the latency defect is empirically resolved.
