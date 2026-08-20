@@ -32,7 +32,10 @@ from gateway.searxng_search_provider import (
     SearXNGSearchProviderError,
     SearXNGWebSearchProvider,
 )
-from gateway.web_search_discovery import WebSearchDiscoveryError, WebSearchRetrievalPipeline
+from gateway.web_search_discovery import (
+    WebSearchDiscoveryError,
+    WebSearchRetrievalPipeline,
+)
 from gateway.web_search_provider import WebSearchQuery
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
