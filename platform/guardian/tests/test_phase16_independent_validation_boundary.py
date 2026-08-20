@@ -15,8 +15,11 @@ class Phase16IndependentValidationBoundaryTests(unittest.TestCase):
         corpus = CORPUS.read_text(encoding="utf-8")
         phase15 = PHASE15.read_text(encoding="utf-8")
 
-        self.assertIn('PHASE16_VALIDATION_CORPUS_VERSION = "phase16-validation-corpus-v1"', corpus)
-        self.assertIn("PHASE16_VALIDATION_CORPUS_CASE_COUNT = 24", corpus)
+        self.assertIn(
+            'PHASE16_VALIDATION_CORPUS_VERSION: Literal["phase16-validation-corpus-v1"]',
+            corpus,
+        )
+        self.assertIn("PHASE16_VALIDATION_CORPUS_CASE_COUNT: Literal[24] = 24", corpus)
         self.assertIn("validate_phase16_validation_corpus", corpus)
         self.assertIn("PHASE15_PROVIDER_CORPUS", corpus)
         self.assertIn('PHASE15_CORPUS_VERSION = "phase15-provider-corpus-v1"', phase15)
