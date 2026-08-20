@@ -1,6 +1,6 @@
 # Phase 16 — Research Provider Coverage & Latency Remediation
 
-Status: **IN PROGRESS — 16A–16F CLOSED; 16G REVIEW NEXT; 16H–16J PENDING**
+Status: **IN PROGRESS — 16A–16G CLOSED; 16H SOURCE/CI IN PROGRESS; 16I–16J PENDING**
 
 Base main checkpoint: `69d51ebaaf017c8c44be71f22e77209c42a8ba6b`.
 
@@ -19,14 +19,14 @@ Phase 15 and Phase 15.1 were complete, sealed and merged, but their live provide
 - duplicate-content rate: `0.0`;
 - final posture: `manual-research-provider-degraded`.
 
-Phase 16 is an existing-defect remediation milestone. It must not expand research authority.
+Phase 16 is an existing-defect remediation milestone. It must not expand research authority. Phase 16 does **not** activate smart-routing research.
 
 ## Frozen authority boundary
 
 Preserved throughout Phase 16:
 
 - manual owner-supervised `research-agent` remains the maximum research authority;
-- provider remains fixed local `searxng-local-v1` on `127.0.0.1:8888`;
+- provider remains `searxng-local-v1` on fixed loopback `127.0.0.1:8888`;
 - selected retrieval ceiling remains at most three URLs;
 - every selected URL still uses sealed DAP destination admission, pinned HTTPS retrieval, untrusted-content handling and immutable evidence;
 - provider titles/snippets never become evidence or model context;
@@ -184,15 +184,30 @@ Production transport therefore remains unchanged and identity-only. Gzip is not 
 
 Evidence: `docs/phase16f1-gzip-shadow-live-evidence-2026-08-19.md`.
 
-### 16G — Research Operations diagnostics — REVIEW NEXT
+### 16G — Research Operations diagnostics — PASS / NO CHANGE REQUIRED
 
-Confirm whether the existing Phase 14/15 Research Operations read-only surfaces already expose enough owner-visible provider root-cause, reliability and latency information to satisfy the Phase 16 requirement.
+The sealed read-only Research Operations surfaces already satisfy the Phase 16 observability requirement:
 
-If existing GET-only diagnostics already cover the required information, close 16G as no-change. Otherwise add only the smallest read-only summary needed. No mutation or service-control controls.
+- `/api/v1/research/operations` exposes success/failure rate, P50/P95 source duration, retry/recovery counts, normalized error codes, source-family distribution, duplicate rate and reliability posture;
+- `/api/v1/research/operations/provider-health` exposes fixed-provider reachability/latency;
+- `/api/v1/research/operations/provider-readiness` exposes query coverage, no-candidate rate, source diversity, duplicate-content rate, retrieval-source P95 and machine-readable reason codes;
+- the `/research/operations` dashboard renders these read-only metric scopes for the owner.
 
-### 16H — independent validation corpus — PENDING
+No mutation, service-control or provider-reconfiguration authority is exposed. No Phase 16 API/dashboard change is required.
 
-Preserve the frozen 30-case Phase 15 corpus unchanged for comparability and add an independent Phase 16 validation corpus so readiness is not decided from the remediation corpus alone.
+### 16H — independent validation corpus — SOURCE/CI IN PROGRESS
+
+The frozen Phase 15 30-case corpus remains untouched. A separate Phase 16 corpus has been added with:
+
+- version `phase16-validation-corpus-v1`;
+- `24` independent cases;
+- exactly `6` cases in each frozen category;
+- no Phase 15 case IDs reused;
+- no Phase 15 query strings reused.
+
+The validation runner uses the same fixed local provider, same bounded query fallback, same retrieval/evidence path, same 60-second case ceiling and the same frozen readiness thresholds. It writes only to an isolated `/tmp` truth DB and carries explicit no-authority-expansion fields.
+
+16H must pass the complete CI matrix before any Acer validation run.
 
 ### 16I — Acer live burn-in — PENDING
 
@@ -215,4 +230,4 @@ A green Phase 16 readiness decision does not activate smart-routing research.
 
 ## Immediate next gate
 
-Review the existing GET-only Research Operations reliability/provider-health/readiness surfaces against 16G. Prefer closing 16G with no source change if the current owner-visible diagnostics already cover provider root cause and latency/reliability status. Then add and run the independent 16H validation corpus before the final 16I burn-in and 16J readiness seal.
+Complete all CI gates for the independent 16H corpus and runner. Only after the exact source head is fully green may the Acer execute the 24-case isolated validation. Then perform the 16I burn-in and 16J readiness seal without changing production authority.
