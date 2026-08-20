@@ -28,7 +28,7 @@ from gateway.web_search_provider import (
 from tools.base import ToolExecutionResult
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
-MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 3
+MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 2
 
 
 class WebSearchDiscoveryError(RuntimeError):
