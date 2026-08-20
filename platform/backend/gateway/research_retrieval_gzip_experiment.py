@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 from agents.cancellation import raise_if_current_cancellation_requested
 from gateway import internet_transport as transport
 from gateway import research_retrieval_latency_probe_e2 as e2
-from gateway.internet_transport import BoundedInternetRetriever, ConnectionFactory
+from gateway.internet_transport import ConnectionFactory
 
 PHASE16_GZIP_EXPERIMENT_VERSION: Literal["phase16f1.1"] = "phase16f1.1"
 EXPERIMENT_TRANSPORT_ID = "dap-pinned-https-http1-gzip-shadow-v1"
@@ -164,8 +164,7 @@ def _decode_gzip_bounded(payload: bytes, max_decoded_bytes: int) -> bytes:
                 "Decoded gzip body exceeds the sealed body ceiling.",
             )
         remaining = max_decoded_bytes + 1 - len(decoded)
-        tail = decoder.flush(remaining)
-        decoded += tail
+        decoded += decoder.flush(remaining)
     except zlib.error as exc:
         raise transport.InternetTransportError(
             "content-encoding-invalid",
@@ -215,14 +214,14 @@ async def run_phase16f1_gzip_experiment(
     _GzipPinnedHTTPSFetcher.gzip_response_count = 0
     _GzipPinnedHTTPSFetcher.identity_response_count = 0
     original_fetcher = e2._TimedFetcher
-    e2._TimedFetcher = _GzipTimedFetcher
+    setattr(e2, "_TimedFetcher", _GzipTimedFetcher)
     try:
         detail_report = await e2.run_phase16e2_latency_probe(
             source_commit=source_commit,
             truth_db=truth_db,
         )
     finally:
-        e2._TimedFetcher = original_fetcher
+        setattr(e2, "_TimedFetcher", original_fetcher)
 
     gzip_p95 = detail_report.frozen_retrieval_source_p95_ms
     delta = (
@@ -230,6 +229,7 @@ async def run_phase16f1_gzip_experiment(
         if gzip_p95 is None
         else round(gzip_p95 - BASELINE_FROZEN_RETRIEVAL_SOURCE_P95_MS, 3)
     )
+    limits = transport.InternetTransportLimits()
     payload: dict[str, Any] = {
         "experiment_version": PHASE16_GZIP_EXPERIMENT_VERSION,
         "experimental_transport_id": EXPERIMENT_TRANSPORT_ID,
@@ -254,8 +254,8 @@ async def run_phase16f1_gzip_experiment(
         ),
         "gzip_response_count": _GzipPinnedHTTPSFetcher.gzip_response_count,
         "identity_response_count": _GzipPinnedHTTPSFetcher.identity_response_count,
-        "wire_body_ceiling_bytes": transport.InternetTransportLimits().max_body_bytes,
-        "decoded_body_ceiling_bytes": transport.InternetTransportLimits().max_body_bytes,
+        "wire_body_ceiling_bytes": limits.max_body_bytes,
+        "decoded_body_ceiling_bytes": limits.max_body_bytes,
         "accepted_content_encodings": ["identity", "gzip"],
         "production_transport_mutated": False,
         "production_transport_id": transport.TRANSPORT_ID,
@@ -296,14 +296,8 @@ async def _async_main() -> int:
     write_report(payload, args.output)
     print(f"phase16f1_experiment_version|{payload['experiment_version']}")
     print(f"phase16f1_successful_cases|{payload['successful_case_count']}/30")
-    print(
-        "phase16f1_gzip_response_count|"
-        f"{payload['gzip_response_count']}"
-    )
-    print(
-        "phase16f1_identity_response_count|"
-        f"{payload['identity_response_count']}"
-    )
+    print(f"phase16f1_gzip_response_count|{payload['gzip_response_count']}")
+    print(f"phase16f1_identity_response_count|{payload['identity_response_count']}")
     print(
         "phase16f1_baseline_frozen_p95_ms|"
         f"{payload['baseline_frozen_retrieval_source_p95_ms']}"
