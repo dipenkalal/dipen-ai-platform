@@ -4,13 +4,13 @@ import argparse
 import asyncio
 import hashlib
 import json
-import math
 from pathlib import Path
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agents.truth_repository import DEFAULT_TRUTH_DATABASE_PATH, AgentTruthRepository
+from gateway.internet_transport import BoundedInternetRetriever
 from gateway.research_operations_repository import ResearchOperationsRepository
 from gateway.research_provider_live_benchmark import MAXIMUM_LIVE_RETRIEVAL_P95_MS
 from gateway.research_provider_phase16_validation_corpus import (
@@ -39,7 +39,6 @@ from gateway.web_search_discovery import (
     WebSearchRetrievalPipeline,
 )
 from gateway.web_search_provider import WebSearchQuery
-from gateway.internet_transport import BoundedInternetRetriever
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
 PHASE16_H1_PROBE_VERSION: Literal["phase16h1.1"] = "phase16h1.1"
@@ -234,7 +233,7 @@ def _slow_source_diagnostic(
     traces: list[RetrievalDetailTrace],
 ) -> Phase16H1SlowSourceDiagnostic:
     components = _component_totals(traces, record)
-    dominant = max(components, key=components.get)
+    dominant = max(components, key=lambda name: components[name])
     return Phase16H1SlowSourceDiagnostic(
         case_id=case_id,
         category=category,
