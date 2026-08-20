@@ -14,8 +14,8 @@ from gateway.internet_transport import InternetTransportError, InternetTransport
 from gateway.research_retrieval_gzip_experiment import (
     EXPERIMENT_TRANSPORT_ID,
     PHASE16_GZIP_EXPERIMENT_VERSION,
-    _GzipPinnedHTTPSFetcher,
     _decode_gzip_bounded,
+    _GzipPinnedHTTPSFetcher,
 )
 
 PUBLIC_IPV4 = "93.184.216.34"
