@@ -21,6 +21,9 @@ from tools.internet_research_tools import (
 )
 
 AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID = "dap-bounded-two-of-three-retrieval-hedge-v1"
+AUTOMATIC_RETRIEVAL_CONTENT_DISTINCTNESS_POLICY_ID = (
+    "dap-per-request-normalized-content-distinctness-v1"
+)
 AUTOMATIC_RETRIEVAL_HEDGE_TARGET_SUCCESSES = 2
 AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES = 3
 AUTOMATIC_RETRIEVAL_HEDGE_DELAY_SECONDS = 0.75
@@ -83,6 +86,8 @@ async def execute_automatic_research_hedge(
     acceptance_lock = asyncio.Lock()
     target_event = asyncio.Event()
     accepted_urls: list[str] = []
+    accepted_content_hashes: set[str] = set()
+    duplicate_content_rejection_urls: set[str] = set()
     source_results: dict[str, dict[str, Any]] = {}
     terminal_urls: set[str] = set()
     started_at: dict[str, float] = {}
@@ -328,6 +333,26 @@ async def execute_automatic_research_hedge(
                         terminal_urls.add(url)
                         return
 
+                    normalized_text_sha256 = content.normalized_text_sha256
+                    if normalized_text_sha256 in accepted_content_hashes:
+                        source_results[url] = persist_failure(
+                            url=url,
+                            started=started,
+                            attempt_count=attempt_count,
+                            transient_retry_count=transient_retry_count,
+                            retry_trigger_error_code=retry_trigger_error_code,
+                            stage="content-distinctness",
+                            error_code="duplicate-normalized-content",
+                            error_detail=(
+                                "Automatic hedged research rejected a candidate whose "
+                                "normalized content duplicates evidence already accepted "
+                                "for this request."
+                            ),
+                        )
+                        duplicate_content_rejection_urls.add(url)
+                        terminal_urls.add(url)
+                        return
+
                     source_results[url] = persist_success(
                         url=url,
                         started=started,
@@ -338,6 +363,7 @@ async def execute_automatic_research_hedge(
                         content=content,
                     )
                     terminal_urls.add(url)
+                    accepted_content_hashes.add(normalized_text_sha256)
                     accepted_urls.append(url)
                     if len(accepted_urls) >= target_successes:
                         target_event.set()
@@ -464,6 +490,12 @@ async def execute_automatic_research_hedge(
         "accepted_urls": list(accepted_ordered),
         "sources": ordered_results,
         "hedge_policy_id": AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID,
+        "content_distinctness_policy_id": (
+            AUTOMATIC_RETRIEVAL_CONTENT_DISTINCTNESS_POLICY_ID
+        ),
+        "duplicate_content_rejection_count": len(
+            duplicate_content_rejection_urls
+        ),
         "hedge_delay_seconds": hedge_delay_seconds,
         "hedge_started": hedge_started,
         "speculative_candidate_count": max(0, len(tasks_by_url) - primary_count),
