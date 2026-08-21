@@ -19,6 +19,7 @@ ResearchRetrievalStage = Literal[
     "connect",
     "response",
     "content-normalization",
+    "content-distinctness",
     "completed",
     "cancelled",
 ]
@@ -384,6 +385,7 @@ ExcludeCancelledStage = Literal[
     "connect",
     "response",
     "content-normalization",
+    "content-distinctness",
 ]
 
 

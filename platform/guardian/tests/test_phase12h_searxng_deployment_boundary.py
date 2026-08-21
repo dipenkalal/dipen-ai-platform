@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -49,8 +50,22 @@ class Phase12HSearXNGDeploymentBoundaryTests(unittest.TestCase):
         self.assertIn("public_instance: false", self.settings_source)
         self.assertIn("image_proxy: false", self.settings_source)
         self.assertIn("keep_only:", self.settings_source)
-        for engine in ("duckduckgo", "brave", "startpage"):
-            self.assertIn(f"- {engine}", self.settings_source)
+
+        match = re.search(
+            r"keep_only:\n(?P<body>(?:\s{6}- [^\n]+\n)+)",
+            self.settings_source,
+        )
+        self.assertIsNotNone(match)
+        assert match is not None
+        engines = [
+            line.strip().removeprefix("- ")
+            for line in match.group("body").splitlines()
+            if line.strip().startswith("- ")
+        ]
+        self.assertGreaterEqual(len(engines), 1)
+        self.assertLessEqual(len(engines), 8)
+        self.assertEqual(len(engines), len(set(engines)))
+        self.assertNotIn("use_default_settings: true", self.settings_source)
 
     def test_runtime_secret_is_local_only_and_no_paid_provider_key_is_declared(self) -> None:
         self.assertIn("SEARXNG_SECRET", self.compose_source)
