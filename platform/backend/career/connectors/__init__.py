@@ -14,6 +14,12 @@ from career.connectors.greenhouse import (
     GreenhouseJobBoardConnector,
 )
 
+from career.connectors.smartrecruiters import (
+    SMARTRECRUITERS_CONNECTOR_ID,
+    SmartRecruitersConnectorParseError,
+    SmartRecruitersPostingConnector,
+)
+
 __all__ = (
     'GREENHOUSE_BOARD_API_HOST',
     'GREENHOUSE_CONNECTOR_ID',
@@ -29,6 +35,9 @@ __all__ = (
     'ASHBY_CONNECTOR_ID',
     'AshbyConnectorParseError',
     'AshbyJobBoardConnector',
+    "SMARTRECRUITERS_CONNECTOR_ID",
+    "SmartRecruitersConnectorParseError",
+    "SmartRecruitersPostingConnector",
 )
 
 from career.connectors.lever import (
