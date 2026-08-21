@@ -125,6 +125,49 @@ async def test_provider_result_scan_is_hard_bounded_to_twenty_items() -> None:
 
 
 @pytest.mark.asyncio
+async def test_provider_normalizes_engine_health_without_raw_error_text() -> None:
+    provider = SearXNGWebSearchProvider(
+        transport=FakeSearXNGTransport(
+            {
+                "results": [
+                    {
+                        "title": "Safe source",
+                        "url": "https://example.com/source",
+                        "content": "candidate",
+                        "engines": ["duckduckgo", "brave"],
+                    }
+                ],
+                "unresponsive_engines": [
+                    ["startpage", "Suspended: too many requests"],
+                    ["brave", "CAPTCHA"],
+                ],
+            }
+        )
+    )
+
+    result = await provider.search(WebSearchQuery(query="engine health", count=1))
+
+    assert result.contributing_engines == ("brave", "duckduckgo")
+    assert [item.engine_name for item in result.unresponsive_engines] == [
+        "startpage",
+        "brave",
+    ]
+    assert [item.failure_class for item in result.unresponsive_engines] == [
+        "too-many-requests",
+        "captcha",
+    ]
+    assert [item.suspended for item in result.unresponsive_engines] == [True, False]
+    dumped = result.model_dump(mode="json")
+    assert dumped["provider_engine_error_text_recorded"] is False
+    assert all(
+        item["raw_error_text_recorded"] is False
+        for item in dumped["unresponsive_engines"]
+    )
+    assert "Suspended: too many requests" not in json.dumps(dumped)
+    assert "CAPTCHA" not in json.dumps(dumped)
+
+
+@pytest.mark.asyncio
 async def test_pipeline_distinguishes_provider_zero_results_in_diagnostics() -> None:
     provider = SearXNGWebSearchProvider(
         transport=FakeSearXNGTransport({"results": []})
