@@ -89,6 +89,7 @@ HardExclusionCode = Literal[
     "EXPIRED_OR_CLOSED",
     "CLEARANCE_INELIGIBLE",
     "AGENCY_DUPLICATE",
+    "LOCATION_OUT_OF_SCOPE",
 ]
 
 CareerApplicationState = Literal[
