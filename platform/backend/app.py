@@ -27,6 +27,9 @@ from collectors.system import (
 from company.routes import (
     router as company_router,
 )
+from career.routes import (
+    router as career_router,
+)
 from engineering.routes import (
     router as engineering_router,
 )
@@ -173,6 +176,7 @@ app.include_router(knowledge_router)
 app.include_router(agents_router)
 app.include_router(agent_truth_router)
 app.include_router(company_router)
+app.include_router(career_router)
 app.include_router(executive_office_router)
 app.include_router(engineering_router)
 app.include_router(history_router)

@@ -7,6 +7,7 @@ import {
   Activity,
   BarChart3,
   Bot,
+  BriefcaseBusiness,
   BrainCircuit,
   Building2,
   ClipboardCheck,
@@ -62,6 +63,12 @@ const navigationItems: NavigationItem[] = [
     label: "Research",
     href: "/research",
     icon: Globe2,
+    exact: true,
+  },
+  {
+    label: "Career",
+    href: "/career",
+    icon: BriefcaseBusiness,
     exact: true,
   },
   {
