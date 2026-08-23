@@ -12,6 +12,12 @@ from gateway.research_query_fallback import (
     SEARCH_QUERY_FALLBACK_POLICY_ID,
     build_research_query_attempts,
 )
+from gateway.research_retrieval_hedge import (
+    AUTOMATIC_RETRIEVAL_HEDGE_DELAY_SECONDS,
+    AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES,
+    AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID,
+    execute_automatic_research_hedge,
+)
 from gateway.research_source_quality import (
     SOURCE_SELECTION_POLICY_ID,
     SOURCE_URL_DUPLICATE_POLICY_ID,
@@ -28,7 +34,8 @@ from gateway.web_search_provider import (
 from tools.base import ToolExecutionResult
 from tools.internet_research_tools import InternetResearchRetrieveTool
 
-MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 3
+MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL = 2
+MAX_AUTOMATIC_RETRIEVAL_CANDIDATES = AUTOMATIC_RETRIEVAL_HEDGE_MAX_CANDIDATES
 
 
 class WebSearchDiscoveryError(RuntimeError):
@@ -104,6 +111,12 @@ class WebSearchRetrievalPipelineResult(BaseModel):
     selected_urls: tuple[str, ...] = Field(
         max_length=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
     )
+    retrieval_candidate_urls: tuple[str, ...] = Field(
+        default=(),
+        max_length=MAX_AUTOMATIC_RETRIEVAL_CANDIDATES,
+    )
+    retrieval_hedge_policy_id: str | None = None
+    retrieval_hedge_started: bool = False
     source_selection_policy_id: str = SOURCE_SELECTION_POLICY_ID
     duplicate_normalization_policy_id: str = SOURCE_URL_DUPLICATE_POLICY_ID
     unique_source_family_count: int = Field(default=0, ge=0)
@@ -203,6 +216,7 @@ class WebSearchRetrievalPipeline:
         provider_duration_ms = 0.0
         discovery: WebSearchDiscoveryProtocol | None = None
         selection: ResearchSourceSelectionResult | None = None
+        retrieval_selection: ResearchSourceSelectionResult | None = None
 
         for attempt_query in attempt_queries:
             provider_started = self._clock()
@@ -212,11 +226,12 @@ class WebSearchRetrievalPipeline:
                 (self._clock() - provider_started) * 1000.0,
             )
             selection = self._select_urls(discovery)
+            retrieval_selection = self._select_retrieval_candidates(discovery)
             attempts.append(self._attempt_diagnostic(discovery, selection))
             if selection.selected_urls:
                 break
 
-        if discovery is None or selection is None:
+        if discovery is None or selection is None or retrieval_selection is None:
             raise RuntimeError("search attempt plan produced no provider attempt")
 
         selected_urls = selection.selected_urls
@@ -254,13 +269,28 @@ class WebSearchRetrievalPipeline:
                 diagnostics=diagnostics,
             )
 
+        retrieval_candidate_urls = retrieval_selection.selected_urls
         retrieval_started = self._clock()
-        retrieval = await self._retrieval_tool.execute(
-            {
-                "objective": normalized_objective,
-                "urls": list(selected_urls),
-            }
-        )
+        if isinstance(self._retrieval_tool, InternetResearchRetrieveTool):
+            retrieval = await execute_automatic_research_hedge(
+                self._retrieval_tool,
+                {
+                    "objective": normalized_objective,
+                    "urls": list(retrieval_candidate_urls),
+                },
+                target_successes=min(
+                    MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL,
+                    len(retrieval_candidate_urls),
+                ),
+                hedge_delay_seconds=AUTOMATIC_RETRIEVAL_HEDGE_DELAY_SECONDS,
+            )
+        else:
+            retrieval = await self._retrieval_tool.execute(
+                {
+                    "objective": normalized_objective,
+                    "urls": list(selected_urls),
+                }
+            )
         retrieval_duration_ms = max(
             0.0,
             (self._clock() - retrieval_started) * 1000.0,
@@ -270,11 +300,41 @@ class WebSearchRetrievalPipeline:
             (self._clock() - total_started) * 1000.0,
         )
         retrieval_output = retrieval.output if isinstance(retrieval.output, dict) else None
+
+        hedge_policy_id: str | None = None
+        hedge_started = False
+        if retrieval_output is not None:
+            raw_accepted_urls = retrieval_output.get("accepted_urls")
+            if isinstance(raw_accepted_urls, (list, tuple)):
+                accepted_urls = tuple(str(value) for value in raw_accepted_urls)
+                if (
+                    len(accepted_urls) > MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL
+                    or any(url not in retrieval_candidate_urls for url in accepted_urls)
+                    or len(set(accepted_urls)) != len(accepted_urls)
+                ):
+                    raise RuntimeError(
+                        "hedged retrieval returned an invalid accepted URL set"
+                    )
+                selected_urls = accepted_urls
+            raw_policy_id = retrieval_output.get("hedge_policy_id")
+            if isinstance(raw_policy_id, str):
+                hedge_policy_id = raw_policy_id
+            hedge_started = retrieval_output.get("hedge_started") is True
+
+        selected_source_families, selected_quality_scores, duplicate_fallback_count = (
+            self._accepted_selection_metadata(
+                retrieval_selection,
+                selected_urls,
+            )
+        )
+
         attempted_queries = tuple(item.query for item in attempts)
         pipeline_sha256 = self._pipeline_sha256(
             objective_sha256=objective_sha256,
             discovery=discovery,
             selection=selection,
+            accepted_urls=selected_urls,
+            retrieval_candidate_urls=retrieval_candidate_urls,
             original_query=query.query,
             attempted_queries=attempted_queries,
         )
@@ -298,18 +358,21 @@ class WebSearchRetrievalPipeline:
             search_attempts=tuple(attempts),
             candidate_count=len(discovery.candidates),
             selected_urls=selected_urls,
+            retrieval_candidate_urls=retrieval_candidate_urls,
+            retrieval_hedge_policy_id=hedge_policy_id,
+            retrieval_hedge_started=hedge_started,
             source_selection_policy_id=selection.policy_id,
             duplicate_normalization_policy_id=(
                 selection.duplicate_normalization_policy_id
             ),
-            unique_source_family_count=selection.unique_source_family_count,
-            selected_source_families=selection.selected_source_families,
-            selected_quality_scores=selection.selected_quality_scores,
-            skipped_exact_duplicate_count=selection.skipped_exact_duplicate_count,
+            unique_source_family_count=len(set(selected_source_families)),
+            selected_source_families=selected_source_families,
+            selected_quality_scores=selected_quality_scores,
+            skipped_exact_duplicate_count=retrieval_selection.skipped_exact_duplicate_count,
             skipped_canonical_duplicate_count=(
-                selection.skipped_canonical_duplicate_count
+                retrieval_selection.skipped_canonical_duplicate_count
             ),
-            duplicate_family_fallback_count=selection.duplicate_family_fallback_count,
+            duplicate_family_fallback_count=duplicate_fallback_count,
             provider_search_duration_ms=round(provider_duration_ms, 3),
             retrieval_duration_ms=round(retrieval_duration_ms, 3),
             total_pipeline_duration_ms=round(total_duration_ms, 3),
@@ -327,6 +390,32 @@ class WebSearchRetrievalPipeline:
             discovery.candidates,
             limit=MAX_SEARCH_CANDIDATES_FOR_RETRIEVAL,
         )
+
+    @staticmethod
+    def _select_retrieval_candidates(
+        discovery: WebSearchDiscoveryProtocol,
+    ) -> ResearchSourceSelectionResult:
+        return select_source_diverse_candidates(
+            discovery.candidates,
+            limit=MAX_AUTOMATIC_RETRIEVAL_CANDIDATES,
+        )
+
+    @staticmethod
+    def _accepted_selection_metadata(
+        selection: ResearchSourceSelectionResult,
+        selected_urls: tuple[str, ...],
+    ) -> tuple[tuple[str, ...], tuple[int, ...], int]:
+        item_by_url = {item.url: item for item in selection.items}
+        if any(url not in item_by_url for url in selected_urls):
+            raise RuntimeError("accepted URL was not admitted by source selection")
+
+        families = tuple(canonical_source_family(url) for url in selected_urls)
+        scores = tuple(item_by_url[url].selection_quality_score for url in selected_urls)
+        duplicate_fallback_count = sum(
+            item_by_url[url].selected_as_duplicate_family_fallback
+            for url in selected_urls
+        )
+        return families, scores, duplicate_fallback_count
 
     @staticmethod
     def _attempt_diagnostic(
@@ -388,6 +477,8 @@ class WebSearchRetrievalPipeline:
         discovery: WebSearchDiscoveryProtocol,
         selection: ResearchSourceSelectionResult | None = None,
         selected_urls: tuple[str, ...] | None = None,
+        accepted_urls: tuple[str, ...] | None = None,
+        retrieval_candidate_urls: tuple[str, ...] | None = None,
         original_query: str | None = None,
         attempted_queries: tuple[str, ...] | None = None,
     ) -> str:
@@ -397,13 +488,26 @@ class WebSearchRetrievalPipeline:
             raise ValueError("pipeline identity accepts selection or selected_urls, not both")
         if selection is None and selected_urls is None:
             raise ValueError("pipeline identity requires selected source URLs")
+        if accepted_urls is not None and selection is None:
+            raise ValueError("accepted URLs require a source selection authority")
 
         if selection is not None:
-            selected_url_values = selection.selected_urls
+            selected_url_values = (
+                accepted_urls if accepted_urls is not None else selection.selected_urls
+            )
             selection_policy_id = selection.policy_id
             duplicate_policy_id = selection.duplicate_normalization_policy_id
-            selected_source_families = selection.selected_source_families
-            selected_quality_scores = selection.selected_quality_scores
+            selected_source_families = tuple(
+                canonical_source_family(url) for url in selected_url_values
+            )
+            score_by_url = {
+                item.url: item.selection_quality_score for item in selection.items
+            }
+            selected_quality_scores = tuple(
+                score_by_url[url]
+                for url in selected_url_values
+                if url in score_by_url
+            )
         else:
             assert selected_urls is not None
             selected_url_values = selected_urls
@@ -427,6 +531,9 @@ class WebSearchRetrievalPipeline:
             "selected_quality_scores": list(selected_quality_scores),
             "retrieval_tool_id": "internet.research.retrieve",
         }
+        if retrieval_candidate_urls is not None:
+            payload["retrieval_candidate_urls"] = list(retrieval_candidate_urls)
+            payload["retrieval_hedge_policy_id"] = AUTOMATIC_RETRIEVAL_HEDGE_POLICY_ID
         if original_query is not None:
             payload["original_query"] = original_query
         if attempted_queries is not None:

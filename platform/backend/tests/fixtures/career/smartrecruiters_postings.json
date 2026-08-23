@@ -1,0 +1,50 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "legacy-provider-id-1",
+      "uuid": "11111111-1111-4111-8111-111111111111",
+      "name": "Cloud Platform Engineer",
+      "company": {
+        "identifier": "acme"
+      },
+      "active": true,
+      "releasedDate": "2026-08-20T14:30:00.000Z",
+      "postingUrl": "https://jobs.smartrecruiters.com/acme/11111111-1111-4111-8111-111111111111",
+      "applyUrl": "https://jobs.smartrecruiters.com/acme/11111111-1111-4111-8111-111111111111/apply",
+      "ref": "https://api.smartrecruiters.com/v1/companies/acme/postings/11111111-1111-4111-8111-111111111111",
+      "location": {
+        "city": "Toronto",
+        "region": "ON",
+        "country": "ca",
+        "remote": true
+      }
+    },
+    {
+      "id": "legacy-provider-id-2",
+      "uuid": "22222222-2222-4222-8222-222222222222",
+      "name": "Junior DevOps Engineer",
+      "company": {
+        "identifier": "acme"
+      },
+      "ref": "https://api.smartrecruiters.com/v1/companies/acme/postings/22222222-2222-4222-8222-222222222222",
+      "location": {
+        "city": "Vancouver",
+        "region": "BC",
+        "country": "ca",
+        "remote": false
+      }
+    },
+    {
+      "id": "legacy-provider-id-3",
+      "uuid": "33333333-3333-4333-8333-333333333333",
+      "name": "Excluded Inactive Role",
+      "company": {
+        "identifier": "acme"
+      },
+      "active": false
+    }
+  ]
+}

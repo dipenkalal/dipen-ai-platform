@@ -30,6 +30,11 @@ from gateway.untrusted_internet_content import (
     UntrustedInternetContentNormalizer,
 )
 from tools.base import BaseTool, ToolDefinition, ToolExecutionResult
+from gateway.research_retrieval_service import (
+    Phase16ExplicitRetrievalFailure,
+    Phase16ExplicitRetrievalService,
+    Phase16ExplicitRetrievalSuccess,
+)
 
 MAX_EXPLICIT_RESEARCH_URLS = 3
 MAX_MODEL_CONTEXT_CHARS_PER_SOURCE = 30_000
@@ -122,218 +127,97 @@ class InternetResearchRetrieveTool(BaseTool):
                 max_sources=len(urls),
             )
         )
+
         repository = self._repository_factory()
         operations_repository = self._resolve_operations_repository(repository)
+
+        retrieval_service = Phase16ExplicitRetrievalService(
+            retriever=self._retriever,
+            normalizer=self._normalizer,
+            evidence_factory=self._evidence_factory,
+            repository_factory=lambda: repository,
+            operations_repository=operations_repository,
+            now_provider=self._now_provider,
+            timer_provider=self._timer_provider,
+            sleep_provider=asyncio.sleep,
+        )
+
         source_results: list[dict[str, Any]] = []
         success_count = 0
 
         for url in urls:
-            started = self._timer_provider()
-            attempt_count = 0
-            transient_retry_count = 0
-            retry_trigger_error_code: str | None = None
-            source_family: str | None = None
+            terminal = await retrieval_service.retrieve_explicit_url(
+                request=request,
+                url=url,
+            )
 
-            while True:
-                attempt_count += 1
-                try:
-                    retrieval = await self._retriever.retrieve(url, method="GET")
-                    content = self._normalizer.normalize(retrieval)
-                    observed_at = self._aware_now()
-                    evidence = self._evidence_factory.build_success(
-                        request=request,
-                        retrieval=retrieval,
-                        content=content,
-                        observed_at=observed_at,
-                    )
-                    persisted = repository.persist(evidence)
-                    envelope = self._normalizer.build_prompt_envelope(content)
-                    citation = evidence.citation
-                    assert citation is not None
-                    duration_ms = self._elapsed_ms(started)
-                    source_family = canonical_source_family(retrieval.final_url)
-                    recovered_after_retry = transient_retry_count > 0
-                    self._persist_operations_event(
-                        operations_repository,
-                        event=ResearchOperationsEvent.build(
-                            event_type="retrieval-source",
-                            provider_id=source.provider_id,
-                            outcome="succeeded",
-                            request_id=request.request_id,
-                            evidence_id=evidence.evidence_id,
-                            source_family=source_family,
-                            stage="completed",
-                            error_code=retry_trigger_error_code,
-                            duration_ms=duration_ms,
-                            attempt_count=attempt_count,
-                            transient_retry_count=transient_retry_count,
-                            recovered_after_retry=recovered_after_retry,
-                            recorded_at=observed_at,
-                        ),
-                    )
-                    source_results.append(
-                        {
-                            "url": url,
-                            "success": True,
-                            "evidence_id": evidence.evidence_id,
-                            "evidence_sha256": evidence.evidence_sha256,
-                            "citation": citation.model_dump(mode="json"),
-                            "model_context": envelope.rendered_text,
-                            "prompt_injection_findings": list(
-                                evidence.prompt_injection_finding_rule_ids
-                            ),
-                            "stored_at": persisted.stored_at.isoformat(),
-                            "source_family": source_family,
-                            "duration_ms": duration_ms,
-                            "attempt_count": attempt_count,
-                            "transient_retry_count": transient_retry_count,
-                            "recovered_after_retry": recovered_after_retry,
-                            "retry_trigger_error_code": retry_trigger_error_code,
-                            "remote_instructions_are_data_only": True,
-                            "retrieval_scope_expansion_allowed": False,
-                            "credential_use_allowed": False,
-                            "tool_selection_allowed": False,
-                        }
-                    )
-                    success_count += 1
-                    break
-                except CooperativeCancellationRequested as exc:
-                    observed_at = self._aware_now()
-                    cancelled = self._evidence_factory.build_cancelled(
-                        request=request,
-                        requested_url=url,
-                        method="GET",
-                        error_detail=str(exc),
-                        observed_at=observed_at,
-                    )
-                    repository.persist(cancelled)
-                    self._persist_operations_event(
-                        operations_repository,
-                        event=ResearchOperationsEvent.build(
-                            event_type="retrieval-source",
-                            provider_id=source.provider_id,
-                            outcome="cancelled",
-                            request_id=request.request_id,
-                            evidence_id=cancelled.evidence_id,
-                            source_family=self._safe_source_family(url),
-                            stage="cancelled",
-                            error_code="cancelled",
-                            duration_ms=self._elapsed_ms(started),
-                            attempt_count=attempt_count,
-                            transient_retry_count=transient_retry_count,
-                            recovered_after_retry=False,
-                            recorded_at=observed_at,
-                        ),
-                    )
-                    raise
-                except InternetTransportError as exc:
-                    if self._should_retry_transport_error(
-                        exc.code,
-                        transient_retry_count=transient_retry_count,
-                    ):
-                        transient_retry_count += 1
-                        retry_trigger_error_code = exc.code
-                        await asyncio.sleep(TRANSIENT_RETRY_BACKOFF_SECONDS)
-                        continue
+            if isinstance(
+                terminal,
+                Phase16ExplicitRetrievalSuccess,
+            ):
+                evidence = terminal.evidence
+                content = terminal.content
 
-                    observed_at = self._aware_now()
-                    stage = self._transport_stage(exc.code)
-                    failure = self._evidence_factory.build_failure(
-                        request=request,
-                        requested_url=url,
-                        method="GET",
-                        stage=stage,
-                        error_code=exc.code,
-                        error_detail=exc.detail,
-                        observed_at=observed_at,
-                    )
-                    repository.persist(failure)
-                    duration_ms = self._elapsed_ms(started)
-                    source_family = self._safe_source_family(url)
-                    self._persist_operations_event(
-                        operations_repository,
-                        event=ResearchOperationsEvent.build(
-                            event_type="retrieval-source",
-                            provider_id=source.provider_id,
-                            outcome="failed",
-                            request_id=request.request_id,
-                            evidence_id=failure.evidence_id,
-                            source_family=source_family,
-                            stage=stage,
-                            error_code=exc.code,
-                            duration_ms=duration_ms,
-                            attempt_count=attempt_count,
-                            transient_retry_count=transient_retry_count,
-                            recovered_after_retry=False,
-                            recorded_at=observed_at,
+                envelope = self._normalizer.build_prompt_envelope(
+                    content
+                )
+
+                citation = evidence.citation
+                assert citation is not None
+
+                source_results.append(
+                    {
+                        "url": url,
+                        "success": True,
+                        "evidence_id": evidence.evidence_id,
+                        "evidence_sha256": evidence.evidence_sha256,
+                        "citation": citation.model_dump(mode="json"),
+                        "model_context": envelope.rendered_text,
+                        "prompt_injection_findings": list(
+                            evidence.prompt_injection_finding_rule_ids
                         ),
-                    )
-                    source_results.append(
-                        {
-                            "url": url,
-                            "success": False,
-                            "evidence_id": failure.evidence_id,
-                            "evidence_sha256": failure.evidence_sha256,
-                            "error_code": exc.code,
-                            "error_detail": exc.detail,
-                            "source_family": source_family,
-                            "duration_ms": duration_ms,
-                            "attempt_count": attempt_count,
-                            "transient_retry_count": transient_retry_count,
-                            "recovered_after_retry": False,
-                            "retry_trigger_error_code": retry_trigger_error_code,
-                        }
-                    )
-                    break
-                except InternetContentNormalizationError as exc:
-                    observed_at = self._aware_now()
-                    failure = self._evidence_factory.build_failure(
-                        request=request,
-                        requested_url=url,
-                        method="GET",
-                        stage="content-normalization",
-                        error_code=exc.code,
-                        error_detail=exc.detail,
-                        observed_at=observed_at,
-                    )
-                    repository.persist(failure)
-                    duration_ms = self._elapsed_ms(started)
-                    source_family = self._safe_source_family(url)
-                    self._persist_operations_event(
-                        operations_repository,
-                        event=ResearchOperationsEvent.build(
-                            event_type="retrieval-source",
-                            provider_id=source.provider_id,
-                            outcome="failed",
-                            request_id=request.request_id,
-                            evidence_id=failure.evidence_id,
-                            source_family=source_family,
-                            stage="content-normalization",
-                            error_code=exc.code,
-                            duration_ms=duration_ms,
-                            attempt_count=attempt_count,
-                            transient_retry_count=transient_retry_count,
-                            recovered_after_retry=False,
-                            recorded_at=observed_at,
-                        ),
-                    )
-                    source_results.append(
-                        {
-                            "url": url,
-                            "success": False,
-                            "evidence_id": failure.evidence_id,
-                            "evidence_sha256": failure.evidence_sha256,
-                            "error_code": exc.code,
-                            "error_detail": exc.detail,
-                            "source_family": source_family,
-                            "duration_ms": duration_ms,
-                            "attempt_count": attempt_count,
-                            "transient_retry_count": transient_retry_count,
-                            "recovered_after_retry": False,
-                            "retry_trigger_error_code": retry_trigger_error_code,
-                        }
-                    )
-                    break
+                        "stored_at": terminal.persisted.stored_at.isoformat(),
+                        "source_family": terminal.source_family,
+                        "duration_ms": terminal.duration_ms,
+                        "attempt_count": terminal.attempt_count,
+                        "transient_retry_count": terminal.transient_retry_count,
+                        "recovered_after_retry": terminal.recovered_after_retry,
+                        "retry_trigger_error_code": terminal.retry_trigger_error_code,
+                        "remote_instructions_are_data_only": True,
+                        "retrieval_scope_expansion_allowed": False,
+                        "credential_use_allowed": False,
+                        "tool_selection_allowed": False,
+                    }
+                )
+
+                success_count += 1
+                continue
+
+            if not isinstance(
+                terminal,
+                Phase16ExplicitRetrievalFailure,
+            ):
+                raise RuntimeError(
+                    "Phase16 explicit retrieval returned "
+                    "an unsupported terminal result."
+                )
+
+            source_results.append(
+                {
+                    "url": url,
+                    "success": False,
+                    "evidence_id": terminal.evidence.evidence_id,
+                    "evidence_sha256": terminal.evidence.evidence_sha256,
+                    "error_code": terminal.error_code,
+                    "error_detail": terminal.error_detail,
+                    "source_family": terminal.source_family,
+                    "duration_ms": terminal.duration_ms,
+                    "attempt_count": terminal.attempt_count,
+                    "transient_retry_count": terminal.transient_retry_count,
+                    "recovered_after_retry": terminal.recovered_after_retry,
+                    "retry_trigger_error_code": terminal.retry_trigger_error_code,
+                }
+            )
 
         output = {
             "request_id": request.request_id,
@@ -351,6 +235,7 @@ class InternetResearchRetrieveTool(BaseTool):
             "guardian_contacted": False,
             "privileged_host_action_performed": False,
         }
+
         if success_count == 0:
             return ToolExecutionResult(
                 tool_id=self.definition.id,
@@ -358,6 +243,7 @@ class InternetResearchRetrieveTool(BaseTool):
                 output=output,
                 error="No explicit public-web source was retrieved successfully.",
             )
+
         return ToolExecutionResult(
             tool_id=self.definition.id,
             success=True,

@@ -1,0 +1,46 @@
+{
+  "jobs": [
+    {
+      "id": 900001,
+      "internal_job_id": 700001,
+      "title": "Junior Cloud Engineer",
+      "updated_at": "2026-08-20T15:00:00-04:00",
+      "requisition_id": "CLOUD-101",
+      "location": {
+        "name": "Toronto, Ontario, Canada"
+      },
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/900001",
+      "language": "en",
+      "metadata": null
+    },
+    {
+      "id": 900002,
+      "internal_job_id": 700002,
+      "title": "Cloud Support Engineer",
+      "updated_at": "2026-08-20T14:00:00-04:00",
+      "requisition_id": "CLOUD-102",
+      "location": {
+        "name": "Remote - Canada"
+      },
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/900002",
+      "language": "en",
+      "metadata": null
+    },
+    {
+      "id": 900003,
+      "internal_job_id": null,
+      "title": "Join our talent community",
+      "updated_at": "2026-08-20T13:00:00-04:00",
+      "requisition_id": null,
+      "location": {
+        "name": "Canada"
+      },
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/900003",
+      "language": "en",
+      "metadata": null
+    }
+  ],
+  "meta": {
+    "total": 3
+  }
+}

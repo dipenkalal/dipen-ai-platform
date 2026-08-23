@@ -1,9 +1,16 @@
 use_default_settings:
   engines:
     keep_only:
-      - duckduckgo
-      - brave
-      - startpage
+      - bing
+      - wiby
+
+engines:
+  - name: bing
+    inactive: false
+    disabled: false
+  - name: wiby
+    inactive: false
+    disabled: false
 
 general:
   debug: false

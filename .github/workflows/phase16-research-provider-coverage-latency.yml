@@ -1,0 +1,157 @@
+name: Phase 16 Research Provider Coverage Latency
+
+on:
+  pull_request:
+  push:
+    branches:
+      - phase16/research-provider-coverage-latency
+      - phase16/research-provider-coverage-latency-canary
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase16-research-provider-coverage-latency-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-diagnostic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            platform/backend/requirements.txt
+            platform/backend/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff Phase 16 diagnostic
+        run: |
+          python -m ruff check \
+            gateway/research_provider_diagnostic.py \
+            gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
+            gateway/research_retrieval_latency_probe.py \
+            gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
+            gateway/research_provider_phase16_validation_corpus.py \
+            gateway/research_provider_phase16_validation.py \
+            gateway/research_provider_phase16_slow_tail_probe.py \
+            gateway/research_source_quality.py \
+            gateway/searxng_search_provider.py \
+            tests/test_phase16_provider_diagnostic.py \
+            tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py \
+            tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
+            tests/test_phase16_independent_validation.py \
+            tests/test_phase16_slow_tail_probe.py \
+            tests/test_phase16_source_selection_resilience.py \
+            tests/test_phase15_searxng_provider_reliability.py
+      - name: Mypy Phase 16 diagnostic
+        run: |
+          python -m mypy \
+            gateway/research_provider_diagnostic.py \
+            gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
+            gateway/research_retrieval_latency_probe.py \
+            gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
+            gateway/research_provider_phase16_validation_corpus.py \
+            gateway/research_provider_phase16_validation.py \
+            gateway/research_provider_phase16_slow_tail_probe.py \
+            gateway/research_source_quality.py \
+            gateway/searxng_search_provider.py \
+            --follow-imports=skip
+      - name: Compile Phase 16 diagnostic
+        run: |
+          python -m compileall -q \
+            gateway/research_provider_diagnostic.py \
+            gateway/research_engine_health_probe.py \
+            gateway/research_retrieval_evidence.py \
+            gateway/research_retrieval_hedge.py \
+            gateway/research_retrieval_latency_probe.py \
+            gateway/research_retrieval_latency_probe_e2.py \
+            gateway/research_retrieval_gzip_experiment.py \
+            gateway/research_provider_phase16_validation_corpus.py \
+            gateway/research_provider_phase16_validation.py \
+            gateway/research_provider_phase16_slow_tail_probe.py \
+            gateway/research_source_quality.py \
+            gateway/searxng_search_provider.py \
+            tests/test_phase16_provider_diagnostic.py \
+            tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py \
+            tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
+            tests/test_phase16_independent_validation.py \
+            tests/test_phase16_slow_tail_probe.py \
+            tests/test_phase16_source_selection_resilience.py \
+            tests/test_phase15_searxng_provider_reliability.py
+      - name: Phase 16 provider diagnostic tests
+        run: |
+          python -m pytest -q \
+            tests/test_phase16_provider_diagnostic.py \
+            tests/test_phase16_engine_health_probe.py \
+            tests/test_phase16_retrieval_latency_probe.py \
+            tests/test_phase16_retrieval_latency_probe_e2.py \
+            tests/test_phase16_gzip_shadow_experiment.py \
+            tests/test_phase16_hedged_retrieval.py \
+            tests/test_phase16_content_distinct_hedge.py \
+            tests/test_phase16_independent_validation.py \
+            tests/test_phase16_slow_tail_probe.py \
+            tests/test_phase16_source_selection_resilience.py
+      - name: Sealed Phase 15 regressions
+        run: |
+          python -m pytest -q \
+            tests/test_phase15_searxng_provider_reliability.py \
+            tests/test_phase15_query_fallback_and_source_quality.py \
+            tests/test_phase15_live_benchmark_contract.py
+
+  guardian-provider-diagnostic:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/guardian
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Compile Phase 16 Guardian boundary
+        run: |
+          python -m compileall -q \
+            tests/test_phase16_provider_diagnostic_boundary.py \
+            tests/test_phase16_engine_health_probe_boundary.py \
+            tests/test_phase16_engine_pool_remediation_boundary.py \
+            tests/test_phase16_retrieval_latency_probe_boundary.py \
+            tests/test_phase16_retrieval_latency_probe_e2_boundary.py \
+            tests/test_phase16_gzip_shadow_boundary.py \
+            tests/test_phase16_independent_validation_boundary.py \
+            tests/test_phase16_slow_tail_probe_boundary.py \
+            tests/test_phase16_source_selection_resilience_boundary.py
+      - name: Phase 16 Guardian boundary
+        run: |
+          python -m unittest -v \
+            tests.test_phase16_provider_diagnostic_boundary \
+            tests.test_phase16_engine_health_probe_boundary \
+            tests.test_phase16_engine_pool_remediation_boundary \
+            tests.test_phase16_retrieval_latency_probe_boundary \
+            tests.test_phase16_retrieval_latency_probe_e2_boundary \
+            tests.test_phase16_gzip_shadow_boundary \
+            tests.test_phase16_independent_validation_boundary \
+            tests.test_phase16_slow_tail_probe_boundary \
+            tests.test_phase16_source_selection_resilience_boundary

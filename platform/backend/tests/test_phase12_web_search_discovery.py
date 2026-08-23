@@ -87,7 +87,7 @@ def _candidate(
 
 
 @pytest.mark.asyncio
-async def test_pipeline_selects_at_most_three_ranked_urls_and_drops_provider_snippets() -> None:
+async def test_pipeline_selects_at_most_two_ranked_urls_and_drops_provider_snippets() -> None:
     discovery = _discovery(
         (
             _candidate(4, "https://example.com/four"),
@@ -113,7 +113,6 @@ async def test_pipeline_selects_at_most_three_ranked_urls_and_drops_provider_sni
             "urls": [
                 "https://example.com/one",
                 "https://example.com/two",
-                "https://example.com/three",
             ],
         }
     ]
@@ -122,7 +121,6 @@ async def test_pipeline_selects_at_most_three_ranked_urls_and_drops_provider_sni
     assert result.selected_urls == (
         "https://example.com/one",
         "https://example.com/two",
-        "https://example.com/three",
     )
     assert result.candidate_count == 4
     assert result.retrieval_success is True

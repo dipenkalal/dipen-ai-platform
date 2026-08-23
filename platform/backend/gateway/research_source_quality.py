@@ -7,8 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from gateway.web_search_provider import WebSearchCandidate
 
-SOURCE_SELECTION_POLICY_ID = "dap-source-family-diversity-v1"
+SOURCE_SELECTION_POLICY_ID = "dap-source-family-diversity-url-resilience-v2"
 SOURCE_URL_DUPLICATE_POLICY_ID = "dap-source-url-dedup-v2"
+SOURCE_RETRIEVAL_RESILIENCE_POLICY_ID = "dap-url-retrieval-resilience-v1"
 _TRACKING_QUERY_NAMES = frozenset(
     {
         "fbclid",
@@ -18,6 +19,37 @@ _TRACKING_QUERY_NAMES = frozenset(
         "msclkid",
     }
 )
+_DOCUMENTATION_HOST_LABELS = frozenset(
+    {
+        "api",
+        "developer",
+        "developers",
+        "docs",
+        "documentation",
+        "reference",
+        "standards",
+    }
+)
+_DOCUMENTATION_PATH_SEGMENTS = frozenset(
+    {
+        "api",
+        "developer",
+        "developers",
+        "docs",
+        "documentation",
+        "guide",
+        "guides",
+        "manual",
+        "reference",
+        "references",
+        "spec",
+        "specification",
+        "specifications",
+        "standard",
+        "standards",
+    }
+)
+_STATIC_DOCUMENT_SUFFIXES = (".htm", ".html", ".txt")
 
 
 class ResearchSourceSelectionItem(BaseModel):
@@ -32,6 +64,7 @@ class ResearchSourceSelectionItem(BaseModel):
     selected: bool
     selected_as_duplicate_family_fallback: bool = False
     reason: str
+    retrieval_resilience_signals: tuple[str, ...] = ()
     factual_credibility_assessed: bool = False
     provider_title_used_as_evidence: bool = False
     provider_snippet_used_as_evidence: bool = False
@@ -42,6 +75,7 @@ class ResearchSourceSelectionResult(BaseModel):
 
     policy_id: str = SOURCE_SELECTION_POLICY_ID
     duplicate_normalization_policy_id: str = SOURCE_URL_DUPLICATE_POLICY_ID
+    retrieval_resilience_policy_id: str = SOURCE_RETRIEVAL_RESILIENCE_POLICY_ID
     candidate_count: int = Field(ge=0)
     unique_url_count: int = Field(ge=0)
     unique_source_family_count: int = Field(ge=0)
@@ -54,6 +88,8 @@ class ResearchSourceSelectionResult(BaseModel):
     items: tuple[ResearchSourceSelectionItem, ...]
     factual_credibility_assessed: bool = False
     provider_titles_or_snippets_used_as_evidence: bool = False
+    provider_titles_or_snippets_used_for_selection: bool = False
+    remote_probe_used_for_selection: bool = False
 
 
 def canonical_source_family(url: str) -> str:
@@ -99,6 +135,42 @@ def canonical_source_url_duplicate_key(url: str) -> str:
     )
 
 
+def source_retrieval_resilience_signals(url: str) -> tuple[str, ...]:
+    """Return bounded URL-structure signals only; never inspect provider text or content."""
+
+    parsed = urlsplit(url)
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if not hostname:
+        raise ValueError("source URL must contain a hostname")
+
+    signals: list[str] = []
+    host_labels = tuple(label for label in hostname.split(".") if label)
+    if host_labels and host_labels[0] in _DOCUMENTATION_HOST_LABELS:
+        signals.append("documentation-host")
+
+    path_segments = tuple(
+        segment.casefold() for segment in parsed.path.split("/") if segment
+    )
+    normalized_stems = tuple(segment.rsplit(".", 1)[0] for segment in path_segments)
+    if any(
+        segment in _DOCUMENTATION_PATH_SEGMENTS
+        or stem in _DOCUMENTATION_PATH_SEGMENTS
+        or stem.startswith("rfc") and stem[3:].isdigit()
+        for segment, stem in zip(path_segments, normalized_stems, strict=True)
+    ):
+        signals.append("documentation-or-standard-path")
+
+    if parsed.path.casefold().endswith(_STATIC_DOCUMENT_SUFFIXES):
+        signals.append("static-document-path")
+
+    if hostname.endswith(".gov") or ".gov." in hostname:
+        signals.append("government-host")
+    elif hostname.endswith(".edu") or ".edu." in hostname:
+        signals.append("education-host")
+
+    return tuple(signals)
+
+
 def select_source_diverse_candidates(
     candidates: Sequence[WebSearchCandidate],
     *,
@@ -130,10 +202,19 @@ def select_source_diverse_candidates(
         seen_duplicate_keys.add(duplicate_key)
         unique_candidates.append(candidate)
 
+    resilient_order = sorted(
+        unique_candidates,
+        key=lambda candidate: (
+            -_selection_quality_score(candidate, duplicate_family=False),
+            candidate.rank,
+            candidate.url,
+        ),
+    )
+
     selected: list[WebSearchCandidate] = []
     selected_families: set[str] = set()
 
-    for candidate in unique_candidates:
+    for candidate in resilient_order:
         family = canonical_source_family(candidate.url)
         if family in selected_families:
             continue
@@ -145,7 +226,7 @@ def select_source_diverse_candidates(
     duplicate_family_fallback_urls: set[str] = set()
     if len(selected) < limit:
         already_selected_urls = {candidate.url for candidate in selected}
-        for candidate in unique_candidates:
+        for candidate in resilient_order:
             if candidate.url in already_selected_urls:
                 continue
             selected.append(candidate)
@@ -159,7 +240,7 @@ def select_source_diverse_candidates(
     )
     selected_quality_scores = tuple(
         _selection_quality_score(
-            candidate.rank,
+            candidate,
             duplicate_family=candidate.url in duplicate_family_fallback_urls,
         )
         for candidate in selected
@@ -175,7 +256,7 @@ def select_source_diverse_candidates(
             url=candidate.url,
             source_family=canonical_source_family(candidate.url),
             selection_quality_score=_selection_quality_score(
-                candidate.rank,
+                candidate,
                 duplicate_family=candidate.url in duplicate_family_fallback_urls,
             ),
             selected=candidate.url in selected_url_set,
@@ -188,8 +269,11 @@ def select_source_diverse_candidates(
                     candidate.url in duplicate_family_fallback_urls
                 ),
             ),
+            retrieval_resilience_signals=source_retrieval_resilience_signals(
+                candidate.url
+            ),
         )
-        for candidate in unique_candidates
+        for candidate in resilient_order
     )
 
     return ResearchSourceSelectionResult(
@@ -206,8 +290,21 @@ def select_source_diverse_candidates(
     )
 
 
-def _selection_quality_score(rank: int, *, duplicate_family: bool) -> int:
-    score = 100 - ((rank - 1) * 8)
+def _selection_quality_score(
+    candidate: WebSearchCandidate,
+    *,
+    duplicate_family: bool,
+) -> int:
+    score = 100 - ((candidate.rank - 1) * 8)
+    signal_weights = {
+        "documentation-host": 12,
+        "documentation-or-standard-path": 12,
+        "static-document-path": 4,
+        "government-host": 8,
+        "education-host": 6,
+    }
+    for signal in source_retrieval_resilience_signals(candidate.url):
+        score += signal_weights[signal]
     if duplicate_family:
         score -= 25
     return max(0, min(100, score))
@@ -217,5 +314,5 @@ def _selection_reason(*, selected: bool, duplicate_family_fallback: bool) -> str
     if selected and duplicate_family_fallback:
         return "selected-after-unique-source-families-exhausted"
     if selected:
-        return "selected-for-rank-and-source-family-diversity"
+        return "selected-for-source-family-diversity-and-url-retrieval-resilience"
     return "not-selected-within-bounded-retrieval-limit"
