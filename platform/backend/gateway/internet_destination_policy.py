@@ -10,6 +10,11 @@ from urllib.parse import SplitResult, quote, urlsplit, urlunsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 _ALLOWED_METHODS = frozenset({"GET", "HEAD"})
+_WORKDAY_POST_METHOD = "POST"
+_WORKDAY_HOST_SUFFIX = ".myworkdayjobs.com"
+_WORKDAY_CXS_JOBS_PATH_RE = re.compile(
+    r"^/wday/cxs/[A-Za-z0-9._~-]+/[A-Za-z0-9._~-]+/jobs$"
+)
 _BLOCKED_HOSTS = frozenset(
     {
         "localhost",
@@ -32,6 +37,10 @@ class InternetDestinationIntent(BaseModel):
     url: str = Field(min_length=1, max_length=8192)
     method: str = Field(default="GET", min_length=1, max_length=16)
     redirect_depth: int = Field(default=0, ge=0, le=3)
+    request_body_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
 
     @field_validator("url")
     @classmethod
@@ -79,9 +88,13 @@ class InternetDestinationPreflightAdmission(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     canonical_url: str
-    method: Literal["GET", "HEAD"]
+    method: Literal["GET", "HEAD", "POST"]
     hostname: str
     redirect_depth: int
+    request_body_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     dns_resolution_performed: Literal[False] = False
     transport_execution_enabled: Literal[False] = False
 
@@ -102,10 +115,14 @@ class InternetDestinationAdmission(BaseModel):
     admission_id: str = Field(pattern=r"^internet-destination-[0-9a-f]{24}$")
     admission_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     canonical_url: str
-    method: Literal["GET", "HEAD"]
+    method: Literal["GET", "HEAD", "POST"]
     hostname: str
     approved_addresses: tuple[str, ...]
     redirect_depth: int
+    request_body_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     public_addresses_only: Literal[True] = True
     redirect_revalidation_required: Literal[True] = True
     transport_execution_enabled: Literal[False] = False
@@ -163,6 +180,158 @@ class InternetDestinationPolicy:
 
         hostname = self._normalize_hostname(parsed.hostname, findings)
 
+        workday_post_candidate = (
+            intent.method
+            == _WORKDAY_POST_METHOD
+            and hostname.endswith(
+                _WORKDAY_HOST_SUFFIX
+            )
+            and hostname
+            != _WORKDAY_HOST_SUFFIX.lstrip(".")
+        )
+
+        if workday_post_candidate:
+
+            workday_post_valid = True
+
+            if (
+                _WORKDAY_CXS_JOBS_PATH_RE.fullmatch(
+                    parsed.path
+                )
+                is None
+            ):
+                workday_post_valid = False
+
+                findings.append(
+                    InternetDestinationFinding(
+                        rule_id=(
+                            "workday-post-path-rejected"
+                        ),
+                        blocked=True,
+                        detail=(
+                            "Workday POST is admitted "
+                            "only for the exact CXS jobs "
+                            "listing path."
+                        ),
+                    )
+                )
+
+            elif hostname:
+
+                parts = (
+                    parsed.path.split("/")
+                )
+
+                tenant = (
+                    parts[3].casefold()
+                )
+
+                host_tenant = (
+                    hostname
+                    .split(".", 1)[0]
+                    .casefold()
+                )
+
+                if tenant != host_tenant:
+
+                    workday_post_valid = False
+
+                    findings.append(
+                        InternetDestinationFinding(
+                            rule_id=(
+                                "workday-post-tenant-mismatch"
+                            ),
+                            blocked=True,
+                            detail=(
+                                "Workday CXS tenant must "
+                                "match the hostname tenant."
+                            ),
+                        )
+                    )
+
+            if (
+                parsed.query
+                or parsed.fragment
+            ):
+                workday_post_valid = False
+
+                findings.append(
+                    InternetDestinationFinding(
+                        rule_id=(
+                            "workday-post-url-shape-rejected"
+                        ),
+                        blocked=True,
+                        detail=(
+                            "Workday POST may not contain "
+                            "query or fragment data."
+                        ),
+                    )
+                )
+
+            if intent.redirect_depth != 0:
+
+                workday_post_valid = False
+
+                findings.append(
+                    InternetDestinationFinding(
+                        rule_id=(
+                            "workday-post-redirect-rejected"
+                        ),
+                        blocked=True,
+                        detail=(
+                            "Workday POST is admitted "
+                            "only at redirect depth zero."
+                        ),
+                    )
+                )
+
+            if (
+                intent.request_body_sha256
+                is None
+            ):
+                workday_post_valid = False
+
+                findings.append(
+                    InternetDestinationFinding(
+                        rule_id=(
+                            "workday-post-body-binding-required"
+                        ),
+                        blocked=True,
+                        detail=(
+                            "Workday POST requires a "
+                            "request-body SHA-256 binding."
+                        ),
+                    )
+                )
+
+            if workday_post_valid:
+
+                findings = [
+                    finding
+                    for finding in findings
+                    if finding.rule_id
+                    != "unsupported-method"
+                ]
+
+        elif (
+            intent.method
+            in _ALLOWED_METHODS
+            and intent.request_body_sha256
+            is not None
+        ):
+            findings.append(
+                InternetDestinationFinding(
+                    rule_id=(
+                        "unexpected-request-body-binding"
+                    ),
+                    blocked=True,
+                    detail=(
+                        "GET/HEAD may not carry "
+                        "a request-body SHA-256 binding."
+                    ),
+                )
+            )
+
         if port not in (None, 443):
             findings.append(
                 InternetDestinationFinding(
@@ -196,7 +365,17 @@ class InternetDestinationPolicy:
                 findings=tuple(findings),
             )
 
-        method: Literal["GET", "HEAD"] = "HEAD" if intent.method == "HEAD" else "GET"
+        method: Literal["GET", "HEAD", "POST"]
+
+        if intent.method == "POST":
+            method = "POST"
+
+        elif intent.method == "HEAD":
+            method = "HEAD"
+
+        else:
+            method = "GET"
+
         return InternetDestinationPreflightDecision(
             disposition="accepted",
             findings=(),
@@ -205,6 +384,9 @@ class InternetDestinationPolicy:
                 method=method,
                 hostname=hostname,
                 redirect_depth=intent.redirect_depth,
+                request_body_sha256=(
+                    intent.request_body_sha256
+                ),
             ),
         )
 
@@ -214,6 +396,9 @@ class InternetDestinationPolicy:
                 url=request.url,
                 method=request.method,
                 redirect_depth=request.redirect_depth,
+                request_body_sha256=(
+                    request.request_body_sha256
+                ),
             )
         )
         if preflight.disposition == "rejected" or preflight.admission is None:
@@ -277,7 +462,24 @@ class InternetDestinationPolicy:
             "approved_addresses": list(approved_addresses),
             "redirect_depth": preflight.admission.redirect_depth,
         }
-        canonical_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+        if (
+            preflight.admission
+            .request_body_sha256
+            is not None
+        ):
+            payload[
+                "request_body_sha256"
+            ] = (
+                preflight.admission
+                .request_body_sha256
+            )
+
+        canonical_payload = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         admission_sha256 = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
         admission = InternetDestinationAdmission(
             admission_id=f"internet-destination-{admission_sha256[:24]}",
@@ -287,6 +489,10 @@ class InternetDestinationPolicy:
             hostname=preflight.admission.hostname,
             approved_addresses=approved_addresses,
             redirect_depth=preflight.admission.redirect_depth,
+            request_body_sha256=(
+                preflight.admission
+                .request_body_sha256
+            ),
         )
         return InternetDestinationDecision(
             disposition="accepted",

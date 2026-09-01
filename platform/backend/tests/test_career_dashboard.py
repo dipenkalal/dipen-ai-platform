@@ -271,7 +271,7 @@ def database_path(
     return path
 
 
-def test_dashboard_returns_verified_apply_and_consider_only(
+def test_dashboard_returns_verified_eligible_jobs_ranked_by_fit(
     database_path: Path,
 ) -> None:
     service = CareerDashboardService(
@@ -280,7 +280,7 @@ def test_dashboard_returns_verified_apply_and_consider_only(
 
     result = service.list_jobs()
 
-    assert result.total == 2
+    assert result.total == 3
 
     assert [
         item.verdict
@@ -288,6 +288,7 @@ def test_dashboard_returns_verified_apply_and_consider_only(
     ] == [
         "APPLY",
         "CONSIDER",
+        "SKIP",
     ]
 
     assert {
@@ -296,6 +297,7 @@ def test_dashboard_returns_verified_apply_and_consider_only(
     } == {
         "career-job-apply",
         "career-job-consider",
+        "career-job-skip",
     }
 
 
@@ -345,7 +347,7 @@ def test_summary_counts_read_only_dashboard_scope(
     assert summary.verified_active_jobs == 3
     assert summary.apply_jobs == 1
     assert summary.consider_jobs == 1
-    assert summary.visible_jobs == 2
+    assert summary.visible_jobs == 3
     assert summary.application_records == 1
 
     assert (

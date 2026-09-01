@@ -7,12 +7,12 @@ from typing import Literal, Protocol, runtime_checkable
 from urllib.parse import urlsplit
 
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
     model_validator,
 )
-
 
 CareerSourceConnectorKind = Literal[
     "greenhouse",
@@ -40,10 +40,7 @@ def _json_default(value: object) -> str:
     if isinstance(value, datetime):
         return value.isoformat()
 
-    raise TypeError(
-        "Unsupported canonical JSON value: "
-        f"{type(value).__name__}"
-    )
+    raise TypeError(f"Unsupported canonical JSON value: {type(value).__name__}")
 
 
 def _canonical_hash(
@@ -64,23 +61,15 @@ def _content_id(
     prefix: str,
     payload: object,
 ) -> str:
-    return (
-        f"{prefix}-"
-        f"{_canonical_hash(payload)[:24]}"
-    )
+    return f"{prefix}-{_canonical_hash(payload)[:24]}"
 
 
 def _require_aware(
     value: datetime,
     field_name: str,
 ) -> None:
-    if (
-        value.tzinfo is None
-        or value.utcoffset() is None
-    ):
-        raise ValueError(
-            f"{field_name} must be timezone-aware"
-        )
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be timezone-aware")
 
 
 def _validate_https_url(
@@ -88,48 +77,29 @@ def _validate_https_url(
     field_name: str,
 ) -> str:
     if value != value.strip():
-        raise ValueError(
-            f"{field_name} must not contain "
-            "leading/trailing whitespace"
-        )
+        raise ValueError(f"{field_name} must not contain leading/trailing whitespace")
 
     parsed = urlsplit(value)
 
     if parsed.scheme.lower() != "https":
-        raise ValueError(
-            f"{field_name} must use https"
-        )
+        raise ValueError(f"{field_name} must use https")
 
     if not parsed.hostname:
-        raise ValueError(
-            f"{field_name} must contain a hostname"
-        )
+        raise ValueError(f"{field_name} must contain a hostname")
 
-    if (
-        parsed.username is not None
-        or parsed.password is not None
-    ):
-        raise ValueError(
-            f"{field_name} must not contain "
-            "userinfo credentials"
-        )
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"{field_name} must not contain userinfo credentials")
 
     try:
         port = parsed.port
     except ValueError as error:
-        raise ValueError(
-            f"{field_name} contains an invalid port"
-        ) from error
+        raise ValueError(f"{field_name} contains an invalid port") from error
 
     if port not in {None, 443}:
-        raise ValueError(
-            f"{field_name} may only use HTTPS port 443"
-        )
+        raise ValueError(f"{field_name} may only use HTTPS port 443")
 
     if parsed.fragment:
-        raise ValueError(
-            f"{field_name} must not contain a fragment"
-        )
+        raise ValueError(f"{field_name} must not contain a fragment")
 
     return value
 
@@ -141,9 +111,7 @@ def _normalized_required_text(
     normalized = value.strip()
 
     if not normalized:
-        raise ValueError(
-            f"{field_name} must not be empty"
-        )
+        raise ValueError(f"{field_name} must not be empty")
 
     return normalized
 
@@ -188,10 +156,7 @@ class CareerConnectorDescriptor(BaseModel):
         le=3,
     )
 
-    response_media_types: tuple[
-        str,
-        ...
-    ] = Field(
+    response_media_types: tuple[str, ...] = Field(
         min_length=1,
         max_length=6,
     )
@@ -199,45 +164,31 @@ class CareerConnectorDescriptor(BaseModel):
     connector_owns_network: Literal[False] = False
     credentials_required: Literal[False] = False
 
-    application_submission_supported: Literal[
-        False
-    ] = False
+    application_submission_supported: Literal[False] = False
 
-    browser_authority_granted: Literal[
-        False
-    ] = False
+    browser_authority_granted: Literal[False] = False
 
-    candidate_metadata_is_job_truth: Literal[
-        False
-    ] = False
+    candidate_metadata_is_job_truth: Literal[False] = False
 
     @model_validator(mode="after")
     def validate_descriptor(
         self,
     ) -> CareerConnectorDescriptor:
         if self.display_name != self.display_name.strip():
-            raise ValueError(
-                "display_name must already be normalized"
-            )
+            raise ValueError("display_name must already be normalized")
 
-        if len(set(self.response_media_types)) != len(
-            self.response_media_types
-        ):
-            raise ValueError(
-                "response_media_types must be unique"
-            )
+        if len(set(self.response_media_types)) != len(self.response_media_types):
+            raise ValueError("response_media_types must be unique")
 
         unsupported = (
-            set(self.response_media_types)
-            - _NORMALIZABLE_CONNECTOR_MEDIA_TYPES
+            set(self.response_media_types) - _NORMALIZABLE_CONNECTOR_MEDIA_TYPES
         )
 
         if unsupported:
             raise ValueError(
                 "Connector requested media types "
                 "outside the sealed Phase-16 "
-                "normalizer set: "
-                + ",".join(sorted(unsupported))
+                "normalizer set: " + ",".join(sorted(unsupported))
             )
 
         return self
@@ -245,13 +196,46 @@ class CareerConnectorDescriptor(BaseModel):
 
 class CareerConnectorParseInput(BaseModel):
     """
-    Phase-16 evidence projection supplied to a pure
-    Career connector parser.
+    Immutable parser input derived from sealed Phase16
+    evidence.
 
-    This object does not itself prove job truth.
+    The canonical model follows the frozen Phase19.4L
+    two-mode contract:
+
+    * phase16_normalized_content
+    * phase16_structured_json_projection
+
+    Shared parser fields always describe exactly the text
+    supplied to the pure connector parser and bind that text
+    back to the complete Phase16 source body.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+    )
+
+    parser_input_kind: Literal[
+        "phase16_normalized_content",
+        "phase16_structured_json_projection",
+    ] = "phase16_normalized_content"
+
+    parser_text: str = Field(
+        min_length=1,
+        max_length=1_000_000,
+        validation_alias=AliasChoices(
+            "parser_text",
+            "normalized_text",
+        ),
+    )
+
+    parser_text_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        validation_alias=AliasChoices(
+            "parser_text_sha256",
+            "normalized_text_sha256",
+        ),
+    )
 
     research_evidence_id: str = Field(
         pattern=(
@@ -260,11 +244,8 @@ class CareerConnectorParseInput(BaseModel):
         )
     )
 
-    content_evidence_id: str = Field(
-        pattern=(
-            r"^internet-content-"
-            r"[0-9a-f]{24}$"
-        )
+    source_body_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
     )
 
     source_url: str = Field(
@@ -277,28 +258,86 @@ class CareerConnectorParseInput(BaseModel):
         max_length=200,
     )
 
-    normalized_text: str = Field(
-        min_length=1,
-        max_length=1_000_000,
-    )
-
-    normalized_text_sha256: str = Field(
-        pattern=r"^[0-9a-f]{64}$"
-    )
-
     observed_at: datetime
 
-    phase16_normalized_evidence: Literal[
-        True
-    ] = True
+    # Legacy-only binding.
+    content_evidence_id: str | None = Field(
+        default=None,
+        pattern=(
+            r"^internet-content-"
+            r"[0-9a-f]{24}$"
+        ),
+    )
 
-    metadata_is_job_truth: Literal[
-        False
-    ] = False
+    # Projection-only bindings.
+    projection_evidence_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
 
-    application_authority_granted: Literal[
-        False
-    ] = False
+    complete_document_parse: Literal[True] | None = None
+
+    source_record_count: int | None = Field(
+        default=None,
+        ge=0,
+        le=20_000,
+    )
+
+    projected_record_count: int | None = Field(
+        default=None,
+        ge=0,
+        le=20_000,
+    )
+
+    projection_truncated: Literal[False] | None = None
+
+    metadata_is_job_truth: Literal[False] = False
+
+    application_authority_granted: Literal[False] = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_constructor_aliases(
+        cls,
+        value: object,
+    ) -> object:
+        """
+        Transitional constructor compatibility only.
+
+        Old normalized_text input names are accepted through
+        Pydantic validation aliases and are never stored as
+        model fields.
+
+        The historic phase16_normalized_evidence=true marker
+        is accepted only for legacy mode and removed before
+        model validation. It is not part of the frozen model.
+        """
+
+        if not isinstance(
+            value,
+            dict,
+        ):
+            return value
+
+        payload = dict(value)
+
+        if "phase16_normalized_evidence" in payload:
+            marker = payload.pop("phase16_normalized_evidence")
+
+            mode = payload.get(
+                "parser_input_kind",
+                "phase16_normalized_content",
+            )
+
+            if marker is not True or mode != "phase16_normalized_content":
+                raise ValueError(
+                    "phase16_normalized_evidence "
+                    "compatibility marker is valid "
+                    "only as true in legacy mode"
+                )
+
+        return payload
 
     @model_validator(mode="after")
     def validate_parse_input(
@@ -314,30 +353,119 @@ class CareerConnectorParseInput(BaseModel):
             "source_url",
         )
 
-        if (
-            self.media_type
-            not in _NORMALIZABLE_CONNECTOR_MEDIA_TYPES
-        ):
+        if self.media_type not in _NORMALIZABLE_CONNECTOR_MEDIA_TYPES:
             raise ValueError(
                 "Connector parse input media type "
-                "is outside the sealed Phase-16 "
+                "is outside the sealed Phase16 "
                 "normalizer set"
             )
 
-        actual_hash = hashlib.sha256(
-            self.normalized_text.encode("utf-8")
-        ).hexdigest()
+        actual_hash = hashlib.sha256(self.parser_text.encode("utf-8")).hexdigest()
 
-        if (
-            actual_hash
-            != self.normalized_text_sha256
-        ):
-            raise ValueError(
-                "normalized_text_sha256 does not "
-                "match normalized_text"
-            )
+        if actual_hash != self.parser_text_sha256:
+            raise ValueError("parser_text_sha256 does not match parser_text")
+
+        if self.parser_input_kind == "phase16_normalized_content":
+            self._validate_legacy_mode()
+
+        elif self.parser_input_kind == "phase16_structured_json_projection":
+            self._validate_structured_projection_mode()
+
+        else:
+            raise ValueError("Unsupported Career parser input kind")
 
         return self
+
+    def _validate_legacy_mode(
+        self,
+    ) -> None:
+        if self.content_evidence_id is None:
+            raise ValueError("Legacy Career parser input requires content_evidence_id")
+
+        projection_only = (
+            self.projection_evidence_id,
+            self.complete_document_parse,
+            self.source_record_count,
+            self.projected_record_count,
+            self.projection_truncated,
+        )
+
+        if any(value is not None for value in projection_only):
+            raise ValueError(
+                "Legacy Career parser input must not contain projection-only fields"
+            )
+
+    def _validate_structured_projection_mode(
+        self,
+    ) -> None:
+        if self.content_evidence_id is not None:
+            raise ValueError(
+                "Structured projection input must not "
+                "contain legacy content_evidence_id"
+            )
+
+        if self.media_type != "application/json":
+            raise ValueError(
+                "Structured JSON projection parser input requires application/json"
+            )
+
+        required_projection = {
+            "projection_evidence_id": self.projection_evidence_id,
+            "complete_document_parse": self.complete_document_parse,
+            "source_record_count": self.source_record_count,
+            "projected_record_count": self.projected_record_count,
+            "projection_truncated": self.projection_truncated,
+        }
+
+        missing = [name for name, item in required_projection.items() if item is None]
+
+        if missing:
+            raise ValueError(
+                "Structured projection parser input "
+                "is incomplete: " + ",".join(sorted(missing))
+            )
+
+        assert self.source_record_count is not None
+        assert self.projected_record_count is not None
+
+        if self.complete_document_parse is not True:
+            raise ValueError(
+                "Structured projection requires complete_document_parse=true"
+            )
+
+        if self.projection_truncated is not False:
+            raise ValueError("Structured projection must not be truncated")
+
+        if self.source_record_count != self.projected_record_count:
+            raise ValueError(
+                "Structured projection source and projected record counts must match"
+            )
+
+    # --------------------------------------------------------
+    # Temporary legacy READ compatibility for existing pure
+    # connector implementations.
+    #
+    # These are properties only. They are not Pydantic model
+    # fields and are absent from model_dump()/evidence binding.
+    # --------------------------------------------------------
+
+    @property
+    def normalized_text(
+        self,
+    ) -> str:
+        return self.parser_text
+
+    @property
+    def normalized_text_sha256(
+        self,
+    ) -> str:
+        return self.parser_text_sha256
+
+    @property
+    def phase16_normalized_evidence(
+        self,
+    ) -> bool:
+        return self.parser_input_kind == "phase16_normalized_content"
 
 
 class CareerDiscoveryCandidate(BaseModel):
@@ -419,31 +547,19 @@ class CareerDiscoveryCandidate(BaseModel):
         )
     )
 
-    discovery_normalized_text_sha256: str = Field(
-        pattern=r"^[0-9a-f]{64}$"
-    )
+    discovery_normalized_text_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     observed_at: datetime
 
-    metadata_is_job_truth: Literal[
-        False
-    ] = False
+    metadata_is_job_truth: Literal[False] = False
 
-    freshness_verified: Literal[
-        False
-    ] = False
+    freshness_verified: Literal[False] = False
 
-    eligible_for_scoring: Literal[
-        False
-    ] = False
+    eligible_for_scoring: Literal[False] = False
 
-    eligible_for_shortlist: Literal[
-        False
-    ] = False
+    eligible_for_shortlist: Literal[False] = False
 
-    application_authority_granted: Literal[
-        False
-    ] = False
+    application_authority_granted: Literal[False] = False
 
     @classmethod
     def build(
@@ -501,9 +617,7 @@ class CareerDiscoveryCandidate(BaseModel):
             "title_hint",
         )
 
-        location_hint = _normalized_optional_text(
-            location_hint
-        )
+        location_hint = _normalized_optional_text(location_hint)
 
         detail_url = _validate_https_url(
             detail_url,
@@ -511,11 +625,7 @@ class CareerDiscoveryCandidate(BaseModel):
         )
 
         if apply_url_hint is not None:
-            apply_url_hint = (
-                _normalized_optional_text(
-                    apply_url_hint
-                )
-            )
+            apply_url_hint = _normalized_optional_text(apply_url_hint)
 
             if apply_url_hint is not None:
                 apply_url_hint = _validate_https_url(
@@ -537,46 +647,26 @@ class CareerDiscoveryCandidate(BaseModel):
         )
 
         payload = {
-            "source_identity_key":
-                source_identity_key,
-            "connector_id":
-                connector_id,
-            "connector_kind":
-                connector_kind,
-            "employer_name":
-                employer_name,
-            "source_job_id":
-                source_job_id,
-            "title_hint":
-                title_hint,
-            "location_hint":
-                location_hint,
-            "detail_url":
-                detail_url,
-            "apply_url_hint":
-                apply_url_hint,
-            "posted_at_hint":
-                posted_at_hint,
-            "source_updated_at_hint":
-                source_updated_at_hint,
-            "discovery_research_evidence_id":
-                discovery_research_evidence_id,
-            "discovery_content_evidence_id":
-                discovery_content_evidence_id,
-            "discovery_normalized_text_sha256":
-                discovery_normalized_text_sha256,
-            "observed_at":
-                observed_at,
-            "metadata_is_job_truth":
-                False,
-            "freshness_verified":
-                False,
-            "eligible_for_scoring":
-                False,
-            "eligible_for_shortlist":
-                False,
-            "application_authority_granted":
-                False,
+            "source_identity_key": source_identity_key,
+            "connector_id": connector_id,
+            "connector_kind": connector_kind,
+            "employer_name": employer_name,
+            "source_job_id": source_job_id,
+            "title_hint": title_hint,
+            "location_hint": location_hint,
+            "detail_url": detail_url,
+            "apply_url_hint": apply_url_hint,
+            "posted_at_hint": posted_at_hint,
+            "source_updated_at_hint": source_updated_at_hint,
+            "discovery_research_evidence_id": discovery_research_evidence_id,
+            "discovery_content_evidence_id": discovery_content_evidence_id,
+            "discovery_normalized_text_sha256": discovery_normalized_text_sha256,
+            "observed_at": observed_at,
+            "metadata_is_job_truth": False,
+            "freshness_verified": False,
+            "eligible_for_scoring": False,
+            "eligible_for_shortlist": False,
+            "application_authority_granted": False,
         }
 
         return cls(
@@ -613,19 +703,11 @@ class CareerDiscoveryCandidate(BaseModel):
             value = getattr(self, name)
 
             if value != value.strip():
-                raise ValueError(
-                    f"{name} must already be normalized"
-                )
+                raise ValueError(f"{name} must already be normalized")
 
         if self.location_hint is not None:
-            if (
-                self.location_hint
-                != self.location_hint.strip()
-            ):
-                raise ValueError(
-                    "location_hint must already "
-                    "be normalized"
-                )
+            if self.location_hint != self.location_hint.strip():
+                raise ValueError("location_hint must already be normalized")
 
         _validate_https_url(
             self.detail_url,
@@ -639,16 +721,11 @@ class CareerDiscoveryCandidate(BaseModel):
             )
 
         identity_payload = {
-            "connector_id":
-                self.connector_id,
-            "connector_kind":
-                self.connector_kind,
-            "employer_name":
-                self.employer_name,
-            "source_job_id":
-                self.source_job_id,
-            "detail_url":
-                self.detail_url,
+            "connector_id": self.connector_id,
+            "connector_kind": self.connector_kind,
+            "employer_name": self.employer_name,
+            "source_job_id": self.source_job_id,
+            "detail_url": self.detail_url,
         }
 
         expected_source_key = _content_id(
@@ -656,13 +733,9 @@ class CareerDiscoveryCandidate(BaseModel):
             identity_payload,
         )
 
-        if (
-            self.source_identity_key
-            != expected_source_key
-        ):
+        if self.source_identity_key != expected_source_key:
             raise ValueError(
-                "source_identity_key does not "
-                "match canonical source identity"
+                "source_identity_key does not match canonical source identity"
             )
 
         payload = self.model_dump(
@@ -676,10 +749,7 @@ class CareerDiscoveryCandidate(BaseModel):
         )
 
         if self.candidate_id != expected_candidate_id:
-            raise ValueError(
-                "candidate_id does not match "
-                "canonical candidate content"
-            )
+            raise ValueError("candidate_id does not match canonical candidate content")
 
         return self
 
@@ -712,11 +782,33 @@ class CareerConnectorResult(BaseModel):
         )
     )
 
-    content_evidence_id: str = Field(
-        pattern=(
-            r"^internet-content-"
-            r"[0-9a-f]{24}$"
-        )
+    content_evidence_id: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=200,
+    )
+
+    parser_input_kind: Literal[
+        "phase16_normalized_content",
+        "phase16_structured_json_projection",
+    ] = "phase16_normalized_content"
+
+    projection_evidence_id: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=200,
+    )
+
+    parser_text_sha256: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+    )
+
+    source_body_sha256: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
     )
 
     source_url: str = Field(
@@ -724,33 +816,22 @@ class CareerConnectorResult(BaseModel):
         max_length=4000,
     )
 
-    normalized_text_sha256: str = Field(
-        pattern=r"^[0-9a-f]{64}$"
-    )
+    normalized_text_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     observed_at: datetime
 
-    candidates: tuple[
-        CareerDiscoveryCandidate,
-        ...
-    ]
+    candidates: tuple[CareerDiscoveryCandidate, ...]
 
     candidate_count: int = Field(
         ge=0,
         le=10000,
     )
 
-    metadata_is_job_truth: Literal[
-        False
-    ] = False
+    metadata_is_job_truth: Literal[False] = False
 
-    production_truth_mutation_allowed: Literal[
-        False
-    ] = False
+    production_truth_mutation_allowed: Literal[False] = False
 
-    application_authority_granted: Literal[
-        False
-    ] = False
+    application_authority_granted: Literal[False] = False
 
     @classmethod
     def build(
@@ -758,39 +839,65 @@ class CareerConnectorResult(BaseModel):
         *,
         connector_id: str,
         parse_input: CareerConnectorParseInput,
-        candidates: tuple[
-            CareerDiscoveryCandidate,
-            ...
-        ],
+        candidates: tuple[CareerDiscoveryCandidate, ...],
     ) -> CareerConnectorResult:
-        candidate_ids = [
-            candidate.candidate_id
-            for candidate in candidates
-        ]
+        if parse_input.parser_input_kind == "phase16_structured_json_projection":
+            if candidates:
+                raise ValueError(
+                    "Structured projection candidate "
+                    "provenance binding is not "
+                    "implemented yet"
+                )
+
+            payload = {
+                "connector_id": connector_id,
+                "parser_input_kind": parse_input.parser_input_kind,
+                "research_evidence_id": parse_input.research_evidence_id,
+                "projection_evidence_id": parse_input.projection_evidence_id,
+                "source_url": parse_input.source_url,
+                "parser_text_sha256": parse_input.parser_text_sha256,
+                "source_body_sha256": parse_input.source_body_sha256,
+                "normalized_text_sha256": parse_input.parser_text_sha256,
+                "observed_at": parse_input.observed_at,
+                "candidate_ids": (),
+                "candidate_count": 0,
+                "metadata_is_job_truth": False,
+                "production_truth_mutation_allowed": False,
+                "application_authority_granted": False,
+            }
+
+            return cls(
+                result_id=_content_id(
+                    "career-connector-result",
+                    payload,
+                ),
+                connector_id=connector_id,
+                research_evidence_id=(parse_input.research_evidence_id),
+                content_evidence_id=None,
+                parser_input_kind=(parse_input.parser_input_kind),
+                projection_evidence_id=(parse_input.projection_evidence_id),
+                parser_text_sha256=(parse_input.parser_text_sha256),
+                source_body_sha256=(parse_input.source_body_sha256),
+                source_url=parse_input.source_url,
+                normalized_text_sha256=(parse_input.parser_text_sha256),
+                observed_at=parse_input.observed_at,
+                candidates=(),
+                candidate_count=0,
+            )
+        candidate_ids = [candidate.candidate_id for candidate in candidates]
 
         payload = {
-            "connector_id":
-                connector_id,
-            "research_evidence_id":
-                parse_input.research_evidence_id,
-            "content_evidence_id":
-                parse_input.content_evidence_id,
-            "source_url":
-                parse_input.source_url,
-            "normalized_text_sha256":
-                parse_input.normalized_text_sha256,
-            "observed_at":
-                parse_input.observed_at,
-            "candidate_ids":
-                candidate_ids,
-            "candidate_count":
-                len(candidates),
-            "metadata_is_job_truth":
-                False,
-            "production_truth_mutation_allowed":
-                False,
-            "application_authority_granted":
-                False,
+            "connector_id": connector_id,
+            "research_evidence_id": parse_input.research_evidence_id,
+            "content_evidence_id": parse_input.content_evidence_id,
+            "source_url": parse_input.source_url,
+            "normalized_text_sha256": parse_input.normalized_text_sha256,
+            "observed_at": parse_input.observed_at,
+            "candidate_ids": candidate_ids,
+            "candidate_count": len(candidates),
+            "metadata_is_job_truth": False,
+            "production_truth_mutation_allowed": False,
+            "application_authority_granted": False,
         }
 
         return cls(
@@ -799,16 +906,10 @@ class CareerConnectorResult(BaseModel):
                 payload,
             ),
             connector_id=connector_id,
-            research_evidence_id=(
-                parse_input.research_evidence_id
-            ),
-            content_evidence_id=(
-                parse_input.content_evidence_id
-            ),
+            research_evidence_id=(parse_input.research_evidence_id),
+            content_evidence_id=(parse_input.content_evidence_id),
             source_url=parse_input.source_url,
-            normalized_text_sha256=(
-                parse_input.normalized_text_sha256
-            ),
+            normalized_text_sha256=(parse_input.normalized_text_sha256),
             observed_at=parse_input.observed_at,
             candidates=candidates,
             candidate_count=len(candidates),
@@ -818,6 +919,88 @@ class CareerConnectorResult(BaseModel):
     def validate_result(
         self,
     ) -> CareerConnectorResult:
+        if self.parser_input_kind == "phase16_structured_json_projection":
+            _require_aware(
+                self.observed_at,
+                "observed_at",
+            )
+
+            if self.content_evidence_id is not None:
+                raise ValueError(
+                    "Structured projection result may not carry legacy content evidence"
+                )
+
+            if self.projection_evidence_id is None:
+                raise ValueError(
+                    "Structured projection result requires projection_evidence_id"
+                )
+
+            if self.parser_text_sha256 is None:
+                raise ValueError(
+                    "Structured projection result requires parser_text_sha256"
+                )
+
+            if self.source_body_sha256 is None:
+                raise ValueError(
+                    "Structured projection result requires source_body_sha256"
+                )
+
+            if self.normalized_text_sha256 != self.parser_text_sha256:
+                raise ValueError(
+                    "Structured result compatibility hash must equal parser_text_sha256"
+                )
+
+            if self.candidates or self.candidate_count != 0:
+                raise ValueError(
+                    "Structured projection candidate "
+                    "provenance binding is not "
+                    "implemented yet"
+                )
+
+            payload = {
+                "connector_id": self.connector_id,
+                "parser_input_kind": self.parser_input_kind,
+                "research_evidence_id": self.research_evidence_id,
+                "projection_evidence_id": self.projection_evidence_id,
+                "source_url": self.source_url,
+                "parser_text_sha256": self.parser_text_sha256,
+                "source_body_sha256": self.source_body_sha256,
+                "normalized_text_sha256": self.normalized_text_sha256,
+                "observed_at": self.observed_at,
+                "candidate_ids": (),
+                "candidate_count": 0,
+                "metadata_is_job_truth": False,
+                "production_truth_mutation_allowed": False,
+                "application_authority_granted": False,
+            }
+
+            expected_result_id = _content_id(
+                "career-connector-result",
+                payload,
+            )
+
+            if self.result_id != expected_result_id:
+                raise ValueError(
+                    "Career connector result ID does not match canonical payload"
+                )
+
+            return self
+
+        if self.content_evidence_id is None:
+            raise ValueError("Legacy connector result requires content_evidence_id")
+
+        if self.projection_evidence_id is not None:
+            raise ValueError(
+                "Legacy connector result may not carry projection_evidence_id"
+            )
+
+        if (
+            self.parser_text_sha256 is not None
+            and self.parser_text_sha256 != self.normalized_text_sha256
+        ):
+            raise ValueError(
+                "Legacy result parser hash does not match normalized compatibility hash"
+            )
         _require_aware(
             self.observed_at,
             "observed_at",
@@ -828,92 +1011,52 @@ class CareerConnectorResult(BaseModel):
             "source_url",
         )
 
-        if self.candidate_count != len(
-            self.candidates
-        ):
-            raise ValueError(
-                "candidate_count does not match "
-                "candidate tuple length"
-            )
+        if self.candidate_count != len(self.candidates):
+            raise ValueError("candidate_count does not match candidate tuple length")
 
         candidate_ids: list[str] = []
 
         for candidate in self.candidates:
-            if (
-                candidate.connector_id
-                != self.connector_id
-            ):
+            if candidate.connector_id != self.connector_id:
+                raise ValueError("Result contains candidate from another connector")
+
+            if candidate.discovery_research_evidence_id != self.research_evidence_id:
                 raise ValueError(
-                    "Result contains candidate from "
-                    "another connector"
+                    "Candidate research evidence does not match result evidence"
+                )
+
+            if candidate.discovery_content_evidence_id != self.content_evidence_id:
+                raise ValueError(
+                    "Candidate content evidence does not match result evidence"
                 )
 
             if (
-                candidate
-                .discovery_research_evidence_id
-                != self.research_evidence_id
-            ):
-                raise ValueError(
-                    "Candidate research evidence "
-                    "does not match result evidence"
-                )
-
-            if (
-                candidate
-                .discovery_content_evidence_id
-                != self.content_evidence_id
-            ):
-                raise ValueError(
-                    "Candidate content evidence "
-                    "does not match result evidence"
-                )
-
-            if (
-                candidate
-                .discovery_normalized_text_sha256
+                candidate.discovery_normalized_text_sha256
                 != self.normalized_text_sha256
             ):
                 raise ValueError(
-                    "Candidate content hash does not "
-                    "match result content hash"
+                    "Candidate content hash does not match result content hash"
                 )
 
-            if (
-                candidate.observed_at
-                != self.observed_at
-            ):
+            if candidate.observed_at != self.observed_at:
                 raise ValueError(
-                    "Candidate observation timestamp "
-                    "does not match result timestamp"
+                    "Candidate observation timestamp does not match result timestamp"
                 )
 
-            candidate_ids.append(
-                candidate.candidate_id
-            )
+            candidate_ids.append(candidate.candidate_id)
 
         payload = {
-            "connector_id":
-                self.connector_id,
-            "research_evidence_id":
-                self.research_evidence_id,
-            "content_evidence_id":
-                self.content_evidence_id,
-            "source_url":
-                self.source_url,
-            "normalized_text_sha256":
-                self.normalized_text_sha256,
-            "observed_at":
-                self.observed_at,
-            "candidate_ids":
-                candidate_ids,
-            "candidate_count":
-                self.candidate_count,
-            "metadata_is_job_truth":
-                False,
-            "production_truth_mutation_allowed":
-                False,
-            "application_authority_granted":
-                False,
+            "connector_id": self.connector_id,
+            "research_evidence_id": self.research_evidence_id,
+            "content_evidence_id": self.content_evidence_id,
+            "source_url": self.source_url,
+            "normalized_text_sha256": self.normalized_text_sha256,
+            "observed_at": self.observed_at,
+            "candidate_ids": candidate_ids,
+            "candidate_count": self.candidate_count,
+            "metadata_is_job_truth": False,
+            "production_truth_mutation_allowed": False,
+            "application_authority_granted": False,
         }
 
         expected_result_id = _content_id(
@@ -922,10 +1065,7 @@ class CareerConnectorResult(BaseModel):
         )
 
         if self.result_id != expected_result_id:
-            raise ValueError(
-                "result_id does not match "
-                "canonical connector result"
-            )
+            raise ValueError("result_id does not match canonical connector result")
 
         return self
 
@@ -943,11 +1083,9 @@ class CareerConnector(Protocol):
     @property
     def descriptor(
         self,
-    ) -> CareerConnectorDescriptor:
-        ...
+    ) -> CareerConnectorDescriptor: ...
 
     def parse_candidates(
         self,
         parse_input: CareerConnectorParseInput,
-    ) -> CareerConnectorResult:
-        ...
+    ) -> CareerConnectorResult: ...

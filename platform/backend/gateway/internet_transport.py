@@ -20,6 +20,10 @@ from gateway.internet_destination_policy import (
     InternetDestinationPreflightAdmission,
     InternetDestinationRequest,
 )
+from gateway.workday_cxs_request import (
+    WorkdayCXSRequestError,
+    validate_workday_cxs_jobs_body,
+)
 
 TRANSPORT_ID = "dap-pinned-https-http1-v1"
 _REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
@@ -96,7 +100,11 @@ class InternetRetrievalResult(BaseModel):
     transport_id: Literal["dap-pinned-https-http1-v1"] = "dap-pinned-https-http1-v1"
     requested_url: str
     final_url: str
-    method: Literal["GET", "HEAD"]
+    method: Literal["GET", "HEAD", "POST"]
+    request_body_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     status_code: int
     reason: str
     content_type: str | None
@@ -112,6 +120,33 @@ class InternetRetrievalResult(BaseModel):
     agent_tool_registration_performed: Literal[False] = False
     guardian_contacted: Literal[False] = False
     privileged_host_action_performed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def validate_request_body_binding(
+        self,
+    ) -> InternetRetrievalResult:
+
+        if self.method == "POST":
+
+            if (
+                self.request_body_sha256
+                is None
+            ):
+                raise ValueError(
+                    "POST retrieval result requires "
+                    "request-body SHA-256."
+                )
+
+        elif (
+            self.request_body_sha256
+            is not None
+        ):
+            raise ValueError(
+                "GET/HEAD retrieval result may not "
+                "bind a request body."
+            )
+
+        return self
 
 
 class _ConnectionWriter(Protocol):
@@ -227,13 +262,19 @@ class PinnedHTTPSFetcher:
     async def fetch(
         self,
         admission: InternetDestinationAdmission,
+        *,
+        request_body: bytes | None = None,
     ) -> tuple[str, _ParsedHTTPResponse]:
         raise_if_current_cancellation_requested(boundary="before-internet-connect")
 
         last_error: Exception | None = None
         for address in admission.approved_addresses:
             try:
-                response = await self._fetch_from_address(admission, address)
+                response = await self._fetch_from_address(
+                    admission,
+                    address,
+                    request_body=request_body,
+                )
                 return address, response
             except InternetTransportError as exc:
                 last_error = exc
@@ -253,6 +294,8 @@ class PinnedHTTPSFetcher:
         self,
         admission: InternetDestinationAdmission,
         address: str,
+        *,
+        request_body: bytes | None = None,
     ) -> _ParsedHTTPResponse:
         if address not in admission.approved_addresses:
             raise InternetTransportError(
@@ -290,7 +333,10 @@ class PinnedHTTPSFetcher:
             ) from exc
 
         try:
-            request_bytes = self._build_request(admission)
+            request_bytes = self._build_request(
+                admission,
+                request_body=request_body,
+            )
             writer.write(request_bytes)
             await asyncio.wait_for(writer.drain(), timeout=self._limits.read_timeout_seconds)
             raise_if_current_cancellation_requested(boundary="after-internet-request-write")
@@ -303,43 +349,166 @@ class PinnedHTTPSFetcher:
                 pass
 
     @staticmethod
-    def _build_request(admission: InternetDestinationAdmission) -> bytes:
-        parsed = urlsplit(admission.canonical_url)
-        target = parsed.path or "/"
+    def _build_request(
+        admission: InternetDestinationAdmission,
+        *,
+        request_body: bytes | None = None,
+    ) -> bytes:
+
+        parsed = urlsplit(
+            admission.canonical_url
+        )
+
+        target = (
+            parsed.path
+            or "/"
+        )
+
         if parsed.query:
-            target = f"{target}?{parsed.query}"
+            target = (
+                f"{target}?{parsed.query}"
+            )
+
         try:
-            target_bytes = target.encode("ascii")
+            target_bytes = target.encode(
+                "ascii"
+            )
+
         except UnicodeEncodeError as exc:
             raise InternetTransportError(
                 "request-target-non-ascii",
-                "Canonical request target must be ASCII/percent-encoded.",
+                (
+                    "Canonical request target "
+                    "must be ASCII/percent-encoded."
+                ),
             ) from exc
-        if b"\r" in target_bytes or b"\n" in target_bytes or b" " in target_bytes:
+
+        if (
+            b"\r"
+            in target_bytes
+            or b"\n"
+            in target_bytes
+            or b" "
+            in target_bytes
+        ):
             raise InternetTransportError(
                 "request-target-invalid",
-                "Canonical request target contains unsafe request-line bytes.",
+                (
+                    "Canonical request target "
+                    "contains unsafe request-line bytes."
+                ),
+            )
+
+        body = b""
+
+        if admission.method == "POST":
+
+            if request_body is None:
+                raise InternetTransportError(
+                    "request-body-required",
+                    (
+                        "Bounded Workday POST "
+                        "requires a request body."
+                    ),
+                )
+
+            try:
+                body_sha256 = (
+                    validate_workday_cxs_jobs_body(
+                        request_body
+                    )
+                )
+
+            except WorkdayCXSRequestError as exc:
+                raise InternetTransportError(
+                    "request-body-invalid",
+                    str(exc),
+                ) from exc
+
+            if (
+                admission.request_body_sha256
+                != body_sha256
+            ):
+                raise InternetTransportError(
+                    "request-body-hash-mismatch",
+                    (
+                        "POST request body does "
+                        "not match destination admission."
+                    ),
+                )
+
+            body = request_body
+
+        elif request_body is not None:
+            raise InternetTransportError(
+                "request-body-unexpected",
+                (
+                    "GET/HEAD transport may not "
+                    "send a request body."
+                ),
             )
 
         host_header = (
-            f"[{admission.hostname}]" if ":" in admission.hostname else admission.hostname
+            f"[{admission.hostname}]"
+            if ":" in admission.hostname
+            else admission.hostname
         )
-        lines = (
-            f"{admission.method} {target} HTTP/1.1",
+
+        lines = [
+            (
+                f"{admission.method} "
+                f"{target} HTTP/1.1"
+            ),
             f"Host: {host_header}",
-            "User-Agent: DAP-InternetResearchGateway/12D",
-            "Accept: text/html,text/plain,application/json,application/pdf,application/xhtml+xml,application/xml,text/xml;q=0.9",
+            (
+                "User-Agent: "
+                "DAP-InternetResearchGateway/12D"
+            ),
+            (
+                "Accept: text/html,text/plain,"
+                "application/json,application/pdf,"
+                "application/xhtml+xml,"
+                "application/xml,text/xml;q=0.9"
+            ),
             "Accept-Encoding: identity",
-            "Connection: close",
-            "",
-            "",
+        ]
+
+        if admission.method == "POST":
+
+            lines.extend(
+                [
+                    (
+                        "Content-Type: "
+                        "application/json"
+                    ),
+                    (
+                        f"Content-Length: "
+                        f"{len(body)}"
+                    ),
+                ]
+            )
+
+        lines.extend(
+            [
+                "Connection: close",
+                "",
+                "",
+            ]
         )
-        return "\r\n".join(lines).encode("ascii")
+
+        headers = "\r\n".join(
+            lines
+        ).encode(
+            "ascii"
+        )
+
+        return headers + body
+
 
     async def _read_response(
         self,
         reader: asyncio.StreamReader,
-        method: Literal["GET", "HEAD"],
+        method: Literal["GET", "HEAD", "POST"],
     ) -> _ParsedHTTPResponse:
         try:
             raw_headers = await asyncio.wait_for(
@@ -696,6 +865,278 @@ class BoundedInternetRetriever:
                 "retrieval-total-timeout",
                 "Internet retrieval exceeded the total Phase 12 time budget.",
             ) from exc
+
+    async def retrieve_workday_cxs_jobs(
+        self,
+        url: str,
+        *,
+        request_body: bytes,
+    ) -> InternetRetrievalResult:
+
+        try:
+
+            request_body_sha256 = (
+                validate_workday_cxs_jobs_body(
+                    request_body
+                )
+            )
+
+        except WorkdayCXSRequestError as exc:
+
+            raise InternetTransportError(
+                "request-body-invalid",
+                str(exc),
+            ) from exc
+
+        try:
+
+            async with asyncio.timeout(
+                self._limits
+                .total_timeout_seconds
+            ):
+
+                return await (
+                    self
+                    ._retrieve_workday_cxs_jobs_within_budget(
+                        url=url,
+                        request_body=request_body,
+                        request_body_sha256=(
+                            request_body_sha256
+                        ),
+                    )
+                )
+
+        except TimeoutError as exc:
+
+            raise InternetTransportError(
+                "retrieval-total-timeout",
+                (
+                    "Workday CXS retrieval "
+                    "exceeded the total Phase 12 "
+                    "time budget."
+                ),
+            ) from exc
+
+    async def _retrieve_workday_cxs_jobs_within_budget(
+        self,
+        *,
+        url: str,
+        request_body: bytes,
+        request_body_sha256: str,
+    ) -> InternetRetrievalResult:
+
+        requested_url = (
+            url.strip()
+        )
+
+        if not requested_url:
+
+            raise InternetTransportError(
+                "destination-preflight-rejected",
+                "Workday POST URL is required.",
+            )
+
+        raise_if_current_cancellation_requested(
+            boundary=(
+                "before-internet-preflight"
+            )
+        )
+
+        preflight = (
+            self._policy.preflight(
+                InternetDestinationIntent(
+                    url=requested_url,
+                    method="POST",
+                    redirect_depth=0,
+                    request_body_sha256=(
+                        request_body_sha256
+                    ),
+                )
+            )
+        )
+
+        if (
+            preflight.disposition
+            != "accepted"
+            or preflight.admission
+            is None
+        ):
+
+            raise InternetTransportError(
+                "destination-preflight-rejected",
+                (
+                    "Workday POST destination "
+                    "failed Phase 12 pre-DNS "
+                    "admission."
+                ),
+            )
+
+        resolution = (
+            await self._resolver.resolve(
+                preflight.admission
+            )
+        )
+
+        decision = (
+            self._policy.evaluate(
+                InternetDestinationRequest(
+                    url=(
+                        preflight.admission
+                        .canonical_url
+                    ),
+                    method="POST",
+                    redirect_depth=0,
+                    request_body_sha256=(
+                        request_body_sha256
+                    ),
+                    resolved_addresses=(
+                        resolution.addresses
+                    ),
+                )
+            )
+        )
+
+        if (
+            decision.disposition
+            != "accepted"
+            or decision.admission
+            is None
+        ):
+
+            raise InternetTransportError(
+                "destination-addresses-rejected",
+                (
+                    "Workday POST destination "
+                    "failed public-address "
+                    "admission."
+                ),
+            )
+
+        connected_address, response = (
+            await self._fetcher.fetch(
+                decision.admission,
+                request_body=(
+                    request_body
+                ),
+            )
+        )
+
+        if (
+            response.redirect_location
+            is not None
+        ):
+
+            raise InternetTransportError(
+                "post-redirect-rejected",
+                (
+                    "Workday POST redirects "
+                    "are prohibited."
+                ),
+            )
+
+        if (
+            response.status_code
+            != 200
+        ):
+
+            raise InternetTransportError(
+                "workday-post-http-error",
+                (
+                    "Workday CXS listing "
+                    "returned HTTP "
+                    f"{response.status_code}."
+                ),
+            )
+
+        if (
+            response.content_type
+            != "application/json"
+        ):
+
+            raise InternetTransportError(
+                "workday-post-content-type-rejected",
+                (
+                    "Workday CXS listing "
+                    "must return "
+                    "application/json."
+                ),
+            )
+
+        hop = InternetRetrievalHop(
+            redirect_depth=0,
+            canonical_url=(
+                decision.admission
+                .canonical_url
+            ),
+            destination_admission_id=(
+                decision.admission
+                .admission_id
+            ),
+            destination_admission_sha256=(
+                decision.admission
+                .admission_sha256
+            ),
+            approved_addresses=(
+                decision.admission
+                .approved_addresses
+            ),
+            connected_address=(
+                connected_address
+            ),
+            status_code=(
+                response.status_code
+            ),
+            redirect_location=None,
+        )
+
+        body_sha256 = hashlib.sha256(
+            response.body
+        ).hexdigest()
+
+        return InternetRetrievalResult(
+            requested_url=(
+                requested_url
+            ),
+            final_url=(
+                decision.admission
+                .canonical_url
+            ),
+            method="POST",
+            request_body_sha256=(
+                request_body_sha256
+            ),
+            status_code=(
+                response.status_code
+            ),
+            reason=(
+                response.reason
+            ),
+            content_type=(
+                response.content_type
+            ),
+            content_length=(
+                response.content_length
+            ),
+            body=(
+                response.body
+            ),
+            body_sha256=(
+                body_sha256
+            ),
+            byte_count=len(
+                response.body
+            ),
+            etag=(
+                response.etag
+            ),
+            last_modified=(
+                response.last_modified
+            ),
+            hops=(
+                hop,
+            ),
+        )
+
 
     async def _retrieve_within_budget(
         self,

@@ -27,6 +27,10 @@ from gateway.internet_transport import (
     InternetRetrievalResult,
     InternetTransportError,
 )
+from gateway.workday_cxs_request import (
+    WorkdayCXSRequestError,
+    validate_workday_cxs_jobs_body,
+)
 from gateway.research_contract import (
     ResearchRequest,
     research_source_registry,
@@ -793,6 +797,567 @@ class Phase16ExplicitRetrievalService:
                         ),
                     )
                 )
+
+    async def retrieve_workday_cxs_jobs(
+        self,
+        *,
+        request: ResearchRequest,
+        url: str,
+        request_body: bytes,
+    ) -> Phase16ExplicitRetrievalTerminal:
+        """
+        Retrieve one bounded Workday CXS jobs page.
+
+        retrieve_explicit_url() remains GET-only.
+        """
+        self._require_public_web_request(
+            request
+        )
+
+        if url != url.strip():
+            raise ValueError(
+                "Workday retrieval URL must "
+                "already be normalized."
+            )
+
+        if not url:
+            raise ValueError(
+                "Workday retrieval URL is required."
+            )
+
+        try:
+            request_body_sha256 = (
+                validate_workday_cxs_jobs_body(
+                    request_body
+                )
+            )
+
+        except WorkdayCXSRequestError as exc:
+            raise ValueError(
+                "Workday retrieval request body "
+                "failed the bounded contract."
+            ) from exc
+
+        source = research_source_registry.get(
+            "public_web"
+        )
+
+        if (
+            not source.execution_enabled
+            or source.tool_id
+            != "internet.research.retrieve"
+            or source.provider_id
+            != "dap-public-http"
+        ):
+            raise RuntimeError(
+                "DAP public-web execution is not "
+                "admitted by the source registry."
+            )
+
+        repository = (
+            self._repository_factory()
+        )
+
+        operations_repository = (
+            self._resolve_operations_repository(
+                repository
+            )
+        )
+
+        started = self._timer_provider()
+
+        attempt_count = 0
+        transient_retry_count = 0
+
+        retry_trigger_error_code: (
+            str | None
+        ) = None
+
+        while True:
+            attempt_count += 1
+
+            try:
+
+                retrieval = (
+                    await self._retriever
+                    .retrieve_workday_cxs_jobs(
+                        url,
+                        request_body=request_body,
+                    )
+                )
+
+                if retrieval.method != "POST":
+                    raise RuntimeError(
+                        "Bounded Workday retriever "
+                        "returned a non-POST result."
+                    )
+
+                if (
+                    retrieval.request_body_sha256
+                    != request_body_sha256
+                ):
+                    raise RuntimeError(
+                        "Bounded Workday retriever "
+                        "returned the wrong body binding."
+                    )
+
+                content = (
+                    self._normalizer.normalize(
+                        retrieval
+                    )
+                )
+
+                observed_at = (
+                    self._aware_now()
+                )
+
+                evidence = (
+                    self._evidence_factory
+                    .build_success(
+                        request=request,
+                        retrieval=retrieval,
+                        content=content,
+                        observed_at=observed_at,
+                    )
+                )
+
+                if (
+                    evidence.method != "POST"
+                    or evidence.request_body_sha256
+                    != request_body_sha256
+                ):
+                    raise RuntimeError(
+                        "Workday success evidence "
+                        "lost the POST body binding."
+                    )
+
+                persisted = repository.persist(
+                    evidence
+                )
+
+                duration_ms = (
+                    self._elapsed_ms(
+                        started
+                    )
+                )
+
+                source_family = (
+                    canonical_source_family(
+                        retrieval.final_url
+                    )
+                )
+
+                recovered_after_retry = (
+                    transient_retry_count > 0
+                )
+
+                self._persist_operations_event(
+                    operations_repository,
+                    event=(
+                        ResearchOperationsEvent.build(
+                            event_type=(
+                                "retrieval-source"
+                            ),
+                            provider_id=(
+                                source.provider_id
+                            ),
+                            outcome="succeeded",
+                            request_id=(
+                                request.request_id
+                            ),
+                            evidence_id=(
+                                evidence.evidence_id
+                            ),
+                            source_family=(
+                                source_family
+                            ),
+                            stage="completed",
+                            error_code=(
+                                retry_trigger_error_code
+                            ),
+                            duration_ms=(
+                                duration_ms
+                            ),
+                            attempt_count=(
+                                attempt_count
+                            ),
+                            transient_retry_count=(
+                                transient_retry_count
+                            ),
+                            recovered_after_retry=(
+                                recovered_after_retry
+                            ),
+                            recorded_at=(
+                                observed_at
+                            ),
+                        )
+                    ),
+                )
+
+                return (
+                    Phase16ExplicitRetrievalSuccess(
+                        requested_url=url,
+                        retrieval=retrieval,
+                        content=content,
+                        evidence=evidence,
+                        persisted=persisted,
+                        source_family=(
+                            source_family
+                        ),
+                        duration_ms=(
+                            duration_ms
+                        ),
+                        attempt_count=(
+                            attempt_count
+                        ),
+                        transient_retry_count=(
+                            transient_retry_count
+                        ),
+                        recovered_after_retry=(
+                            recovered_after_retry
+                        ),
+                        retry_trigger_error_code=(
+                            retry_trigger_error_code
+                        ),
+                    )
+                )
+
+            except (
+                CooperativeCancellationRequested
+            ) as exc:
+
+                observed_at = (
+                    self._aware_now()
+                )
+
+                cancelled = (
+                    self._evidence_factory
+                    .build_cancelled(
+                        request=request,
+                        requested_url=url,
+                        method="POST",
+                        request_body_sha256=(
+                            request_body_sha256
+                        ),
+                        error_detail=str(exc),
+                        observed_at=(
+                            observed_at
+                        ),
+                    )
+                )
+
+                repository.persist(
+                    cancelled
+                )
+
+                self._persist_operations_event(
+                    operations_repository,
+                    event=(
+                        ResearchOperationsEvent.build(
+                            event_type=(
+                                "retrieval-source"
+                            ),
+                            provider_id=(
+                                source.provider_id
+                            ),
+                            outcome="cancelled",
+                            request_id=(
+                                request.request_id
+                            ),
+                            evidence_id=(
+                                cancelled.evidence_id
+                            ),
+                            source_family=(
+                                self._safe_source_family(
+                                    url
+                                )
+                            ),
+                            stage="cancelled",
+                            error_code="cancelled",
+                            duration_ms=(
+                                self._elapsed_ms(
+                                    started
+                                )
+                            ),
+                            attempt_count=(
+                                attempt_count
+                            ),
+                            transient_retry_count=(
+                                transient_retry_count
+                            ),
+                            recovered_after_retry=False,
+                            recorded_at=(
+                                observed_at
+                            ),
+                        )
+                    ),
+                )
+
+                raise
+
+            except InternetTransportError as exc:
+
+                if self._should_retry_transport_error(
+                    exc.code,
+                    transient_retry_count=(
+                        transient_retry_count
+                    ),
+                ):
+
+                    transient_retry_count += 1
+
+                    retry_trigger_error_code = (
+                        exc.code
+                    )
+
+                    await self._sleep_provider(
+                        TRANSIENT_RETRY_BACKOFF_SECONDS
+                    )
+
+                    continue
+
+                observed_at = (
+                    self._aware_now()
+                )
+
+                stage = (
+                    self._transport_stage(
+                        exc.code
+                    )
+                )
+
+                failure = (
+                    self._evidence_factory
+                    .build_failure(
+                        request=request,
+                        requested_url=url,
+                        method="POST",
+                        request_body_sha256=(
+                            request_body_sha256
+                        ),
+                        stage=stage,
+                        error_code=(
+                            exc.code
+                        ),
+                        error_detail=(
+                            exc.detail
+                        ),
+                        observed_at=(
+                            observed_at
+                        ),
+                    )
+                )
+
+                persisted = (
+                    repository.persist(
+                        failure
+                    )
+                )
+
+                duration_ms = (
+                    self._elapsed_ms(
+                        started
+                    )
+                )
+
+                source_family = (
+                    self._safe_source_family(
+                        url
+                    )
+                )
+
+                self._persist_operations_event(
+                    operations_repository,
+                    event=(
+                        ResearchOperationsEvent.build(
+                            event_type=(
+                                "retrieval-source"
+                            ),
+                            provider_id=(
+                                source.provider_id
+                            ),
+                            outcome="failed",
+                            request_id=(
+                                request.request_id
+                            ),
+                            evidence_id=(
+                                failure.evidence_id
+                            ),
+                            source_family=(
+                                source_family
+                            ),
+                            stage=stage,
+                            error_code=(
+                                exc.code
+                            ),
+                            duration_ms=(
+                                duration_ms
+                            ),
+                            attempt_count=(
+                                attempt_count
+                            ),
+                            transient_retry_count=(
+                                transient_retry_count
+                            ),
+                            recovered_after_retry=False,
+                            recorded_at=(
+                                observed_at
+                            ),
+                        )
+                    ),
+                )
+
+                return (
+                    Phase16ExplicitRetrievalFailure(
+                        requested_url=url,
+                        evidence=failure,
+                        persisted=persisted,
+                        source_family=(
+                            source_family
+                        ),
+                        duration_ms=(
+                            duration_ms
+                        ),
+                        attempt_count=(
+                            attempt_count
+                        ),
+                        transient_retry_count=(
+                            transient_retry_count
+                        ),
+                        recovered_after_retry=False,
+                        retry_trigger_error_code=(
+                            retry_trigger_error_code
+                        ),
+                        error_code=(
+                            exc.code
+                        ),
+                        error_detail=(
+                            exc.detail
+                        ),
+                    )
+                )
+
+            except (
+                InternetContentNormalizationError
+            ) as exc:
+
+                observed_at = (
+                    self._aware_now()
+                )
+
+                failure = (
+                    self._evidence_factory
+                    .build_failure(
+                        request=request,
+                        requested_url=url,
+                        method="POST",
+                        request_body_sha256=(
+                            request_body_sha256
+                        ),
+                        stage=(
+                            "content-normalization"
+                        ),
+                        error_code=(
+                            exc.code
+                        ),
+                        error_detail=(
+                            exc.detail
+                        ),
+                        observed_at=(
+                            observed_at
+                        ),
+                    )
+                )
+
+                persisted = repository.persist(
+                    failure
+                )
+
+                duration_ms = (
+                    self._elapsed_ms(
+                        started
+                    )
+                )
+
+                source_family = (
+                    self._safe_source_family(
+                        url
+                    )
+                )
+
+                self._persist_operations_event(
+                    operations_repository,
+                    event=(
+                        ResearchOperationsEvent.build(
+                            event_type=(
+                                "retrieval-source"
+                            ),
+                            provider_id=(
+                                source.provider_id
+                            ),
+                            outcome="failed",
+                            request_id=(
+                                request.request_id
+                            ),
+                            evidence_id=(
+                                failure.evidence_id
+                            ),
+                            source_family=(
+                                source_family
+                            ),
+                            stage=(
+                                "content-normalization"
+                            ),
+                            error_code=(
+                                exc.code
+                            ),
+                            duration_ms=(
+                                duration_ms
+                            ),
+                            attempt_count=(
+                                attempt_count
+                            ),
+                            transient_retry_count=(
+                                transient_retry_count
+                            ),
+                            recovered_after_retry=False,
+                            recorded_at=(
+                                observed_at
+                            ),
+                        )
+                    ),
+                )
+
+                return (
+                    Phase16ExplicitRetrievalFailure(
+                        requested_url=url,
+                        evidence=failure,
+                        persisted=persisted,
+                        source_family=(
+                            source_family
+                        ),
+                        duration_ms=(
+                            duration_ms
+                        ),
+                        attempt_count=(
+                            attempt_count
+                        ),
+                        transient_retry_count=(
+                            transient_retry_count
+                        ),
+                        recovered_after_retry=False,
+                        retry_trigger_error_code=(
+                            retry_trigger_error_code
+                        ),
+                        error_code=(
+                            exc.code
+                        ),
+                        error_detail=(
+                            exc.detail
+                        ),
+                    )
+                )
+
 
     @staticmethod
     def _require_public_web_request(

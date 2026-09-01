@@ -82,7 +82,11 @@ class ResearchRetrievalEvidence(BaseModel):
     stage: ResearchRetrievalStage
     requested_url: str
     final_url: str | None = None
-    method: Literal["GET", "HEAD"]
+    method: Literal["GET", "HEAD", "POST"]
+    request_body_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     transport_id: str = TRANSPORT_ID
     status_code: int | None = Field(default=None, ge=100, le=599)
     content_type: str | None = None
@@ -114,6 +118,27 @@ class ResearchRetrievalEvidence(BaseModel):
 
     @model_validator(mode="after")
     def validate_terminal_shape(self) -> ResearchRetrievalEvidence:
+
+        if self.method == "POST":
+
+            if (
+                self.request_body_sha256
+                is None
+            ):
+                raise ValueError(
+                    "POST retrieval evidence "
+                    "requires request-body SHA-256."
+                )
+
+        elif (
+            self.request_body_sha256
+            is not None
+        ):
+            raise ValueError(
+                "GET/HEAD evidence may not "
+                "bind a request body."
+            )
+
         if (self.canonical_task_id is None) != (self.canonical_admission_sha256 is None):
             raise ValueError("canonical task and admission bindings must be supplied together")
 
@@ -149,8 +174,29 @@ class ResearchRetrievalEvidence(BaseModel):
         return self
 
     def canonical_hash(self) -> str:
-        payload = self.model_dump(mode="json", exclude={"evidence_id", "evidence_sha256"})
-        return _canonical_hash(payload)
+
+        payload = self.model_dump(
+            mode="json",
+            exclude={
+                "evidence_id",
+                "evidence_sha256",
+            },
+        )
+
+        if (
+            payload.get(
+                "request_body_sha256"
+            )
+            is None
+        ):
+            payload.pop(
+                "request_body_sha256",
+                None,
+            )
+
+        return _canonical_hash(
+            payload
+        )
 
 
 class ResearchRetrievalEvidenceFactory:
@@ -229,14 +275,30 @@ class ResearchRetrievalEvidenceFactory:
             "guardian_contacted": False,
             "privileged_host_action_performed": False,
         }
-        return self._build_from_payload(payload)
+
+        if (
+            retrieval
+            .request_body_sha256
+            is not None
+        ):
+            payload[
+                "request_body_sha256"
+            ] = (
+                retrieval
+                .request_body_sha256
+            )
+
+        return self._build_from_payload(
+            payload
+        )
 
     def build_failure(
         self,
         *,
         request: ResearchRequest,
         requested_url: str,
-        method: Literal["GET", "HEAD"],
+        method: Literal["GET", "HEAD", "POST"],
+        request_body_sha256: str | None = None,
         stage: ExcludeCancelledStage,
         error_code: str,
         error_detail: str,
@@ -246,6 +308,9 @@ class ResearchRetrievalEvidenceFactory:
             request=request,
             requested_url=requested_url,
             method=method,
+            request_body_sha256=(
+                request_body_sha256
+            ),
             outcome="failed",
             stage=stage,
             error_code=error_code,
@@ -258,7 +323,8 @@ class ResearchRetrievalEvidenceFactory:
         *,
         request: ResearchRequest,
         requested_url: str,
-        method: Literal["GET", "HEAD"],
+        method: Literal["GET", "HEAD", "POST"],
+        request_body_sha256: str | None = None,
         error_detail: str,
         observed_at: datetime,
     ) -> ResearchRetrievalEvidence:
@@ -266,6 +332,9 @@ class ResearchRetrievalEvidenceFactory:
             request=request,
             requested_url=requested_url,
             method=method,
+            request_body_sha256=(
+                request_body_sha256
+            ),
             outcome="cancelled",
             stage="cancelled",
             error_code="cancelled",
@@ -278,7 +347,8 @@ class ResearchRetrievalEvidenceFactory:
         *,
         request: ResearchRequest,
         requested_url: str,
-        method: Literal["GET", "HEAD"],
+        method: Literal["GET", "HEAD", "POST"],
+        request_body_sha256: str | None,
         outcome: Literal["failed", "cancelled"],
         stage: ResearchRetrievalStage,
         error_code: str,
@@ -323,7 +393,20 @@ class ResearchRetrievalEvidenceFactory:
             "guardian_contacted": False,
             "privileged_host_action_performed": False,
         }
-        return self._build_from_payload(payload)
+
+        if (
+            request_body_sha256
+            is not None
+        ):
+            payload[
+                "request_body_sha256"
+            ] = (
+                request_body_sha256
+            )
+
+        return self._build_from_payload(
+            payload
+        )
 
     @staticmethod
     def _build_citation(

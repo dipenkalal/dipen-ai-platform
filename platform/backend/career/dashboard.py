@@ -216,13 +216,9 @@ class CareerDashboardService:
 
                 WHERE j.verification_state = 'VERIFIED'
                   AND j.lifecycle_state = 'ACTIVE'
-                  AND f.verdict IN ('APPLY', 'CONSIDER')
+                  AND f.hard_exclusion_codes_json = '[]'
 
                 ORDER BY
-                    CASE f.verdict
-                        WHEN 'APPLY' THEN 0
-                        ELSE 1
-                    END,
                     f.fit_score DESC,
                     s.posted_at DESC,
                     j.job_id ASC
@@ -332,7 +328,7 @@ class CareerDashboardService:
 
                 WHERE j.verification_state = 'VERIFIED'
                   AND j.lifecycle_state = 'ACTIVE'
-                  AND f.verdict IN ('APPLY', 'CONSIDER')
+                  AND f.hard_exclusion_codes_json = '[]'
 
                 GROUP BY f.verdict
                 """
@@ -367,9 +363,8 @@ class CareerDashboardService:
             ),
             apply_jobs=apply_jobs,
             consider_jobs=consider_jobs,
-            visible_jobs=(
-                apply_jobs
-                + consider_jobs
+            visible_jobs=sum(
+                verdict_counts.values()
             ),
             application_records=int(
                 application_row["count"]
