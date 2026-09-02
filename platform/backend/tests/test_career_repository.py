@@ -21,6 +21,9 @@ EXPECTED_PHASE16_DDL_SHA256 = (
 
 EXPECTED_CAREER_TABLES = {
     "career_application_events",
+    "career_application_material_events",
+    "career_application_material_versions",
+    "career_application_materials",
     "career_applications",
     "career_fit_assessments",
     "career_job_evidence_links",
@@ -31,7 +34,10 @@ EXPECTED_CAREER_TABLES = {
 
 EXPECTED_CAREER_INDEXES = {
     "idx_career_application_events",
+    "idx_career_application_materials_application",
     "idx_career_applications_job",
+    "idx_career_material_events_version",
+    "idx_career_material_versions_material",
     "idx_career_applications_state",
     "idx_career_evidence_research",
     "idx_career_evidence_snapshot",

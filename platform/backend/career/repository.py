@@ -9,6 +9,9 @@ from typing import Protocol
 from career.schemas import (
     CareerApplication,
     CareerApplicationEvent,
+    CareerApplicationMaterial,
+    CareerApplicationMaterialEvent,
+    CareerApplicationMaterialVersion,
     CareerFitAssessment,
     CareerJobEvidenceLink,
     CareerJobPosting,
@@ -214,6 +217,77 @@ class CareerRepository:
                         )
                 );
 
+                CREATE TABLE IF NOT EXISTS
+                career_application_materials (
+                    material_id TEXT PRIMARY KEY,
+                    application_id TEXT NOT NULL,
+                    material_kind TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (application_id)
+                        REFERENCES career_applications(
+                            application_id
+                        ),
+                    UNIQUE (
+                        application_id,
+                        material_kind,
+                        label
+                    )
+                );
+
+                CREATE TABLE IF NOT EXISTS
+                career_application_material_versions (
+                    material_version_id TEXT PRIMARY KEY,
+                    material_id TEXT NOT NULL,
+                    version_number INTEGER NOT NULL
+                        CHECK (version_number > 0),
+                    source_snapshot_id TEXT NOT NULL,
+                    parent_material_version_id TEXT,
+                    content_format TEXT NOT NULL,
+                    content_text TEXT NOT NULL,
+                    content_sha256 TEXT NOT NULL,
+                    provenance_json TEXT NOT NULL,
+                    created_by_kind TEXT NOT NULL,
+                    created_by_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (material_id)
+                        REFERENCES career_application_materials(
+                            material_id
+                        ),
+                    FOREIGN KEY (source_snapshot_id)
+                        REFERENCES career_job_snapshots(
+                            snapshot_id
+                        ),
+                    FOREIGN KEY (
+                        parent_material_version_id
+                    )
+                        REFERENCES
+                        career_application_material_versions(
+                            material_version_id
+                        ),
+                    UNIQUE (
+                        material_id,
+                        version_number
+                    )
+                );
+
+                CREATE TABLE IF NOT EXISTS
+                career_application_material_events (
+                    material_event_id TEXT PRIMARY KEY,
+                    material_version_id TEXT NOT NULL,
+                    event_kind TEXT NOT NULL,
+                    actor_kind TEXT NOT NULL,
+                    actor_id TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    evidence_id TEXT,
+                    occurred_at TEXT NOT NULL,
+                    FOREIGN KEY (material_version_id)
+                        REFERENCES
+                        career_application_material_versions(
+                            material_version_id
+                        )
+                );
+
                 CREATE INDEX IF NOT EXISTS
                 idx_career_sources_state_tier
                 ON career_sources(state, trust_tier);
@@ -298,6 +372,27 @@ class CareerRepository:
                 ON career_application_events(
                     application_id,
                     occurred_at ASC
+                );
+
+                CREATE INDEX IF NOT EXISTS
+                idx_career_application_materials_application
+                ON career_application_materials(
+                    application_id,
+                    material_kind
+                );
+
+                CREATE INDEX IF NOT EXISTS
+                idx_career_material_versions_material
+                ON career_application_material_versions(
+                    material_id,
+                    version_number
+                );
+
+                CREATE INDEX IF NOT EXISTS
+                idx_career_material_events_version
+                ON career_application_material_events(
+                    material_version_id,
+                    occurred_at
                 );
                 """
             )
@@ -1546,3 +1641,734 @@ class CareerRepository:
             )
             for row in rows
         ]
+
+    def persist_material(
+        self,
+        material: CareerApplicationMaterial,
+    ) -> CareerApplicationMaterial:
+        existing = self.get_material(
+            material.material_id
+        )
+
+        if existing is not None:
+            if existing != material:
+                raise CareerPersistenceConflict(
+                    "Career material ID is already "
+                    "bound to different content."
+                )
+
+            return existing
+
+        if (
+            self.get_application(
+                material.application_id
+            )
+            is None
+        ):
+            raise ValueError(
+                "Career material references an "
+                "unknown application."
+            )
+
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO career_application_materials (
+                        material_id,
+                        application_id,
+                        material_kind,
+                        label,
+                        created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        material.material_id,
+                        material.application_id,
+                        material.material_kind,
+                        material.label,
+                        material.created_at.isoformat(),
+                    ),
+                )
+                connection.commit()
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Career material violates "
+                f"persistence integrity: {error}"
+            ) from error
+
+        stored = self.get_material(
+            material.material_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Career material could not be "
+                "read after save."
+            )
+
+        return stored
+
+    def get_material(
+        self,
+        material_id: str,
+    ) -> CareerApplicationMaterial | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM career_application_materials
+                WHERE material_id = ?
+                """,
+                (material_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return CareerApplicationMaterial.model_validate(
+            dict(row)
+        )
+
+    def list_application_materials(
+        self,
+        application_id: str,
+    ) -> list[CareerApplicationMaterial]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM career_application_materials
+                WHERE application_id = ?
+                ORDER BY
+                    material_kind ASC,
+                    label ASC,
+                    material_id ASC
+                """,
+                (application_id,),
+            ).fetchall()
+
+        return [
+            CareerApplicationMaterial.model_validate(
+                dict(row)
+            )
+            for row in rows
+        ]
+
+    def persist_material_version(
+        self,
+        version: CareerApplicationMaterialVersion,
+    ) -> CareerApplicationMaterialVersion:
+        existing = self.get_material_version(
+            version.material_version_id
+        )
+
+        if existing is not None:
+            if existing != version:
+                raise CareerPersistenceConflict(
+                    "Career material-version ID is "
+                    "already bound to different content."
+                )
+
+            return existing
+
+        material = self.get_material(
+            version.material_id
+        )
+
+        if material is None:
+            raise ValueError(
+                "Career material version references "
+                "an unknown material."
+            )
+
+        application = self.get_application(
+            material.application_id
+        )
+
+        if application is None:
+            raise ValueError(
+                "Career material references an "
+                "unknown application."
+            )
+
+        snapshot = self.get_snapshot(
+            version.source_snapshot_id
+        )
+
+        if snapshot is None:
+            raise ValueError(
+                "Career material version references "
+                "an unknown source snapshot."
+            )
+
+        if (
+            version.provenance.application_id
+            != material.application_id
+        ):
+            raise ValueError(
+                "Material provenance application_id "
+                "does not match material application."
+            )
+
+        if (
+            version.provenance.job_id
+            != application.job_id
+        ):
+            raise ValueError(
+                "Material provenance job_id does not "
+                "match application job."
+            )
+
+        if snapshot.job_id != application.job_id:
+            raise ValueError(
+                "Material source snapshot does not "
+                "belong to application job."
+            )
+
+        parent_id = (
+            version.parent_material_version_id
+        )
+
+        if parent_id is None:
+            if version.version_number != 1:
+                raise ValueError(
+                    "Material version without parent "
+                    "must be version 1."
+                )
+        else:
+            parent = self.get_material_version(
+                parent_id
+            )
+
+            if parent is None:
+                raise ValueError(
+                    "Material version references "
+                    "an unknown parent version."
+                )
+
+            if parent.material_id != version.material_id:
+                raise ValueError(
+                    "Material parent version belongs "
+                    "to a different material."
+                )
+
+            if (
+                version.version_number
+                != parent.version_number + 1
+            ):
+                raise ValueError(
+                    "Material version_number must "
+                    "increment parent by exactly one."
+                )
+
+        provenance_json = json.dumps(
+            version.provenance.model_dump(
+                mode="json"
+            ),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO
+                    career_application_material_versions (
+                        material_version_id,
+                        material_id,
+                        version_number,
+                        source_snapshot_id,
+                        parent_material_version_id,
+                        content_format,
+                        content_text,
+                        content_sha256,
+                        provenance_json,
+                        created_by_kind,
+                        created_by_id,
+                        created_at
+                    )
+                    VALUES (
+                        ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        version.material_version_id,
+                        version.material_id,
+                        version.version_number,
+                        version.source_snapshot_id,
+                        version.parent_material_version_id,
+                        version.content_format,
+                        version.content_text,
+                        version.content_sha256,
+                        provenance_json,
+                        version.created_by_kind,
+                        version.created_by_id,
+                        version.created_at.isoformat(),
+                    ),
+                )
+                connection.commit()
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Career material version violates "
+                f"persistence integrity: {error}"
+            ) from error
+
+        stored = self.get_material_version(
+            version.material_version_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Career material version could not "
+                "be read after save."
+            )
+
+        return stored
+
+    def get_material_version(
+        self,
+        material_version_id: str,
+    ) -> CareerApplicationMaterialVersion | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM career_application_material_versions
+                WHERE material_version_id = ?
+                """,
+                (material_version_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        payload = dict(row)
+
+        try:
+            payload["provenance"] = json.loads(
+                payload.pop("provenance_json")
+            )
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "Career material version contains "
+                "invalid provenance JSON."
+            ) from error
+
+        return (
+            CareerApplicationMaterialVersion
+            .model_validate(payload)
+        )
+
+    def list_material_versions(
+        self,
+        material_id: str,
+    ) -> list[CareerApplicationMaterialVersion]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM career_application_material_versions
+                WHERE material_id = ?
+                ORDER BY
+                    version_number ASC,
+                    material_version_id ASC
+                """,
+                (material_id,),
+            ).fetchall()
+
+        output: list[
+            CareerApplicationMaterialVersion
+        ] = []
+
+        for row in rows:
+            payload = dict(row)
+
+            try:
+                payload["provenance"] = json.loads(
+                    payload.pop("provenance_json")
+                )
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    "Career material version contains "
+                    "invalid provenance JSON."
+                ) from error
+
+            output.append(
+                CareerApplicationMaterialVersion
+                .model_validate(payload)
+            )
+
+        return output
+
+    def persist_material_event(
+        self,
+        event: CareerApplicationMaterialEvent,
+    ) -> CareerApplicationMaterialEvent:
+        existing = self.get_material_event(
+            event.material_event_id
+        )
+
+        if existing is not None:
+            if existing != event:
+                raise CareerPersistenceConflict(
+                    "Career material-event ID is "
+                    "already bound to different content."
+                )
+
+            return existing
+
+        if (
+            self.get_material_version(
+                event.material_version_id
+            )
+            is None
+        ):
+            raise ValueError(
+                "Career material event references "
+                "an unknown material version."
+            )
+
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO
+                    career_application_material_events (
+                        material_event_id,
+                        material_version_id,
+                        event_kind,
+                        actor_kind,
+                        actor_id,
+                        reason,
+                        evidence_id,
+                        occurred_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.material_event_id,
+                        event.material_version_id,
+                        event.event_kind,
+                        event.actor_kind,
+                        event.actor_id,
+                        event.reason,
+                        event.evidence_id,
+                        event.occurred_at.isoformat(),
+                    ),
+                )
+                connection.commit()
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Career material event violates "
+                f"persistence integrity: {error}"
+            ) from error
+
+        stored = self.get_material_event(
+            event.material_event_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Career material event could not "
+                "be read after save."
+            )
+
+        return stored
+
+    def get_material_event(
+        self,
+        material_event_id: str,
+    ) -> CareerApplicationMaterialEvent | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT *
+                FROM career_application_material_events
+                WHERE material_event_id = ?
+                """,
+                (material_event_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return CareerApplicationMaterialEvent.model_validate(
+            dict(row)
+        )
+
+    def list_material_events(
+        self,
+        material_version_id: str,
+    ) -> list[CareerApplicationMaterialEvent]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM career_application_material_events
+                WHERE material_version_id = ?
+                ORDER BY
+                    occurred_at ASC,
+                    material_event_id ASC
+                """,
+                (material_version_id,),
+            ).fetchall()
+
+        return [
+            CareerApplicationMaterialEvent.model_validate(
+                dict(row)
+            )
+            for row in rows
+        ]
+
+    def create_material_version_with_event(
+        self,
+        *,
+        version: CareerApplicationMaterialVersion,
+        event: CareerApplicationMaterialEvent,
+    ) -> CareerApplicationMaterialVersion:
+        if (
+            event.material_version_id
+            != version.material_version_id
+        ):
+            raise ValueError(
+                "Initial material event identity does "
+                "not match material version."
+            )
+
+        if event.event_kind != "CREATED":
+            raise ValueError(
+                "Initial material-version event must "
+                "be CREATED."
+            )
+
+        material = self.get_material(
+            version.material_id
+        )
+
+        if material is None:
+            raise ValueError(
+                "Career material version references "
+                "an unknown material."
+            )
+
+        application = self.get_application(
+            material.application_id
+        )
+
+        if application is None:
+            raise ValueError(
+                "Career material references an "
+                "unknown application."
+            )
+
+        snapshot = self.get_snapshot(
+            version.source_snapshot_id
+        )
+
+        if snapshot is None:
+            raise ValueError(
+                "Career material version references "
+                "an unknown source snapshot."
+            )
+
+        if (
+            version.provenance.application_id
+            != material.application_id
+        ):
+            raise ValueError(
+                "Material provenance application_id "
+                "does not match material application."
+            )
+
+        if (
+            version.provenance.job_id
+            != application.job_id
+        ):
+            raise ValueError(
+                "Material provenance job_id does not "
+                "match application job."
+            )
+
+        if snapshot.job_id != application.job_id:
+            raise ValueError(
+                "Material source snapshot does not "
+                "belong to application job."
+            )
+
+        parent_id = (
+            version.parent_material_version_id
+        )
+
+        if parent_id is None:
+            if version.version_number != 1:
+                raise ValueError(
+                    "Material version without parent "
+                    "must be version 1."
+                )
+        else:
+            parent = self.get_material_version(
+                parent_id
+            )
+
+            if parent is None:
+                raise ValueError(
+                    "Material version references "
+                    "an unknown parent version."
+                )
+
+            if parent.material_id != version.material_id:
+                raise ValueError(
+                    "Material parent version belongs "
+                    "to a different material."
+                )
+
+            if (
+                version.version_number
+                != parent.version_number + 1
+            ):
+                raise ValueError(
+                    "Material version_number must "
+                    "increment parent by exactly one."
+                )
+
+        provenance_json = json.dumps(
+            version.provenance.model_dump(
+                mode="json"
+            ),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    "BEGIN IMMEDIATE"
+                )
+
+                existing_version = connection.execute(
+                    """
+                    SELECT 1
+                    FROM career_application_material_versions
+                    WHERE material_version_id = ?
+                    """,
+                    (version.material_version_id,),
+                ).fetchone()
+
+                if existing_version is not None:
+                    connection.rollback()
+                    raise CareerPersistenceConflict(
+                        "Career material version "
+                        "already exists."
+                    )
+
+                existing_event = connection.execute(
+                    """
+                    SELECT 1
+                    FROM career_application_material_events
+                    WHERE material_event_id = ?
+                    """,
+                    (event.material_event_id,),
+                ).fetchone()
+
+                if existing_event is not None:
+                    connection.rollback()
+                    raise CareerPersistenceConflict(
+                        "Career material creation event "
+                        "already exists."
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO
+                    career_application_material_versions (
+                        material_version_id,
+                        material_id,
+                        version_number,
+                        source_snapshot_id,
+                        parent_material_version_id,
+                        content_format,
+                        content_text,
+                        content_sha256,
+                        provenance_json,
+                        created_by_kind,
+                        created_by_id,
+                        created_at
+                    )
+                    VALUES (
+                        ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        version.material_version_id,
+                        version.material_id,
+                        version.version_number,
+                        version.source_snapshot_id,
+                        version.parent_material_version_id,
+                        version.content_format,
+                        version.content_text,
+                        version.content_sha256,
+                        provenance_json,
+                        version.created_by_kind,
+                        version.created_by_id,
+                        version.created_at.isoformat(),
+                    ),
+                )
+
+                connection.execute(
+                    """
+                    INSERT INTO
+                    career_application_material_events (
+                        material_event_id,
+                        material_version_id,
+                        event_kind,
+                        actor_kind,
+                        actor_id,
+                        reason,
+                        evidence_id,
+                        occurred_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.material_event_id,
+                        event.material_version_id,
+                        event.event_kind,
+                        event.actor_kind,
+                        event.actor_id,
+                        event.reason,
+                        event.evidence_id,
+                        event.occurred_at.isoformat(),
+                    ),
+                )
+
+                connection.commit()
+
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Atomic Career material-version "
+                "creation failed integrity checks: "
+                f"{error}"
+            ) from error
+
+        stored = self.get_material_version(
+            version.material_version_id
+        )
+
+        stored_event = self.get_material_event(
+            event.material_event_id
+        )
+
+        if stored is None or stored_event is None:
+            raise RuntimeError(
+                "Atomic material-version creation "
+                "did not persist both records."
+            )
+
+        return stored

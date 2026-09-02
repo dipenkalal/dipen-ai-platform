@@ -8,10 +8,20 @@ from career.schemas import (
     CareerApplication,
     CareerApplicationActorKind,
     CareerApplicationEvent,
+    CareerApplicationMaterial,
+    CareerApplicationMaterialEvent,
+    CareerApplicationMaterialVersion,
+    CareerApplicationReadiness,
+    CareerApplicationReadinessBlocker,
     CareerApplicationState,
     CareerJobEvidenceLink,
     CareerJobPosting,
     CareerJobSnapshot,
+    CareerMaterialActorKind,
+    CareerMaterialContentFormat,
+    CareerMaterialCreatorKind,
+    CareerMaterialKind,
+    CareerMaterialProvenance,
 )
 
 
@@ -29,6 +39,10 @@ class CareerAuthorizationRejected(CareerDomainError):
 
 class CareerTransitionRejected(CareerDomainError):
     """Application lifecycle transition is illegal."""
+
+
+class CareerMaterialRejected(CareerDomainError):
+    """Material Lab operation violates frozen v2 policy."""
 
 
 APPLICATION_TRANSITIONS: Final[
@@ -526,4 +540,770 @@ class CareerDomainService:
                 updated=updated,
                 event=event,
             )
+        )
+
+    def _require_material_application_state(
+        self,
+        *,
+        material_id: str,
+        required_state: CareerApplicationState,
+    ) -> tuple[
+        CareerApplicationMaterial,
+        CareerApplication,
+    ]:
+        material = self.repository.get_material(
+            material_id
+        )
+
+        if material is None:
+            raise CareerMaterialRejected(
+                "Unknown Career material."
+            )
+
+        application = self.repository.get_application(
+            material.application_id
+        )
+
+        if application is None:
+            raise CareerMaterialRejected(
+                "Material application is missing."
+            )
+
+        if application.state != required_state:
+            raise CareerMaterialRejected(
+                "Material operation requires "
+                f"application state {required_state}; "
+                f"current state is {application.state}."
+            )
+
+        return material, application
+
+    def _require_latest_material_version(
+        self,
+        version: CareerApplicationMaterialVersion,
+    ) -> None:
+        versions = self.repository.list_material_versions(
+            version.material_id
+        )
+
+        if not versions:
+            raise CareerMaterialRejected(
+                "Material has no persisted versions."
+            )
+
+        latest = max(
+            versions,
+            key=lambda item: item.version_number,
+        )
+
+        if (
+            latest.material_version_id
+            != version.material_version_id
+        ):
+            raise CareerMaterialRejected(
+                "Material review actions may only "
+                "target the latest immutable version."
+            )
+
+    def create_material(
+        self,
+        *,
+        application_id: str,
+        material_kind: CareerMaterialKind,
+        label: str,
+        created_at: datetime,
+    ) -> CareerApplicationMaterial:
+        application = self.repository.get_application(
+            application_id
+        )
+
+        if application is None:
+            raise CareerMaterialRejected(
+                "Unknown Career application."
+            )
+
+        if application.state != "PREPARING":
+            raise CareerMaterialRejected(
+                "New application materials may only "
+                "be created while PREPARING."
+            )
+
+        material = CareerApplicationMaterial.build(
+            application_id=application_id,
+            material_kind=material_kind,
+            label=label,
+            created_at=created_at,
+        )
+
+        return self.repository.persist_material(
+            material
+        )
+
+    def _build_material_provenance(
+        self,
+        *,
+        application: CareerApplication,
+        source_snapshot_id: str,
+        created_by_kind: CareerMaterialCreatorKind,
+        creation_mechanism: str,
+        profile_version: str | None,
+        model_provider: str | None,
+        model_name: str | None,
+        parent_material_version_id: str | None,
+    ) -> CareerMaterialProvenance:
+        snapshot = self.repository.get_snapshot(
+            source_snapshot_id
+        )
+
+        if snapshot is None:
+            raise CareerMaterialRejected(
+                "Unknown source snapshot."
+            )
+
+        if snapshot.job_id != application.job_id:
+            raise CareerMaterialRejected(
+                "Source snapshot does not belong "
+                "to application job."
+            )
+
+        job = self.repository.get_job(
+            application.job_id
+        )
+
+        if job is None:
+            raise CareerMaterialRejected(
+                "Application job is missing."
+            )
+
+        if (
+            job.current_snapshot_id
+            != source_snapshot_id
+        ):
+            raise CareerMaterialRejected(
+                "Material generation requires the "
+                "job's current snapshot."
+            )
+
+        return CareerMaterialProvenance(
+            application_id=application.application_id,
+            job_id=application.job_id,
+            snapshot_id=source_snapshot_id,
+            profile_version=profile_version,
+            generator_kind=created_by_kind,
+            model_provider=model_provider,
+            model_name=model_name,
+            creation_mechanism=creation_mechanism,
+            parent_material_version_id=(
+                parent_material_version_id
+            ),
+            source_material_version_ids=(
+                (
+                    parent_material_version_id,
+                )
+                if parent_material_version_id
+                else ()
+            ),
+        )
+
+    def create_initial_material_version(
+        self,
+        *,
+        material_id: str,
+        source_snapshot_id: str,
+        content_format: CareerMaterialContentFormat,
+        content_text: str,
+        created_by_kind: CareerMaterialCreatorKind,
+        created_by_id: str,
+        creation_mechanism: str,
+        occurred_at: datetime,
+        profile_version: str | None = None,
+        model_provider: str | None = None,
+        model_name: str | None = None,
+    ) -> CareerApplicationMaterialVersion:
+        material, application = (
+            self._require_material_application_state(
+                material_id=material_id,
+                required_state="PREPARING",
+            )
+        )
+
+        if self.repository.list_material_versions(
+            material.material_id
+        ):
+            raise CareerMaterialRejected(
+                "Initial material version requires "
+                "an unversioned material."
+            )
+
+        provenance = self._build_material_provenance(
+            application=application,
+            source_snapshot_id=source_snapshot_id,
+            created_by_kind=created_by_kind,
+            creation_mechanism=creation_mechanism,
+            profile_version=profile_version,
+            model_provider=model_provider,
+            model_name=model_name,
+            parent_material_version_id=None,
+        )
+
+        version = CareerApplicationMaterialVersion.build(
+            material_id=material.material_id,
+            version_number=1,
+            source_snapshot_id=source_snapshot_id,
+            content_format=content_format,
+            content_text=content_text,
+            provenance=provenance,
+            created_by_kind=created_by_kind,
+            created_by_id=created_by_id,
+            created_at=occurred_at,
+        )
+
+        event = CareerApplicationMaterialEvent.build(
+            material_version_id=(
+                version.material_version_id
+            ),
+            event_kind="CREATED",
+            actor_kind="DAP_SYSTEM",
+            actor_id="career-material-service",
+            reason=(
+                "Immutable material version created."
+            ),
+            occurred_at=occurred_at,
+        )
+
+        return (
+            self.repository
+            .create_material_version_with_event(
+                version=version,
+                event=event,
+            )
+        )
+
+    def create_derived_material_version(
+        self,
+        *,
+        parent_material_version_id: str,
+        source_snapshot_id: str,
+        content_format: CareerMaterialContentFormat,
+        content_text: str,
+        created_by_kind: CareerMaterialCreatorKind,
+        created_by_id: str,
+        creation_mechanism: str,
+        occurred_at: datetime,
+        profile_version: str | None = None,
+        model_provider: str | None = None,
+        model_name: str | None = None,
+    ) -> CareerApplicationMaterialVersion:
+        parent = self.repository.get_material_version(
+            parent_material_version_id
+        )
+
+        if parent is None:
+            raise CareerMaterialRejected(
+                "Unknown parent material version."
+            )
+
+        material, application = (
+            self._require_material_application_state(
+                material_id=parent.material_id,
+                required_state="PREPARING",
+            )
+        )
+
+        self._require_latest_material_version(
+            parent
+        )
+
+        provenance = self._build_material_provenance(
+            application=application,
+            source_snapshot_id=source_snapshot_id,
+            created_by_kind=created_by_kind,
+            creation_mechanism=creation_mechanism,
+            profile_version=profile_version,
+            model_provider=model_provider,
+            model_name=model_name,
+            parent_material_version_id=(
+                parent.material_version_id
+            ),
+        )
+
+        version = CareerApplicationMaterialVersion.build(
+            material_id=material.material_id,
+            version_number=(
+                parent.version_number + 1
+            ),
+            source_snapshot_id=source_snapshot_id,
+            parent_material_version_id=(
+                parent.material_version_id
+            ),
+            content_format=content_format,
+            content_text=content_text,
+            provenance=provenance,
+            created_by_kind=created_by_kind,
+            created_by_id=created_by_id,
+            created_at=occurred_at,
+        )
+
+        event = CareerApplicationMaterialEvent.build(
+            material_version_id=(
+                version.material_version_id
+            ),
+            event_kind="CREATED",
+            actor_kind="DAP_SYSTEM",
+            actor_id="career-material-service",
+            reason=(
+                "Derived immutable material "
+                "version created."
+            ),
+            occurred_at=occurred_at,
+        )
+
+        return (
+            self.repository
+            .create_material_version_with_event(
+                version=version,
+                event=event,
+            )
+        )
+
+    def mark_material_version_ready(
+        self,
+        *,
+        material_version_id: str,
+        actor_kind: CareerMaterialActorKind,
+        actor_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplicationMaterialEvent:
+        version = self.repository.get_material_version(
+            material_version_id
+        )
+
+        if version is None:
+            raise CareerMaterialRejected(
+                "Unknown material version."
+            )
+
+        self._require_material_application_state(
+            material_id=version.material_id,
+            required_state="PREPARING",
+        )
+
+        self._require_latest_material_version(
+            version
+        )
+
+        events = self.repository.list_material_events(
+            material_version_id
+        )
+
+        kinds = {
+            event.event_kind
+            for event in events
+        }
+
+        if "CREATED" not in kinds:
+            raise CareerMaterialRejected(
+                "Material version lacks CREATED audit."
+            )
+
+        if kinds & {
+            "MARKED_READY_FOR_REVIEW",
+            "APPROVED",
+            "REJECTED",
+        }:
+            raise CareerMaterialRejected(
+                "Material version is already beyond "
+                "draft readiness."
+            )
+
+        event = CareerApplicationMaterialEvent.build(
+            material_version_id=material_version_id,
+            event_kind="MARKED_READY_FOR_REVIEW",
+            actor_kind=actor_kind,
+            actor_id=actor_id,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+        return self.repository.persist_material_event(
+            event
+        )
+
+    def _decide_material_version(
+        self,
+        *,
+        material_version_id: str,
+        decision: str,
+        owner_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplicationMaterialEvent:
+        if decision not in {
+            "APPROVED",
+            "REJECTED",
+        }:
+            raise CareerMaterialRejected(
+                "Unsupported material review decision."
+            )
+
+        version = self.repository.get_material_version(
+            material_version_id
+        )
+
+        if version is None:
+            raise CareerMaterialRejected(
+                "Unknown material version."
+            )
+
+        self._require_material_application_state(
+            material_id=version.material_id,
+            required_state="READY_FOR_REVIEW",
+        )
+
+        self._require_latest_material_version(
+            version
+        )
+
+        events = self.repository.list_material_events(
+            material_version_id
+        )
+
+        kinds = {
+            event.event_kind
+            for event in events
+        }
+
+        if "MARKED_READY_FOR_REVIEW" not in kinds:
+            raise CareerMaterialRejected(
+                "Owner review requires material "
+                "version marked ready for review."
+            )
+
+        if kinds & {
+            "APPROVED",
+            "REJECTED",
+        }:
+            raise CareerMaterialRejected(
+                "Material version already has an "
+                "owner review decision."
+            )
+
+        event = CareerApplicationMaterialEvent.build(
+            material_version_id=material_version_id,
+            event_kind=decision,
+            actor_kind="OWNER",
+            actor_id=owner_id,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+        return self.repository.persist_material_event(
+            event
+        )
+
+    def approve_material_version(
+        self,
+        *,
+        material_version_id: str,
+        owner_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplicationMaterialEvent:
+        return self._decide_material_version(
+            material_version_id=material_version_id,
+            decision="APPROVED",
+            owner_id=owner_id,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+    def reject_material_version(
+        self,
+        *,
+        material_version_id: str,
+        owner_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplicationMaterialEvent:
+        return self._decide_material_version(
+            material_version_id=material_version_id,
+            decision="REJECTED",
+            owner_id=owner_id,
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+    def evaluate_application_readiness(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerApplicationReadiness:
+        application = self.repository.get_application(
+            application_id
+        )
+
+        if application is None:
+            raise CareerMaterialRejected(
+                "Unknown Career application."
+            )
+
+        blockers: list[
+            CareerApplicationReadinessBlocker
+        ] = []
+
+        if application.state != "PREPARING":
+            blockers.append(
+                CareerApplicationReadinessBlocker(
+                    code="APPLICATION_NOT_PREPARING",
+                )
+            )
+
+            return CareerApplicationReadiness(
+                application_id=application_id,
+                ready=False,
+                blockers=tuple(blockers),
+            )
+
+        job = self.repository.get_job(
+            application.job_id
+        )
+
+        if job is None:
+            raise CareerMaterialRejected(
+                "Application job is missing."
+            )
+
+        current_snapshot = None
+
+        if job.current_snapshot_id is None:
+            blockers.append(
+                CareerApplicationReadinessBlocker(
+                    code="CURRENT_SNAPSHOT_MISSING",
+                )
+            )
+        else:
+            current_snapshot = (
+                self.repository.get_snapshot(
+                    job.current_snapshot_id
+                )
+            )
+
+            if current_snapshot is None:
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="CURRENT_SNAPSHOT_MISSING",
+                    )
+                )
+            elif (
+                current_snapshot.job_id
+                != application.job_id
+            ):
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="SNAPSHOT_JOB_MISMATCH",
+                    )
+                )
+
+        materials = (
+            self.repository
+            .list_application_materials(
+                application_id
+            )
+        )
+
+        slots = {
+            (
+                material.material_kind,
+                material.label,
+            ): material
+            for material in materials
+        }
+
+        primary_resume = slots.get(
+            (
+                "RESUME",
+                "primary",
+            )
+        )
+
+        if primary_resume is None:
+            blockers.append(
+                CareerApplicationReadinessBlocker(
+                    code="PRIMARY_RESUME_MISSING",
+                )
+            )
+
+        blocking_materials = []
+
+        if primary_resume is not None:
+            blocking_materials.append(
+                primary_resume
+            )
+
+        primary_cover = slots.get(
+            (
+                "COVER_LETTER",
+                "primary",
+            )
+        )
+
+        if primary_cover is not None:
+            blocking_materials.append(
+                primary_cover
+            )
+
+        for material in blocking_materials:
+            versions = (
+                self.repository
+                .list_material_versions(
+                    material.material_id
+                )
+            )
+
+            if not versions:
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code=(
+                            "BLOCKING_MATERIAL_HAS_NO_VERSION"
+                        ),
+                        material_id=material.material_id,
+                    )
+                )
+
+                continue
+
+            latest = max(
+                versions,
+                key=lambda item: (
+                    item.version_number
+                ),
+            )
+
+            if (
+                job.current_snapshot_id
+                is not None
+                and latest.source_snapshot_id
+                != job.current_snapshot_id
+            ):
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code=(
+                            "LATEST_VERSION_SNAPSHOT_STALE"
+                        ),
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            latest_snapshot = (
+                self.repository.get_snapshot(
+                    latest.source_snapshot_id
+                )
+            )
+
+            if (
+                latest_snapshot is None
+                or latest_snapshot.job_id
+                != application.job_id
+            ):
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="SNAPSHOT_JOB_MISMATCH",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            events = (
+                self.repository
+                .list_material_events(
+                    latest.material_version_id
+                )
+            )
+
+            event_kinds = {
+                event.event_kind
+                for event in events
+            }
+
+            if "CREATED" not in event_kinds:
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="CREATED_EVENT_MISSING",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            if (
+                "MARKED_READY_FOR_REVIEW"
+                not in event_kinds
+            ):
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="READY_EVENT_MISSING",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            if "REJECTED" in event_kinds:
+                blockers.append(
+                    CareerApplicationReadinessBlocker(
+                        code="LATEST_VERSION_REJECTED",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+        return CareerApplicationReadiness(
+            application_id=application_id,
+            ready=not blockers,
+            blockers=tuple(blockers),
+        )
+
+    def advance_preparing_application_to_review(
+        self,
+        *,
+        application_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplication:
+        readiness = (
+            self.evaluate_application_readiness(
+                application_id=application_id
+            )
+        )
+
+        if not readiness.ready:
+            codes = ",".join(
+                blocker.code
+                for blocker in readiness.blockers
+            )
+
+            raise CareerMaterialRejected(
+                "Application is not ready for "
+                f"review: {codes}"
+            )
+
+        return self.transition_application(
+            application_id=application_id,
+            to_state="READY_FOR_REVIEW",
+            actor_kind="DETERMINISTIC_SYSTEM",
+            actor_id=(
+                "career-material-readiness"
+            ),
+            reason=reason,
+            occurred_at=occurred_at,
         )

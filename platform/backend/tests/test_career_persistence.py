@@ -233,6 +233,9 @@ class CareerPersistenceTestCase(unittest.TestCase):
             names,
             {
                 "career_application_events",
+                "career_application_material_events",
+                "career_application_material_versions",
+                "career_application_materials",
                 "career_applications",
                 "career_fit_assessments",
                 "career_job_evidence_links",

@@ -115,6 +115,48 @@ CareerApplicationActorKind = Literal[
     "DETERMINISTIC_SYSTEM",
 ]
 
+CareerMaterialKind = Literal[
+    "RESUME",
+    "COVER_LETTER",
+    "APPLICATION_NOTES",
+]
+
+CareerMaterialContentFormat = Literal[
+    "TEXT",
+    "MARKDOWN",
+    "LATEX",
+    "JSON",
+]
+
+CareerMaterialCreatorKind = Literal[
+    "OWNER",
+    "DAP_GENERATOR",
+]
+
+CareerMaterialEventKind = Literal[
+    "CREATED",
+    "MARKED_READY_FOR_REVIEW",
+    "APPROVED",
+    "REJECTED",
+]
+
+CareerMaterialActorKind = Literal[
+    "OWNER",
+    "DAP_SYSTEM",
+]
+
+CareerApplicationReadinessBlockerCode = Literal[
+    "APPLICATION_NOT_PREPARING",
+    "PRIMARY_RESUME_MISSING",
+    "BLOCKING_MATERIAL_HAS_NO_VERSION",
+    "CURRENT_SNAPSHOT_MISSING",
+    "LATEST_VERSION_SNAPSHOT_STALE",
+    "SNAPSHOT_JOB_MISMATCH",
+    "CREATED_EVENT_MISSING",
+    "READY_EVENT_MISSING",
+    "LATEST_VERSION_REJECTED",
+]
+
 
 def _json_default(value: object) -> str:
     if isinstance(value, datetime):
@@ -769,6 +811,444 @@ class CareerApplicationEvent(BaseModel):
             raise ValueError(
                 "event_id does not match canonical "
                 "application-event content"
+            )
+
+        return self
+
+class CareerMaterialProvenance(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    application_id: str = Field(
+        pattern=r"^career-application-[A-Za-z0-9._:-]+$"
+    )
+    job_id: str = Field(
+        pattern=r"^career-job-[A-Za-z0-9._:-]+$"
+    )
+    snapshot_id: str = Field(
+        pattern=r"^career-snapshot-[0-9a-f]{24}$"
+    )
+    profile_version: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+    )
+    generator_kind: CareerMaterialCreatorKind
+    model_provider: str | None = Field(
+        default=None,
+        max_length=200,
+    )
+    model_name: str | None = Field(
+        default=None,
+        max_length=200,
+    )
+    creation_mechanism: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    parent_material_version_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-version-[0-9a-f]{24}$",
+    )
+    source_material_version_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_provenance(
+        self,
+    ) -> CareerMaterialProvenance:
+        if (
+            len(set(self.source_material_version_ids))
+            != len(self.source_material_version_ids)
+        ):
+            raise ValueError(
+                "source_material_version_ids "
+                "must not contain duplicates"
+            )
+
+        return self
+
+
+class CareerApplicationMaterial(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    material_id: str = Field(
+        pattern=r"^career-material-[0-9a-f]{24}$"
+    )
+    application_id: str = Field(
+        pattern=r"^career-application-[A-Za-z0-9._:-]+$"
+    )
+    material_kind: CareerMaterialKind
+    label: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    created_at: datetime
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        application_id: str,
+        material_kind: CareerMaterialKind,
+        label: str,
+        created_at: datetime,
+    ) -> CareerApplicationMaterial:
+        identity = {
+            "application_id": application_id,
+            "material_kind": material_kind,
+            "label": label,
+        }
+
+        return cls(
+            material_id=_content_id(
+                "career-material",
+                identity,
+            ),
+            application_id=application_id,
+            material_kind=material_kind,
+            label=label,
+            created_at=created_at,
+        )
+
+    @model_validator(mode="after")
+    def validate_material(
+        self,
+    ) -> CareerApplicationMaterial:
+        _require_aware(
+            self.created_at,
+            "created_at",
+        )
+
+        identity = {
+            "application_id": self.application_id,
+            "material_kind": self.material_kind,
+            "label": self.label,
+        }
+
+        if self.material_id != _content_id(
+            "career-material",
+            identity,
+        ):
+            raise ValueError(
+                "material_id does not match "
+                "canonical material identity"
+            )
+
+        return self
+
+
+class CareerApplicationMaterialVersion(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    material_version_id: str = Field(
+        pattern=r"^career-material-version-[0-9a-f]{24}$"
+    )
+    material_id: str = Field(
+        pattern=r"^career-material-[0-9a-f]{24}$"
+    )
+    version_number: int = Field(ge=1)
+    source_snapshot_id: str = Field(
+        pattern=r"^career-snapshot-[0-9a-f]{24}$"
+    )
+    parent_material_version_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-version-[0-9a-f]{24}$",
+    )
+    content_format: CareerMaterialContentFormat
+    content_text: str = Field(min_length=1)
+    content_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    provenance: CareerMaterialProvenance
+    created_by_kind: CareerMaterialCreatorKind
+    created_by_id: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    created_at: datetime
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        material_id: str,
+        version_number: int,
+        source_snapshot_id: str,
+        content_format: CareerMaterialContentFormat,
+        content_text: str,
+        provenance: CareerMaterialProvenance,
+        created_by_kind: CareerMaterialCreatorKind,
+        created_by_id: str,
+        created_at: datetime,
+        parent_material_version_id: str | None = None,
+    ) -> CareerApplicationMaterialVersion:
+        content_sha256 = _text_sha256(
+            content_text
+        )
+
+        payload = {
+            "material_id": material_id,
+            "version_number": version_number,
+            "source_snapshot_id": source_snapshot_id,
+            "parent_material_version_id": (
+                parent_material_version_id
+            ),
+            "content_format": content_format,
+            "content_text": content_text,
+            "content_sha256": content_sha256,
+            "provenance": provenance.model_dump(
+                mode="python"
+            ),
+            "created_by_kind": created_by_kind,
+            "created_by_id": created_by_id,
+            "created_at": created_at,
+        }
+
+        return cls(
+            material_version_id=_content_id(
+                "career-material-version",
+                payload,
+            ),
+            material_id=material_id,
+            version_number=version_number,
+            source_snapshot_id=source_snapshot_id,
+            parent_material_version_id=(
+                parent_material_version_id
+            ),
+            content_format=content_format,
+            content_text=content_text,
+            content_sha256=content_sha256,
+            provenance=provenance,
+            created_by_kind=created_by_kind,
+            created_by_id=created_by_id,
+            created_at=created_at,
+        )
+
+    @model_validator(mode="after")
+    def validate_material_version(
+        self,
+    ) -> CareerApplicationMaterialVersion:
+        _require_aware(
+            self.created_at,
+            "created_at",
+        )
+
+        if (
+            self.content_sha256
+            != _text_sha256(self.content_text)
+        ):
+            raise ValueError(
+                "content_sha256 does not match "
+                "content_text"
+            )
+
+        if (
+            self.version_number == 1
+            and self.parent_material_version_id
+            is not None
+        ):
+            raise ValueError(
+                "version 1 cannot have a parent "
+                "material version"
+            )
+
+        if (
+            self.version_number > 1
+            and self.parent_material_version_id
+            is None
+        ):
+            raise ValueError(
+                "version greater than 1 requires "
+                "explicit parent material version"
+            )
+
+        if (
+            self.provenance.snapshot_id
+            != self.source_snapshot_id
+        ):
+            raise ValueError(
+                "provenance snapshot_id must match "
+                "source_snapshot_id"
+            )
+
+        if (
+            self.provenance.parent_material_version_id
+            != self.parent_material_version_id
+        ):
+            raise ValueError(
+                "provenance parent version must "
+                "match parent_material_version_id"
+            )
+
+        if (
+            self.provenance.generator_kind
+            != self.created_by_kind
+        ):
+            raise ValueError(
+                "provenance generator_kind must "
+                "match created_by_kind"
+            )
+
+        if (
+            self.parent_material_version_id
+            == self.material_version_id
+        ):
+            raise ValueError(
+                "material version cannot be "
+                "its own parent"
+            )
+
+        payload = self.model_dump(
+            mode="python",
+            exclude={"material_version_id"},
+        )
+
+        if self.material_version_id != _content_id(
+            "career-material-version",
+            payload,
+        ):
+            raise ValueError(
+                "material_version_id does not match "
+                "canonical version content"
+            )
+
+        return self
+
+
+class CareerApplicationMaterialEvent(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    material_event_id: str = Field(
+        pattern=r"^career-material-event-[0-9a-f]{24}$"
+    )
+    material_version_id: str = Field(
+        pattern=r"^career-material-version-[0-9a-f]{24}$"
+    )
+    event_kind: CareerMaterialEventKind
+    actor_kind: CareerMaterialActorKind
+    actor_id: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    reason: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+    evidence_id: str | None = Field(
+        default=None,
+        max_length=300,
+    )
+    occurred_at: datetime
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        material_version_id: str,
+        event_kind: CareerMaterialEventKind,
+        actor_kind: CareerMaterialActorKind,
+        actor_id: str,
+        reason: str,
+        occurred_at: datetime,
+        evidence_id: str | None = None,
+    ) -> CareerApplicationMaterialEvent:
+        payload = {
+            "material_version_id": (
+                material_version_id
+            ),
+            "event_kind": event_kind,
+            "actor_kind": actor_kind,
+            "actor_id": actor_id,
+            "reason": reason,
+            "evidence_id": evidence_id,
+            "occurred_at": occurred_at,
+        }
+
+        return cls(
+            material_event_id=_content_id(
+                "career-material-event",
+                payload,
+            ),
+            **payload,
+        )
+
+    @model_validator(mode="after")
+    def validate_material_event(
+        self,
+    ) -> CareerApplicationMaterialEvent:
+        _require_aware(
+            self.occurred_at,
+            "occurred_at",
+        )
+
+        if (
+            self.event_kind
+            in {
+                "APPROVED",
+                "REJECTED",
+            }
+            and self.actor_kind != "OWNER"
+        ):
+            raise ValueError(
+                "APPROVED and REJECTED material "
+                "events are owner-only"
+            )
+
+        payload = self.model_dump(
+            mode="python",
+            exclude={"material_event_id"},
+        )
+
+        if self.material_event_id != _content_id(
+            "career-material-event",
+            payload,
+        ):
+            raise ValueError(
+                "material_event_id does not match "
+                "canonical material-event content"
+            )
+
+        return self
+
+class CareerApplicationReadinessBlocker(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    code: CareerApplicationReadinessBlockerCode
+    material_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-[0-9a-f]{24}$",
+    )
+    material_version_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-version-[0-9a-f]{24}$",
+    )
+
+
+class CareerApplicationReadiness(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    application_id: str = Field(
+        pattern=r"^career-application-[A-Za-z0-9._:-]+$"
+    )
+    ready: bool
+    blockers: tuple[
+        CareerApplicationReadinessBlocker,
+        ...,
+    ] = ()
+
+    @model_validator(mode="after")
+    def validate_readiness(
+        self,
+    ) -> CareerApplicationReadiness:
+        if self.ready and self.blockers:
+            raise ValueError(
+                "ready application cannot contain "
+                "readiness blockers"
+            )
+
+        if not self.ready and not self.blockers:
+            raise ValueError(
+                "not-ready application requires "
+                "at least one blocker"
             )
 
         return self
