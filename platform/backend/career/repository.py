@@ -2372,3 +2372,165 @@ class CareerRepository:
             )
 
         return stored
+
+    def list_applications_for_job(
+        self,
+        job_id: str,
+    ) -> tuple[CareerApplication, ...]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM career_applications
+                WHERE job_id = ?
+                ORDER BY
+                    updated_at DESC,
+                    application_id DESC
+                """,
+                (job_id,),
+            ).fetchall()
+
+        return tuple(
+            CareerApplication.model_validate(
+                dict(row)
+            )
+            for row in rows
+        )
+
+    def create_application_with_event_once_per_job(
+        self,
+        application: CareerApplication,
+        event: CareerApplicationEvent,
+    ) -> CareerApplication:
+        if (
+            event.application_id
+            != application.application_id
+        ):
+            raise ValueError(
+                "Initial application event identity "
+                "does not match application."
+            )
+
+        if event.from_state is not None:
+            raise ValueError(
+                "Initial application event must have "
+                "from_state=None."
+            )
+
+        if event.to_state != application.state:
+            raise ValueError(
+                "Initial application event state "
+                "does not match application."
+            )
+
+        try:
+            with self._connection() as connection:
+                connection.execute(
+                    "BEGIN IMMEDIATE"
+                )
+
+                existing = connection.execute(
+                    """
+                    SELECT application_id
+                    FROM career_applications
+                    WHERE job_id = ?
+                    LIMIT 1
+                    """,
+                    (application.job_id,),
+                ).fetchone()
+
+                if existing is not None:
+                    connection.rollback()
+
+                    raise CareerPersistenceConflict(
+                        "Career Cockpit application "
+                        "workspace already exists "
+                        "for this job."
+                    )
+
+                connection.execute(
+                    """
+                    INSERT INTO career_applications (
+                        application_id,
+                        job_id,
+                        state,
+                        owner_approved_at,
+                        applied_confirmed_at,
+                        applied_confirmation_kind,
+                        notes,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        application.application_id,
+                        application.job_id,
+                        application.state,
+                        (
+                            application.owner_approved_at
+                            .isoformat()
+                            if application.owner_approved_at
+                            else None
+                        ),
+                        (
+                            application.applied_confirmed_at
+                            .isoformat()
+                            if application.applied_confirmed_at
+                            else None
+                        ),
+                        application.applied_confirmation_kind,
+                        application.notes,
+                        application.created_at.isoformat(),
+                        application.updated_at.isoformat(),
+                    ),
+                )
+
+                connection.execute(
+                    """
+                    INSERT INTO career_application_events (
+                        event_id,
+                        application_id,
+                        from_state,
+                        to_state,
+                        actor_kind,
+                        actor_id,
+                        reason,
+                        evidence_id,
+                        occurred_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.application_id,
+                        event.from_state,
+                        event.to_state,
+                        event.actor_kind,
+                        event.actor_id,
+                        event.reason,
+                        event.evidence_id,
+                        event.occurred_at.isoformat(),
+                    ),
+                )
+
+                connection.commit()
+
+        except sqlite3.IntegrityError as error:
+            raise CareerPersistenceConflict(
+                "Atomic Career Cockpit application "
+                "creation failed integrity checks: "
+                f"{error}"
+            ) from error
+
+        stored = self.get_application(
+            application.application_id
+        )
+
+        if stored is None:
+            raise RuntimeError(
+                "Atomic Career Cockpit application "
+                "creation did not persist application."
+            )
+
+        return stored

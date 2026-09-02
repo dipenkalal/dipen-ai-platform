@@ -4,6 +4,8 @@ from career.repository import (
 )
 from career.schemas import (
     CareerApplication,
+    CareerApplicationApproval,
+    CareerApplicationApprovalBlocker,
     CareerApplicationEvent,
     CareerApplicationMaterial,
     CareerApplicationMaterialEvent,
@@ -32,6 +34,8 @@ __all__ = [
     "DETERMINISTIC_SYSTEM_TRANSITIONS",
     "CareerAdmissionRejected",
     "CareerApplication",
+    "CareerApplicationApproval",
+    "CareerApplicationApprovalBlocker",
     "CareerApplicationEvent",
     "CareerApplicationMaterial",
     "CareerApplicationMaterialEvent",

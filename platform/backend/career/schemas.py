@@ -1252,3 +1252,61 @@ class CareerApplicationReadiness(BaseModel):
             )
 
         return self
+
+CareerApplicationApprovalBlockerCode = Literal[
+    "APPLICATION_NOT_READY_FOR_REVIEW",
+    "PRIMARY_RESUME_MISSING",
+    "BLOCKING_MATERIAL_HAS_NO_VERSION",
+    "CURRENT_SNAPSHOT_MISSING",
+    "LATEST_VERSION_SNAPSHOT_STALE",
+    "SNAPSHOT_JOB_MISMATCH",
+    "CREATED_EVENT_MISSING",
+    "READY_EVENT_MISSING",
+    "APPROVED_EVENT_MISSING",
+    "LATEST_VERSION_REJECTED",
+]
+
+
+class CareerApplicationApprovalBlocker(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    code: CareerApplicationApprovalBlockerCode
+    material_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-[0-9a-f]{24}$",
+    )
+    material_version_id: str | None = Field(
+        default=None,
+        pattern=r"^career-material-version-[0-9a-f]{24}$",
+    )
+
+
+class CareerApplicationApproval(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    application_id: str = Field(
+        pattern=r"^career-application-[A-Za-z0-9._:-]+$"
+    )
+    approved: bool
+    blockers: tuple[
+        CareerApplicationApprovalBlocker,
+        ...,
+    ] = ()
+
+    @model_validator(mode="after")
+    def validate_approval(
+        self,
+    ) -> CareerApplicationApproval:
+        if self.approved and self.blockers:
+            raise ValueError(
+                "approved application cannot contain "
+                "approval blockers"
+            )
+
+        if not self.approved and not self.blockers:
+            raise ValueError(
+                "unapproved application requires "
+                "at least one blocker"
+            )
+
+        return self

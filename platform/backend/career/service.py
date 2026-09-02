@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import uuid4
 from typing import Final
 
 from career.repository import CareerRepository
 from career.schemas import (
     CareerApplication,
     CareerApplicationActorKind,
+    CareerApplicationApproval,
+    CareerApplicationApprovalBlocker,
     CareerApplicationEvent,
     CareerApplicationMaterial,
     CareerApplicationMaterialEvent,
@@ -1306,4 +1309,544 @@ class CareerDomainService:
             ),
             reason=reason,
             occurred_at=occurred_at,
+        )
+
+    def create_cockpit_application(
+        self,
+        *,
+        job_id: str,
+        reason: str,
+        occurred_at: datetime,
+        notes: str | None = None,
+    ) -> CareerApplication:
+        job = self.repository.get_job(job_id)
+
+        if job is None:
+            raise CareerAdmissionRejected(
+                "Cannot create Cockpit workspace "
+                "for unknown Career job."
+            )
+
+        if job.lifecycle_state != "ACTIVE":
+            raise CareerAdmissionRejected(
+                "Only ACTIVE jobs may enter "
+                "Career Cockpit."
+            )
+
+        if job.verification_state != "VERIFIED":
+            raise CareerAdmissionRejected(
+                "Career Cockpit requires "
+                "a VERIFIED job."
+            )
+
+        if job.current_snapshot_id is None:
+            raise CareerAdmissionRejected(
+                "Career Cockpit requires a current "
+                "verified job snapshot."
+            )
+
+        snapshot = self.repository.get_snapshot(
+            job.current_snapshot_id
+        )
+
+        if snapshot is None:
+            raise CareerAdmissionRejected(
+                "Current Career snapshot is missing."
+            )
+
+        if snapshot.freshness_state != "WITHIN_72H":
+            raise CareerAdmissionRejected(
+                "Career Cockpit creation requires "
+                "verified freshness within 72 hours."
+            )
+
+        application_id = (
+            "career-application-"
+            + uuid4().hex
+        )
+
+        application = CareerApplication(
+            application_id=application_id,
+            job_id=job.job_id,
+            state="SHORTLISTED",
+            notes=notes,
+            created_at=occurred_at,
+            updated_at=occurred_at,
+        )
+
+        event = CareerApplicationEvent.build(
+            application_id=application_id,
+            from_state=None,
+            to_state="SHORTLISTED",
+            actor_kind="OWNER",
+            actor_id="dipen-owner",
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+        return (
+            self.repository
+            .create_application_with_event_once_per_job(
+                application,
+                event,
+            )
+        )
+
+    def evaluate_application_approval(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerApplicationApproval:
+        application = self.repository.get_application(
+            application_id
+        )
+
+        if application is None:
+            raise CareerMaterialRejected(
+                "Unknown Career application."
+            )
+
+        blockers: list[
+            CareerApplicationApprovalBlocker
+        ] = []
+
+        if application.state != "READY_FOR_REVIEW":
+            blockers.append(
+                CareerApplicationApprovalBlocker(
+                    code=(
+                        "APPLICATION_NOT_READY_FOR_REVIEW"
+                    ),
+                )
+            )
+
+            return CareerApplicationApproval(
+                application_id=application_id,
+                approved=False,
+                blockers=tuple(blockers),
+            )
+
+        job = self.repository.get_job(
+            application.job_id
+        )
+
+        if job is None:
+            raise CareerMaterialRejected(
+                "Application job is missing."
+            )
+
+        if job.current_snapshot_id is None:
+            blockers.append(
+                CareerApplicationApprovalBlocker(
+                    code="CURRENT_SNAPSHOT_MISSING",
+                )
+            )
+        else:
+            current_snapshot = (
+                self.repository.get_snapshot(
+                    job.current_snapshot_id
+                )
+            )
+
+            if current_snapshot is None:
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="CURRENT_SNAPSHOT_MISSING",
+                    )
+                )
+            elif (
+                current_snapshot.job_id
+                != application.job_id
+            ):
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="SNAPSHOT_JOB_MISMATCH",
+                    )
+                )
+
+        materials = (
+            self.repository
+            .list_application_materials(
+                application_id
+            )
+        )
+
+        slots = {
+            (
+                material.material_kind,
+                material.label,
+            ): material
+            for material in materials
+        }
+
+        primary_resume = slots.get(
+            ("RESUME", "primary")
+        )
+
+        if primary_resume is None:
+            blockers.append(
+                CareerApplicationApprovalBlocker(
+                    code="PRIMARY_RESUME_MISSING",
+                )
+            )
+
+        blocking_materials = []
+
+        if primary_resume is not None:
+            blocking_materials.append(
+                primary_resume
+            )
+
+        primary_cover = slots.get(
+            ("COVER_LETTER", "primary")
+        )
+
+        if primary_cover is not None:
+            blocking_materials.append(
+                primary_cover
+            )
+
+        for material in blocking_materials:
+            versions = (
+                self.repository
+                .list_material_versions(
+                    material.material_id
+                )
+            )
+
+            if not versions:
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code=(
+                            "BLOCKING_MATERIAL_HAS_NO_VERSION"
+                        ),
+                        material_id=material.material_id,
+                    )
+                )
+                continue
+
+            latest = max(
+                versions,
+                key=lambda item: item.version_number,
+            )
+
+            if (
+                job.current_snapshot_id is not None
+                and latest.source_snapshot_id
+                != job.current_snapshot_id
+            ):
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code=(
+                            "LATEST_VERSION_SNAPSHOT_STALE"
+                        ),
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            latest_snapshot = (
+                self.repository.get_snapshot(
+                    latest.source_snapshot_id
+                )
+            )
+
+            if (
+                latest_snapshot is None
+                or latest_snapshot.job_id
+                != application.job_id
+            ):
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="SNAPSHOT_JOB_MISMATCH",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            events = (
+                self.repository
+                .list_material_events(
+                    latest.material_version_id
+                )
+            )
+
+            kinds = {
+                event.event_kind
+                for event in events
+            }
+
+            if "CREATED" not in kinds:
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="CREATED_EVENT_MISSING",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            if (
+                "MARKED_READY_FOR_REVIEW"
+                not in kinds
+            ):
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="READY_EVENT_MISSING",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            if "APPROVED" not in kinds:
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="APPROVED_EVENT_MISSING",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+            if "REJECTED" in kinds:
+                blockers.append(
+                    CareerApplicationApprovalBlocker(
+                        code="LATEST_VERSION_REJECTED",
+                        material_id=material.material_id,
+                        material_version_id=(
+                            latest.material_version_id
+                        ),
+                    )
+                )
+
+        return CareerApplicationApproval(
+            application_id=application_id,
+            approved=not blockers,
+            blockers=tuple(blockers),
+        )
+
+    def approve_ready_application(
+        self,
+        *,
+        application_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplication:
+        approval = (
+            self.evaluate_application_approval(
+                application_id=application_id
+            )
+        )
+
+        if not approval.approved:
+            codes = ",".join(
+                blocker.code
+                for blocker in approval.blockers
+            )
+
+            raise CareerMaterialRejected(
+                "Application package is not "
+                f"owner-approved: {codes}"
+            )
+
+        return self.transition_application(
+            application_id=application_id,
+            to_state="OWNER_APPROVED",
+            actor_kind="OWNER",
+            actor_id="dipen-owner",
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
+    def get_cockpit_application(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerApplication:
+        application = self.repository.get_application(
+            application_id
+        )
+
+        if application is None:
+            raise KeyError(
+                "Career application was not found."
+            )
+
+        return application
+
+    def list_cockpit_application_events(
+        self,
+        *,
+        application_id: str,
+    ) -> tuple[CareerApplicationEvent, ...]:
+        self.get_cockpit_application(
+            application_id=application_id
+        )
+
+        return tuple(
+            self.repository
+            .list_application_events(
+                application_id
+            )
+        )
+
+    def get_cockpit_application_readiness(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerApplicationReadiness:
+        self.get_cockpit_application(
+            application_id=application_id
+        )
+
+        return (
+            self.evaluate_application_readiness(
+                application_id=application_id
+            )
+        )
+
+    def list_cockpit_application_materials(
+        self,
+        *,
+        application_id: str,
+    ) -> tuple[
+        CareerApplicationMaterial,
+        ...,
+    ]:
+        self.get_cockpit_application(
+            application_id=application_id
+        )
+
+        return tuple(
+            self.repository
+            .list_application_materials(
+                application_id
+            )
+        )
+
+    def list_cockpit_material_versions(
+        self,
+        *,
+        material_id: str,
+    ) -> tuple[
+        CareerApplicationMaterialVersion,
+        ...,
+    ]:
+        material = self.repository.get_material(
+            material_id
+        )
+
+        if material is None:
+            raise KeyError(
+                "Career application material "
+                "was not found."
+            )
+
+        return tuple(
+            self.repository
+            .list_material_versions(
+                material_id
+            )
+        )
+
+    def list_cockpit_material_events(
+        self,
+        *,
+        material_version_id: str,
+    ) -> tuple[
+        CareerApplicationMaterialEvent,
+        ...,
+    ]:
+        version = (
+            self.repository
+            .get_material_version(
+                material_version_id
+            )
+        )
+
+        if version is None:
+            raise KeyError(
+                "Career material version "
+                "was not found."
+            )
+
+        return tuple(
+            self.repository
+            .list_material_events(
+                material_version_id
+            )
+        )
+
+    def create_cockpit_material_version(
+        self,
+        *,
+        material_id: str,
+        source_snapshot_id: str,
+        content_format: CareerMaterialContentFormat,
+        content_text: str,
+        parent_material_version_id: str | None,
+        occurred_at: datetime,
+        profile_version: str | None = None,
+    ) -> CareerApplicationMaterialVersion:
+        material = self.repository.get_material(
+            material_id
+        )
+
+        if material is None:
+            raise CareerMaterialRejected(
+                "Unknown Career application material."
+            )
+
+        common = {
+            "source_snapshot_id":
+                source_snapshot_id,
+            "content_format":
+                content_format,
+            "content_text":
+                content_text,
+            "created_by_kind":
+                "OWNER",
+            "created_by_id":
+                "dipen-owner",
+            "creation_mechanism":
+                "career-cockpit-owner",
+            "occurred_at":
+                occurred_at,
+            "profile_version":
+                profile_version,
+        }
+
+        if parent_material_version_id is None:
+            return self.create_initial_material_version(
+                material_id=material.material_id,
+                **common,
+            )
+
+        parent = self.repository.get_material_version(
+            parent_material_version_id
+        )
+
+        if parent is None:
+            raise CareerMaterialRejected(
+                "Unknown parent material version."
+            )
+
+        if parent.material_id != material.material_id:
+            raise CareerMaterialRejected(
+                "Parent material version does not "
+                "belong to requested material."
+            )
+
+        return self.create_derived_material_version(
+            parent_material_version_id=(
+                parent.material_version_id
+            ),
+            **common,
         )

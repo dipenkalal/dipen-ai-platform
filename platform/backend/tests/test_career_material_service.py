@@ -13,7 +13,10 @@ from pathlib import Path
 from agents.truth_repository import (
     AgentTruthRepository,
 )
-from career.repository import CareerRepository
+from career.repository import (
+    CareerPersistenceConflict,
+    CareerRepository,
+)
 from career.schemas import (
     CareerApplication,
     CareerJobPosting,
@@ -1058,6 +1061,685 @@ class CareerMaterialServiceTestCase(
         self.assertEqual(
             before_events,
             after_events,
+        )
+
+
+    def _seed_second_verified_job(self):
+        job = CareerJobPosting(
+            job_id="career-job-material-service-second",
+            employer_name="Second Material Employer",
+            requisition_id="MAT-2",
+            canonical_job_url=(
+                "https://example.test/jobs/2"
+            ),
+            canonical_apply_url=(
+                "https://example.test/jobs/2/apply"
+            ),
+            current_snapshot_id=None,
+            verification_state="RETRIEVED",
+            lifecycle_state="ACTIVE",
+            first_seen_at=NOW,
+            last_seen_at=NOW,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+
+        self.repository.upsert_job(job)
+
+        snapshot = CareerJobSnapshot.build(
+            job_id=job.job_id,
+            source_id=self.source.source_id,
+            title="Platform Support Engineer",
+            employer_name="Second Material Employer",
+            location_text="Ontario, Canada",
+            work_mode="HYBRID",
+            employment_type="Full-time",
+            description_text=(
+                "Support cloud platform operations."
+            ),
+            posted_at=(
+                NOW - timedelta(hours=2)
+            ),
+            freshness_state="WITHIN_72H",
+            normalized_text_sha256=("e" * 64),
+            observed_at=NOW,
+        )
+
+        self.repository.persist_snapshot(snapshot)
+
+        payload = job.model_dump(
+            mode="python"
+        )
+
+        payload["current_snapshot_id"] = (
+            snapshot.snapshot_id
+        )
+        payload["verification_state"] = "VERIFIED"
+        payload["updated_at"] = (
+            NOW + timedelta(seconds=1)
+        )
+
+        job = CareerJobPosting.model_validate(
+            payload
+        )
+
+        self.repository.upsert_job(job)
+
+        return job, snapshot
+
+    def test_repository_lists_applications_for_job(
+        self,
+    ) -> None:
+        applications = (
+            self.repository
+            .list_applications_for_job(
+                self.application.job_id
+            )
+        )
+
+        self.assertEqual(
+            len(applications),
+            1,
+        )
+
+        self.assertEqual(
+            applications[0].application_id,
+            self.application.application_id,
+        )
+
+    def test_cockpit_creation_uses_server_owned_identity(
+        self,
+    ) -> None:
+        job, _ = self._seed_second_verified_job()
+
+        created = (
+            self.service
+            .create_cockpit_application(
+                job_id=job.job_id,
+                reason="Owner shortlisted job.",
+                occurred_at=(
+                    NOW + timedelta(seconds=20)
+                ),
+            )
+        )
+
+        self.assertTrue(
+            created.application_id.startswith(
+                "career-application-"
+            )
+        )
+
+        self.assertNotEqual(
+            created.application_id,
+            self.application.application_id,
+        )
+
+        events = (
+            self.repository
+            .list_application_events(
+                created.application_id
+            )
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0].actor_kind,
+            "OWNER",
+        )
+        self.assertEqual(
+            events[0].actor_id,
+            "dipen-owner",
+        )
+
+    def test_cockpit_creation_rejects_existing_job_workspace(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            CareerPersistenceConflict,
+            "already exists",
+        ):
+            self.service.create_cockpit_application(
+                job_id=self.job.job_id,
+                reason="Duplicate attempt.",
+                occurred_at=(
+                    NOW + timedelta(seconds=20)
+                ),
+            )
+
+        applications = (
+            self.repository
+            .list_applications_for_job(
+                self.job.job_id
+            )
+        )
+
+        self.assertEqual(
+            len(applications),
+            1,
+        )
+
+    def _ready_for_owner_review(self):
+        _, version = self._ready_primary_resume()
+
+        self.service.advance_preparing_application_to_review(
+            application_id=(
+                self.application.application_id
+            ),
+            reason="Package ready.",
+            occurred_at=(
+                NOW + timedelta(seconds=5)
+            ),
+        )
+
+        return version
+
+    def test_application_approval_requires_material_approval(
+        self,
+    ) -> None:
+        version = self._ready_for_owner_review()
+
+        result = (
+            self.service
+            .evaluate_application_approval(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertFalse(result.approved)
+
+        self.assertIn(
+            (
+                "APPROVED_EVENT_MISSING",
+                version.material_version_id,
+            ),
+            {
+                (
+                    blocker.code,
+                    blocker.material_version_id,
+                )
+                for blocker in result.blockers
+            },
+        )
+
+    def test_guarded_owner_approval_succeeds_exact_package(
+        self,
+    ) -> None:
+        version = self._ready_for_owner_review()
+
+        self.service.approve_material_version(
+            material_version_id=(
+                version.material_version_id
+            ),
+            owner_id="dipen-owner",
+            reason="Resume approved.",
+            occurred_at=(
+                NOW + timedelta(seconds=6)
+            ),
+        )
+
+        result = (
+            self.service
+            .evaluate_application_approval(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertTrue(result.approved)
+
+        updated = (
+            self.service
+            .approve_ready_application(
+                application_id=(
+                    self.application.application_id
+                ),
+                reason="Current package approved.",
+                occurred_at=(
+                    NOW + timedelta(seconds=7)
+                ),
+            )
+        )
+
+        self.assertEqual(
+            updated.state,
+            "OWNER_APPROVED",
+        )
+
+        events = (
+            self.repository
+            .list_application_events(
+                self.application.application_id
+            )
+        )
+
+        self.assertEqual(
+            events[-1].actor_kind,
+            "OWNER",
+        )
+        self.assertEqual(
+            events[-1].actor_id,
+            "dipen-owner",
+        )
+
+    def test_present_cover_letter_requires_exact_approval(
+        self,
+    ) -> None:
+        _, resume_version = (
+            self._ready_primary_resume()
+        )
+
+        cover = self.service.create_material(
+            application_id=(
+                self.application.application_id
+            ),
+            material_kind="COVER_LETTER",
+            label="primary",
+            created_at=(
+                NOW + timedelta(seconds=5)
+            ),
+        )
+
+        cover_version = (
+            self.service
+            .create_initial_material_version(
+                material_id=cover.material_id,
+                source_snapshot_id=(
+                    self.snapshot.snapshot_id
+                ),
+                content_format="MARKDOWN",
+                content_text="# Cover",
+                created_by_kind="OWNER",
+                created_by_id="dipen-owner",
+                creation_mechanism="owner-edit",
+                occurred_at=(
+                    NOW + timedelta(seconds=6)
+                ),
+            )
+        )
+
+        self.service.mark_material_version_ready(
+            material_version_id=(
+                cover_version.material_version_id
+            ),
+            actor_kind="OWNER",
+            actor_id="dipen-owner",
+            reason="Cover ready.",
+            occurred_at=(
+                NOW + timedelta(seconds=7)
+            ),
+        )
+
+        self.service.advance_preparing_application_to_review(
+            application_id=(
+                self.application.application_id
+            ),
+            reason="Package ready.",
+            occurred_at=(
+                NOW + timedelta(seconds=8)
+            ),
+        )
+
+        self.service.approve_material_version(
+            material_version_id=(
+                resume_version.material_version_id
+            ),
+            owner_id="dipen-owner",
+            reason="Resume approved.",
+            occurred_at=(
+                NOW + timedelta(seconds=9)
+            ),
+        )
+
+        result = (
+            self.service
+            .evaluate_application_approval(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertFalse(result.approved)
+
+        self.assertIn(
+            (
+                "APPROVED_EVENT_MISSING",
+                cover_version.material_version_id,
+            ),
+            {
+                (
+                    blocker.code,
+                    blocker.material_version_id,
+                )
+                for blocker in result.blockers
+            },
+        )
+
+    def test_snapshot_drift_blocks_owner_approval(
+        self,
+    ) -> None:
+        version = self._ready_for_owner_review()
+
+        self.service.approve_material_version(
+            material_version_id=(
+                version.material_version_id
+            ),
+            owner_id="dipen-owner",
+            reason="Resume approved.",
+            occurred_at=(
+                NOW + timedelta(seconds=6)
+            ),
+        )
+
+        newer = CareerJobSnapshot.build(
+            job_id=self.job.job_id,
+            source_id=self.source.source_id,
+            title="Cloud Engineer Revised",
+            employer_name="Material Employer",
+            location_text="Toronto, ON",
+            work_mode="HYBRID",
+            employment_type="Full-time",
+            description_text=(
+                "Revised cloud role."
+            ),
+            posted_at=(
+                NOW - timedelta(hours=1)
+            ),
+            freshness_state="WITHIN_72H",
+            normalized_text_sha256=("f" * 64),
+            observed_at=(
+                NOW + timedelta(seconds=10)
+            ),
+        )
+
+        self.repository.persist_snapshot(newer)
+
+        payload = self.job.model_dump(
+            mode="python"
+        )
+
+        payload["current_snapshot_id"] = (
+            newer.snapshot_id
+        )
+        payload["updated_at"] = (
+            NOW + timedelta(seconds=11)
+        )
+
+        self.repository.upsert_job(
+            CareerJobPosting.model_validate(
+                payload
+            )
+        )
+
+        result = (
+            self.service
+            .evaluate_application_approval(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertIn(
+            "LATEST_VERSION_SNAPSHOT_STALE",
+            {
+                blocker.code
+                for blocker in result.blockers
+            },
+        )
+
+        with self.assertRaisesRegex(
+            CareerMaterialRejected,
+            "LATEST_VERSION_SNAPSHOT_STALE",
+        ):
+            self.service.approve_ready_application(
+                application_id=(
+                    self.application.application_id
+                ),
+                reason="Stale approval attempt.",
+                occurred_at=(
+                    NOW + timedelta(seconds=12)
+                ),
+            )
+
+
+    def test_cockpit_read_domain_surface(
+        self,
+    ) -> None:
+        application = (
+            self.service
+            .get_cockpit_application(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertEqual(
+            application.application_id,
+            self.application.application_id,
+        )
+
+        events = (
+            self.service
+            .list_cockpit_application_events(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertEqual(
+            events,
+            (),
+        )
+
+        readiness = (
+            self.service
+            .get_cockpit_application_readiness(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertFalse(
+            readiness.ready
+        )
+
+        materials = (
+            self.service
+            .list_cockpit_application_materials(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertEqual(
+            materials,
+            (),
+        )
+
+    def test_cockpit_read_material_graph(
+        self,
+    ) -> None:
+        material, version = (
+            self._initial_version()
+        )
+
+        materials = (
+            self.service
+            .list_cockpit_application_materials(
+                application_id=(
+                    self.application.application_id
+                )
+            )
+        )
+
+        self.assertEqual(
+            materials[-1].material_id,
+            material.material_id,
+        )
+
+        versions = (
+            self.service
+            .list_cockpit_material_versions(
+                material_id=material.material_id
+            )
+        )
+
+        self.assertEqual(
+            versions[-1].material_version_id,
+            version.material_version_id,
+        )
+
+        events = (
+            self.service
+            .list_cockpit_material_events(
+                material_version_id=(
+                    version.material_version_id
+                )
+            )
+        )
+
+        self.assertEqual(
+            events[0].event_kind,
+            "CREATED",
+        )
+
+    def test_cockpit_read_unknown_resources_fail_closed(
+        self,
+    ) -> None:
+        with self.assertRaises(KeyError):
+            self.service.get_cockpit_application(
+                application_id=(
+                    "career-application-missing"
+                )
+            )
+
+        with self.assertRaises(KeyError):
+            (
+                self.service
+                .list_cockpit_material_versions(
+                    material_id=(
+                        "career-material-"
+                        + "0" * 24
+                    )
+                )
+            )
+
+        with self.assertRaises(KeyError):
+            (
+                self.service
+                .list_cockpit_material_events(
+                    material_version_id=(
+                        "career-material-version-"
+                        + "0" * 24
+                    )
+                )
+            )
+
+
+    def test_cockpit_material_version_forces_owner_creator(
+        self,
+    ) -> None:
+        material = self.service.create_material(
+            application_id=(
+                self.application.application_id
+            ),
+            material_kind="APPLICATION_NOTES",
+            label="cockpit-owner-version",
+            created_at=(
+                NOW + timedelta(seconds=30)
+            ),
+        )
+
+        version = (
+            self.service
+            .create_cockpit_material_version(
+                material_id=material.material_id,
+                source_snapshot_id=(
+                    self.snapshot.snapshot_id
+                ),
+                content_format="MARKDOWN",
+                content_text="Owner draft.",
+                parent_material_version_id=None,
+                profile_version="profile-http",
+                occurred_at=(
+                    NOW + timedelta(seconds=31)
+                ),
+            )
+        )
+
+        self.assertEqual(
+            version.material_id,
+            material.material_id,
+        )
+        self.assertEqual(
+            version.created_by_kind,
+            "OWNER",
+        )
+        self.assertEqual(
+            version.created_by_id,
+            "dipen-owner",
+        )
+
+    def test_cockpit_material_version_rejects_cross_material_parent(
+        self,
+    ) -> None:
+        parent_material, parent_version = (
+            self._initial_version()
+        )
+
+        other = self.service.create_material(
+            application_id=(
+                self.application.application_id
+            ),
+            material_kind="APPLICATION_NOTES",
+            label="cross-material-target",
+            created_at=(
+                NOW + timedelta(seconds=30)
+            ),
+        )
+
+        self.assertNotEqual(
+            parent_material.material_id,
+            other.material_id,
+        )
+
+        with self.assertRaisesRegex(
+            CareerMaterialRejected,
+            "does not belong",
+        ):
+            (
+                self.service
+                .create_cockpit_material_version(
+                    material_id=other.material_id,
+                    source_snapshot_id=(
+                        self.snapshot.snapshot_id
+                    ),
+                    content_format="MARKDOWN",
+                    content_text="Invalid child.",
+                    parent_material_version_id=(
+                        parent_version
+                        .material_version_id
+                    ),
+                    profile_version=None,
+                    occurred_at=(
+                        NOW + timedelta(seconds=31)
+                    ),
+                )
+            )
+
+        self.assertEqual(
+            self.repository.list_material_versions(
+                other.material_id
+            ),
+            [],
         )
 
 
