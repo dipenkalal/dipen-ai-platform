@@ -126,3 +126,105 @@ export type CareerCockpitMaterialDecisionResponse =
   { actor_id: string; actor_kind: "OWNER" | "DAP_SYSTEM"; event_kind: "CREATED" | "MARKED_READY_FOR_REVIEW" | "APPROVED" | "REJECTED"; evidence_id?: string | null; material_event_id: string; material_version_id: string; occurred_at: string; reason: string; };
 
 // DAP_V2_CAREER_COCKPIT_TYPES_END
+
+// DAP_V2_OWNER_REVIEW_TYPES_BEGIN
+
+export type CareerOwnerReviewJob = {
+  job_id: string;
+  employer_name: string;
+  requisition_id?: string | null;
+  canonical_job_url: string;
+  canonical_apply_url?: string | null;
+  current_snapshot_id?: string | null;
+  verification_state: string;
+  lifecycle_state: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CareerOwnerReviewSnapshot = {
+  snapshot_id: string;
+  job_id: string;
+  source_id: string;
+  title: string;
+  employer_name: string;
+  location_text?: string | null;
+  work_mode?: string | null;
+  employment_type?: string | null;
+  description_text: string;
+  description_sha256: string;
+  posted_at?: string | null;
+  closing_at?: string | null;
+  freshness_state: string;
+  salary_text?: string | null;
+  requirements: Record<string, unknown>;
+  normalized_text_sha256: string;
+  observed_at: string;
+};
+
+export type CareerOwnerReviewApprovalBlocker = {
+  code: string;
+  material_id?: string | null;
+  material_version_id?: string | null;
+};
+
+export type CareerOwnerReviewApproval = {
+  application_id: string;
+  approved: boolean;
+  blockers: CareerOwnerReviewApprovalBlocker[];
+};
+
+export type CareerOwnerReviewQueueItem = {
+  application:
+    CareerCockpitApplicationResponse;
+  job: CareerOwnerReviewJob;
+  current_snapshot:
+    CareerOwnerReviewSnapshot | null;
+  readiness:
+    CareerCockpitReadinessResponse;
+  approval:
+    CareerOwnerReviewApproval;
+};
+
+export type CareerOwnerReviewQueueResponse = {
+  total: number;
+  items: CareerOwnerReviewQueueItem[];
+};
+
+export type CareerOwnerReviewMaterial = {
+  material:
+    CareerCockpitApplicationMaterialsResponse[
+      "items"
+    ][number];
+  latest_version:
+    CareerCockpitMaterialVersionsResponse[
+      "items"
+    ][number]
+    | null;
+  latest_version_events:
+    CareerCockpitMaterialVersionEventsResponse[
+      "items"
+    ];
+};
+
+export type CareerOwnerReviewPackageResponse = {
+  application:
+    CareerCockpitApplicationResponse;
+  job: CareerOwnerReviewJob;
+  current_snapshot:
+    CareerOwnerReviewSnapshot | null;
+  readiness:
+    CareerCockpitReadinessResponse;
+  approval:
+    CareerOwnerReviewApproval;
+  application_events:
+    CareerCockpitApplicationEventsResponse[
+      "items"
+    ];
+  materials:
+    CareerOwnerReviewMaterial[];
+};
+
+// DAP_V2_OWNER_REVIEW_TYPES_END

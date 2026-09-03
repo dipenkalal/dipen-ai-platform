@@ -1310,3 +1310,56 @@ class CareerApplicationApproval(BaseModel):
             )
 
         return self
+
+class CareerOwnerReviewQueueItem(BaseModel):
+    """Read-only owner-review projection for one queued application."""
+
+    model_config = ConfigDict(frozen=True)
+
+    application: CareerApplication
+    job: CareerJobPosting
+    current_snapshot: CareerJobSnapshot | None = None
+    readiness: CareerApplicationReadiness
+    approval: CareerApplicationApproval
+
+
+class CareerOwnerReviewQueue(BaseModel):
+    """Read-only READY_FOR_REVIEW queue projection."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total: int = Field(ge=0)
+    items: tuple[CareerOwnerReviewQueueItem, ...] = ()
+
+
+class CareerOwnerReviewMaterial(BaseModel):
+    """Read-only material projection for owner review."""
+
+    model_config = ConfigDict(frozen=True)
+
+    material: CareerApplicationMaterial
+    latest_version: CareerApplicationMaterialVersion | None = None
+    latest_version_events: tuple[
+        CareerApplicationMaterialEvent,
+        ...,
+    ] = ()
+
+
+class CareerOwnerReviewPackage(BaseModel):
+    """Read-only aggregate for one owner-review application."""
+
+    model_config = ConfigDict(frozen=True)
+
+    application: CareerApplication
+    job: CareerJobPosting
+    current_snapshot: CareerJobSnapshot | None = None
+    readiness: CareerApplicationReadiness
+    approval: CareerApplicationApproval
+    application_events: tuple[
+        CareerApplicationEvent,
+        ...,
+    ] = ()
+    materials: tuple[
+        CareerOwnerReviewMaterial,
+        ...,
+    ] = ()

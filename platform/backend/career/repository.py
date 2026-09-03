@@ -2373,6 +2373,30 @@ class CareerRepository:
 
         return stored
 
+    def list_ready_for_review_applications(
+        self,
+    ) -> tuple[CareerApplication, ...]:
+        """List applications awaiting explicit owner review."""
+
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT *
+                FROM career_applications
+                WHERE state = 'READY_FOR_REVIEW'
+                ORDER BY
+                    updated_at ASC,
+                    application_id ASC
+                """
+            ).fetchall()
+
+        return tuple(
+            CareerApplication.model_validate(
+                dict(row)
+            )
+            for row in rows
+        )
+
     def list_applications_for_job(
         self,
         job_id: str,

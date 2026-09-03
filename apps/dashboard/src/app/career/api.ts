@@ -255,4 +255,28 @@ export async function decideCareerMaterialVersion(
     request,
   );
 }
+
+// DAP_V2_OWNER_REVIEW_API_BEGIN
+
+export async function fetchCareerOwnerReviewQueue():
+Promise<import("./types").CareerOwnerReviewQueueResponse> {
+  return getJson<
+    import("./types").CareerOwnerReviewQueueResponse
+  >(
+    "/api/career/owner-review/queue",
+  );
+}
+
+export async function fetchCareerOwnerReviewPackage(
+  applicationId: string,
+): Promise<import("./types").CareerOwnerReviewPackageResponse> {
+  return getJson<
+    import("./types").CareerOwnerReviewPackageResponse
+  >(
+    `/api/career/applications/${encodeURIComponent(applicationId)}/owner-review`,
+  );
+}
+
+// DAP_V2_OWNER_REVIEW_API_END
+
 // DAP_V2_CAREER_COCKPIT_API_END

@@ -25,6 +25,10 @@ from career.schemas import (
     CareerMaterialCreatorKind,
     CareerMaterialKind,
     CareerMaterialProvenance,
+    CareerOwnerReviewMaterial,
+    CareerOwnerReviewPackage,
+    CareerOwnerReviewQueue,
+    CareerOwnerReviewQueueItem,
 )
 
 
@@ -1849,4 +1853,243 @@ class CareerDomainService:
                 parent.material_version_id
             ),
             **common,
+        )
+
+    def evaluate_owner_review_readiness(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerApplicationReadiness:
+        """Evaluate package readiness while awaiting owner review."""
+
+        application = self.repository.get_application(
+            application_id
+        )
+
+        if application is None:
+            raise CareerMaterialRejected(
+                "Unknown Career application."
+            )
+
+        if application.state != "READY_FOR_REVIEW":
+            raise CareerMaterialRejected(
+                "Career application is not "
+                "ready for owner review."
+            )
+
+        approval = (
+            self.evaluate_application_approval(
+                application_id=application_id
+            )
+        )
+
+        blockers: list[
+            CareerApplicationReadinessBlocker
+        ] = []
+
+        for blocker in approval.blockers:
+            if (
+                blocker.code
+                == "APPROVED_EVENT_MISSING"
+            ):
+                continue
+
+            blockers.append(
+                CareerApplicationReadinessBlocker(
+                    code=blocker.code,
+                    material_id=blocker.material_id,
+                    material_version_id=(
+                        blocker.material_version_id
+                    ),
+                )
+            )
+
+        return CareerApplicationReadiness(
+            application_id=application_id,
+            ready=not blockers,
+            blockers=tuple(blockers),
+        )
+
+    def list_owner_review_queue(
+        self,
+    ) -> CareerOwnerReviewQueue:
+        """Build the read-only READY_FOR_REVIEW owner queue."""
+
+        applications = (
+            self.repository
+            .list_ready_for_review_applications()
+        )
+
+        items: list[
+            CareerOwnerReviewQueueItem
+        ] = []
+
+        for application in applications:
+            job = self.repository.get_job(
+                application.job_id
+            )
+
+            if job is None:
+                raise KeyError(
+                    "Career application job "
+                    "was not found."
+                )
+
+            current_snapshot = None
+
+            if job.current_snapshot_id is not None:
+                current_snapshot = (
+                    self.repository.get_snapshot(
+                        job.current_snapshot_id
+                    )
+                )
+
+            readiness = (
+                self.evaluate_owner_review_readiness(
+                    application_id=(
+                        application.application_id
+                    )
+                )
+            )
+
+            approval = (
+                self.evaluate_application_approval(
+                    application_id=(
+                        application.application_id
+                    )
+                )
+            )
+
+            items.append(
+                CareerOwnerReviewQueueItem(
+                    application=application,
+                    job=job,
+                    current_snapshot=(
+                        current_snapshot
+                    ),
+                    readiness=readiness,
+                    approval=approval,
+                )
+            )
+
+        return CareerOwnerReviewQueue(
+            total=len(items),
+            items=tuple(items),
+        )
+
+    def get_owner_review_package(
+        self,
+        *,
+        application_id: str,
+    ) -> CareerOwnerReviewPackage:
+        """Build one read-only Career owner-review package."""
+
+        application = (
+            self.get_cockpit_application(
+                application_id=application_id
+            )
+        )
+
+        if application.state != "READY_FOR_REVIEW":
+            raise CareerMaterialRejected(
+                "Career application is not "
+                "ready for owner review."
+            )
+
+        job = self.repository.get_job(
+            application.job_id
+        )
+
+        if job is None:
+            raise KeyError(
+                "Career application job "
+                "was not found."
+            )
+
+        current_snapshot = None
+
+        if job.current_snapshot_id is not None:
+            current_snapshot = (
+                self.repository.get_snapshot(
+                    job.current_snapshot_id
+                )
+            )
+
+        readiness = (
+            self.evaluate_owner_review_readiness(
+                application_id=application_id
+            )
+        )
+
+        approval = (
+            self.evaluate_application_approval(
+                application_id=application_id
+            )
+        )
+
+        application_events = tuple(
+            self.repository.list_application_events(
+                application_id
+            )
+        )
+
+        review_materials: list[
+            CareerOwnerReviewMaterial
+        ] = []
+
+        for material in (
+            self.repository
+            .list_application_materials(
+                application_id
+            )
+        ):
+            versions = tuple(
+                self.repository
+                .list_material_versions(
+                    material.material_id
+                )
+            )
+
+            latest_version = (
+                versions[-1]
+                if versions
+                else None
+            )
+
+            latest_events: tuple[
+                CareerApplicationMaterialEvent,
+                ...,
+            ] = ()
+
+            if latest_version is not None:
+                latest_events = tuple(
+                    self.repository
+                    .list_material_events(
+                        latest_version
+                        .material_version_id
+                    )
+                )
+
+            review_materials.append(
+                CareerOwnerReviewMaterial(
+                    material=material,
+                    latest_version=latest_version,
+                    latest_version_events=(
+                        latest_events
+                    ),
+                )
+            )
+
+        return CareerOwnerReviewPackage(
+            application=application,
+            job=job,
+            current_snapshot=current_snapshot,
+            readiness=readiness,
+            approval=approval,
+            application_events=(
+                application_events
+            ),
+            materials=tuple(
+                review_materials
+            ),
         )

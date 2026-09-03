@@ -39,6 +39,8 @@ from career.schemas import (
     CareerApplicationMaterialEvent,
     CareerApplicationMaterialVersion,
     CareerApplicationReadiness,
+    CareerOwnerReviewPackage,
+    CareerOwnerReviewQueue,
 )
 from career.service import (
     CareerDomainService,
@@ -255,6 +257,44 @@ async def list_career_material_events(
         return CareerMaterialEventListResponse(
             total=len(items),
             items=items,
+        )
+    except Exception as error:
+        raise career_http_exception(
+            error
+        ) from error
+
+
+
+@router.get(
+    "/owner-review/queue",
+    response_model=CareerOwnerReviewQueue,
+)
+async def list_career_owner_review_queue(
+    service: CareerDomainService = Depends(
+        get_career_domain_service
+    ),
+) -> CareerOwnerReviewQueue:
+    try:
+        return service.list_owner_review_queue()
+    except Exception as error:
+        raise career_http_exception(
+            error
+        ) from error
+
+
+@router.get(
+    "/applications/{application_id}/owner-review",
+    response_model=CareerOwnerReviewPackage,
+)
+async def get_career_owner_review_package(
+    application_id: str,
+    service: CareerDomainService = Depends(
+        get_career_domain_service
+    ),
+) -> CareerOwnerReviewPackage:
+    try:
+        return service.get_owner_review_package(
+            application_id=application_id
         )
     except Exception as error:
         raise career_http_exception(

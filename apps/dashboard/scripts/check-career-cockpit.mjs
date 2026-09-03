@@ -79,7 +79,7 @@ const routeFiles = walk(
     ),
 );
 
-if (routeFiles.length !== 14) {
+if (routeFiles.length !== 16) {
   fail(
     `route_files=${routeFiles.length}`,
   );
@@ -139,12 +139,81 @@ for (const file of routeFiles) {
 }
 
 if (
-  getCount !== 8
+  getCount !== 10
   || postCount !== 8
 ) {
   fail(
     `methods=GET:${getCount},POST:${postCount}`,
   );
+}
+
+
+const ownerReviewRouteFiles = [
+  path.join(
+    careerRouteRoot,
+    "owner-review",
+    "queue",
+    "route.ts",
+  ),
+  path.join(
+    careerRouteRoot,
+    "applications",
+    "[applicationId]",
+    "owner-review",
+    "route.ts",
+  ),
+];
+
+for (
+  const file
+  of ownerReviewRouteFiles
+) {
+  if (!routeFiles.includes(file)) {
+    fail(
+      `owner_review_bff_missing=${file}`,
+    );
+  }
+
+  const text = fs.readFileSync(
+    file,
+    "utf8",
+  );
+
+  if (
+    !text.includes(
+      "export async function GET(",
+    )
+  ) {
+    fail(
+      `owner_review_get_missing=${file}`,
+    );
+  }
+
+  if (
+    /export\s+async\s+function\s+(?:POST|PUT|PATCH|DELETE)\b/.test(
+      text,
+    )
+  ) {
+    fail(
+      `owner_review_mutation_transport=${file}`,
+    );
+  }
+
+  if (
+    text.includes(
+      '"owner_id"',
+    )
+    || text.includes(
+      '"actor_id"',
+    )
+    || text.includes(
+      '"actor_kind"',
+    )
+  ) {
+    fail(
+      `owner_review_authority_synthesis=${file}`,
+    );
+  }
 }
 
 const dynamicRoutes =
@@ -209,6 +278,8 @@ const functions = [
   "fetchCareerMaterialVersionEvents",
   "markCareerMaterialVersionReady",
   "decideCareerMaterialVersion",
+  "fetchCareerOwnerReviewQueue",
+  "fetchCareerOwnerReviewPackage",
 ];
 
 for (const name of functions) {
@@ -252,15 +323,15 @@ if (
 }
 
 console.log(
-  "CAREER_BFF_ROUTE_FILES|14",
+  "CAREER_BFF_ROUTE_FILES|16",
 );
 
 console.log(
-  "CAREER_BFF_OPERATIONS|16",
+  "CAREER_BFF_OPERATIONS|18",
 );
 
 console.log(
-  "CAREER_BFF_GET|8",
+  "CAREER_BFF_GET|10",
 );
 
 console.log(
@@ -268,7 +339,7 @@ console.log(
 );
 
 console.log(
-  "CAREER_API_CLIENT_FUNCTIONS|16",
+  "CAREER_API_CLIENT_FUNCTIONS|18",
 );
 
 console.log(
@@ -714,3 +785,168 @@ console.log(
 console.log(
   "CAREER_COCKPIT_CHECK|PASS",
 );
+
+// DAP_V2_OWNER_REVIEW_UI_CHECK_BEGIN
+
+const ownerReviewPagePath =
+  "src/app/career/review/page.tsx";
+
+if (
+  !fs.existsSync(
+    path.join(
+      dashboard,
+      ownerReviewPagePath,
+    ),
+  )
+) {
+  fail(
+    "owner_review_page_missing",
+  );
+}
+
+const ownerReviewPage = read(
+  ownerReviewPagePath,
+);
+
+for (const required of [
+  "fetchCareerOwnerReviewQueue",
+  "fetchCareerOwnerReviewPackage",
+  "approveCareerApplication",
+  "decideCareerMaterialVersion",
+  "READY_FOR_REVIEW",
+  "Owner review queue",
+  "Review package",
+  "Approve application",
+  "Approve material",
+  "Reject material",
+  "Materials",
+  "Lifecycle history",
+]) {
+  if (
+    !ownerReviewPage.includes(
+      required,
+    )
+  ) {
+    fail(
+      `owner_review_ui_missing=${required}`,
+    );
+  }
+}
+
+for (const forbidden of [
+  "transitionCareerApplication",
+  "advanceCareerApplicationToReview",
+  "createCareerApplication",
+  "createCareerApplicationMaterial",
+  "createCareerMaterialVersion",
+  "markCareerMaterialVersionReady",
+  "postJson(",
+  ":8002",
+  "/api/v1/career",
+  '"owner_id"',
+  '"actor_id"',
+  '"actor_kind"',
+  "DETERMINISTIC_SYSTEM",
+  "DAP_GENERATOR",
+]) {
+  if (
+    ownerReviewPage.includes(
+      forbidden,
+    )
+  ) {
+    fail(
+      `owner_review_ui_forbidden=${forbidden}`,
+    );
+  }
+}
+
+
+if (
+  !ownerReviewPage.includes(
+    "approveCareerApplication(",
+  )
+  || !ownerReviewPage.includes(
+    "decideCareerMaterialVersion(",
+  )
+) {
+  fail(
+    "owner_review_existing_mutation_primitive_missing",
+  );
+}
+
+if (
+  !ownerReviewPage.includes(
+    "reviewPackage.approval.approved",
+  )
+  || !ownerReviewPage.includes(
+    '!== "READY_FOR_REVIEW"',
+  )
+) {
+  fail(
+    "owner_review_application_guard_missing",
+  );
+}
+
+if (
+  !ownerReviewPage.includes(
+    '"MARKED_READY_FOR_REVIEW"',
+  )
+  || !ownerReviewPage.includes(
+    'eventKinds.has("APPROVED")',
+  )
+  || !ownerReviewPage.includes(
+    'eventKinds.has("REJECTED")',
+  )
+) {
+  fail(
+    "owner_review_material_guard_missing",
+  );
+}
+
+if (
+  /<button\b[^>]*>\s*(?:Apply|Submit|Auto Apply)\s*<\/button>/i.test(
+    ownerReviewPage,
+  )
+) {
+  fail(
+    "owner_review_submission_button",
+  );
+}
+
+console.log(
+  "OWNER_REVIEW_PAGE|1",
+);
+
+console.log(
+  "OWNER_REVIEW_PAGE_LOAD|GET_ONLY",
+);
+
+console.log(
+  "OWNER_REVIEW_QUEUE_CLIENT|1",
+);
+
+console.log(
+  "OWNER_REVIEW_PACKAGE_CLIENT|1",
+);
+
+console.log(
+  "OWNER_REVIEW_APPLICATION_APPROVAL_CONTROL|1",
+);
+
+console.log(
+  "OWNER_REVIEW_MATERIAL_DECISION_CONTROLS|2",
+);
+
+console.log(
+  "OWNER_REVIEW_MUTATION_PRIMITIVES|EXISTING_ONLY",
+);
+
+console.log(
+  "OWNER_REVIEW_SUBMISSION_UI|0",
+);
+
+console.log(
+  "OWNER_REVIEW_UI_AUTHORITY_SYNTHESIS|0",
+);
+
+// DAP_V2_OWNER_REVIEW_UI_CHECK_END

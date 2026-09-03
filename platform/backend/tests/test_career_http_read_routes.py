@@ -204,6 +204,11 @@ def test_read_route_surface_is_preserved(
             "/api/v1/career/material-versions/"
             "{material_version_id}/events"
         ),
+        "/api/v1/career/owner-review/queue",
+        (
+            "/api/v1/career/applications/"
+            "{application_id}/owner-review"
+        ),
     }
 
 

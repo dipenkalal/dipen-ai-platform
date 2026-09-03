@@ -131,8 +131,8 @@ def test_exact_frozen_route_counts():
         if "POST" in route.methods
     ]
 
-    assert len(routes) == 16
-    assert len(gets) == 8
+    assert len(routes) == 18
+    assert len(gets) == 10
     assert len(posts) == 8
 
     assert not any(
