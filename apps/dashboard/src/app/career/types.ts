@@ -55,3 +55,74 @@ export type CareerDashboardSummary = {
   application_submission_enabled: false;
   auto_apply_enabled: false;
 };
+
+// DAP_V2_CAREER_COCKPIT_TYPES_BEGIN
+// Generated from the sealed live Career OpenAPI contract.
+
+export type CareerCockpitCreateApplicationRequest =
+  { notes?: string | null; reason: string; };
+
+export type CareerCockpitCreateApplicationResponse =
+  { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
+
+export type CareerCockpitApplicationResponse =
+  { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
+
+export type CareerCockpitApplicationEventsResponse =
+  { items: ({ actor_id: string; actor_kind: "OWNER" | "DETERMINISTIC_SYSTEM"; application_id: string; event_id: string; evidence_id?: string | null; from_state?: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED" | null; occurred_at: string; reason: string; to_state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; })[]; total: number; };
+
+export type CareerCockpitTransitionRequest =
+  { evidence_id?: string | null; reason: string; to_state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; };
+
+export type CareerCockpitTransitionResponse =
+  { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
+
+export type CareerCockpitReadinessResponse =
+  { application_id: string; blockers?: ({ code: "APPLICATION_NOT_PREPARING" | "PRIMARY_RESUME_MISSING" | "BLOCKING_MATERIAL_HAS_NO_VERSION" | "CURRENT_SNAPSHOT_MISSING" | "LATEST_VERSION_SNAPSHOT_STALE" | "SNAPSHOT_JOB_MISMATCH" | "CREATED_EVENT_MISSING" | "READY_EVENT_MISSING" | "LATEST_VERSION_REJECTED"; material_id?: string | null; material_version_id?: string | null; })[]; ready: boolean; };
+
+export type CareerCockpitAdvanceToReviewRequest =
+  { reason: string; };
+
+export type CareerCockpitAdvanceToReviewResponse =
+  { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
+
+export type CareerCockpitApproveApplicationRequest =
+  { reason: string; };
+
+export type CareerCockpitApproveApplicationResponse =
+  { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
+
+export type CareerCockpitApplicationMaterialsResponse =
+  { items: ({ application_id: string; created_at: string; label: string; material_id: string; material_kind: "RESUME" | "COVER_LETTER" | "APPLICATION_NOTES"; })[]; total: number; };
+
+export type CareerCockpitCreateMaterialRequest =
+  { label: string; material_kind: "RESUME" | "COVER_LETTER" | "APPLICATION_NOTES"; };
+
+export type CareerCockpitCreateMaterialResponse =
+  { application_id: string; created_at: string; label: string; material_id: string; material_kind: "RESUME" | "COVER_LETTER" | "APPLICATION_NOTES"; };
+
+export type CareerCockpitMaterialVersionsResponse =
+  { items: ({ content_format: "TEXT" | "MARKDOWN" | "LATEX" | "JSON"; content_sha256: string; content_text: string; created_at: string; created_by_id: string; created_by_kind: "OWNER" | "DAP_GENERATOR"; material_id: string; material_version_id: string; parent_material_version_id?: string | null; provenance: { application_id: string; creation_mechanism: string; generator_kind: "OWNER" | "DAP_GENERATOR"; job_id: string; model_name?: string | null; model_provider?: string | null; parent_material_version_id?: string | null; profile_version?: string | null; snapshot_id: string; source_material_version_ids?: string[]; }; source_snapshot_id: string; version_number: number; })[]; total: number; };
+
+export type CareerCockpitCreateMaterialVersionRequest =
+  { content_format: "TEXT" | "MARKDOWN" | "LATEX" | "JSON"; content_text: string; parent_material_version_id?: string | null; profile_version?: string | null; source_snapshot_id: string; };
+
+export type CareerCockpitCreateMaterialVersionResponse =
+  { content_format: "TEXT" | "MARKDOWN" | "LATEX" | "JSON"; content_sha256: string; content_text: string; created_at: string; created_by_id: string; created_by_kind: "OWNER" | "DAP_GENERATOR"; material_id: string; material_version_id: string; parent_material_version_id?: string | null; provenance: { application_id: string; creation_mechanism: string; generator_kind: "OWNER" | "DAP_GENERATOR"; job_id: string; model_name?: string | null; model_provider?: string | null; parent_material_version_id?: string | null; profile_version?: string | null; snapshot_id: string; source_material_version_ids?: string[]; }; source_snapshot_id: string; version_number: number; };
+
+export type CareerCockpitMaterialVersionEventsResponse =
+  { items: ({ actor_id: string; actor_kind: "OWNER" | "DAP_SYSTEM"; event_kind: "CREATED" | "MARKED_READY_FOR_REVIEW" | "APPROVED" | "REJECTED"; evidence_id?: string | null; material_event_id: string; material_version_id: string; occurred_at: string; reason: string; })[]; total: number; };
+
+export type CareerCockpitMarkMaterialReadyRequest =
+  { reason: string; };
+
+export type CareerCockpitMarkMaterialReadyResponse =
+  { actor_id: string; actor_kind: "OWNER" | "DAP_SYSTEM"; event_kind: "CREATED" | "MARKED_READY_FOR_REVIEW" | "APPROVED" | "REJECTED"; evidence_id?: string | null; material_event_id: string; material_version_id: string; occurred_at: string; reason: string; };
+
+export type CareerCockpitMaterialDecisionRequest =
+  { decision: "approve" | "reject"; reason?: string; };
+
+export type CareerCockpitMaterialDecisionResponse =
+  { actor_id: string; actor_kind: "OWNER" | "DAP_SYSTEM"; event_kind: "CREATED" | "MARKED_READY_FOR_REVIEW" | "APPROVED" | "REJECTED"; evidence_id?: string | null; material_event_id: string; material_version_id: string; occurred_at: string; reason: string; };
+
+// DAP_V2_CAREER_COCKPIT_TYPES_END

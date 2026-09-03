@@ -18,6 +18,7 @@ import {
 } from "react";
 
 import {
+  createCareerApplication,
   fetchCareerJobs,
   fetchCareerSummary,
 } from "./api";
@@ -28,6 +29,10 @@ import type {
   CareerDashboardSummary,
   CareerVerdict,
 } from "./types";
+
+import {
+  ApplicationWorkspace,
+} from "./components/ApplicationWorkspace";
 
 
 type VerdictFilter =
@@ -113,8 +118,16 @@ function verdictClasses(
 
 function JobCard({
   job,
+  onOpenWorkspace,
+  openingWorkspace,
+  isWorkspaceSelected,
 }: {
   job: CareerDashboardJob;
+  onOpenWorkspace: (
+    job: CareerDashboardJob,
+  ) => void;
+  openingWorkspace: boolean;
+  isWorkspaceSelected: boolean;
 }) {
   return (
     <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -186,7 +199,25 @@ function JobCard({
           <ExternalLink className="h-4 w-4" />
         </a>
       </div>
-    </article>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={openingWorkspace}
+          onClick={() => {
+            onOpenWorkspace(job);
+          }}
+          className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {openingWorkspace
+            ? "Opening workspace…"
+            : isWorkspaceSelected
+              ? "Workspace open"
+              : "Open workspace"}
+        </button>
+      </div>
+
+</article>
   );
 }
 
@@ -210,6 +241,32 @@ export default function CareerPage() {
 
   const [error, setError] =
     useState<string | null>(null);
+
+  const [
+    workspaceSelection,
+    setWorkspaceSelection,
+  ] = useState<{
+    job: CareerDashboardJob;
+    applicationId: string;
+  } | null>(null);
+
+  const [
+    workspaceIds,
+    setWorkspaceIds,
+  ] = useState<Record<string, string>>(
+    {},
+  );
+
+  const [
+    openingWorkspaceJobId,
+    setOpeningWorkspaceJobId,
+  ] = useState<string | null>(null);
+
+  const [
+    workspaceError,
+    setWorkspaceError,
+  ] = useState<string | null>(null);
+
 
 
   const load = useCallback(
@@ -277,6 +334,60 @@ export default function CareerPage() {
     ],
   );
 
+
+
+  async function openWorkspace(
+    job: CareerDashboardJob,
+  ) {
+    setWorkspaceError(null);
+    setOpeningWorkspaceJobId(
+      job.job_id,
+    );
+
+    try {
+      let applicationId =
+        job.application_id
+        ?? workspaceIds[job.job_id]
+        ?? null;
+
+      if (!applicationId) {
+        const created =
+          await createCareerApplication(
+            job.job_id,
+            {
+              reason:
+                "Owner explicitly opened this Career Cockpit workspace.",
+            },
+          );
+
+        applicationId =
+          created.application_id;
+
+        setWorkspaceIds(
+          (current) => ({
+            ...current,
+            [job.job_id]:
+              created.application_id,
+          }),
+        );
+      }
+
+      setWorkspaceSelection({
+        job,
+        applicationId,
+      });
+    } catch (cause) {
+      setWorkspaceError(
+        cause instanceof Error
+          ? cause.message
+          : "Unable to open Career workspace.",
+      );
+    } finally {
+      setOpeningWorkspaceJobId(
+        null,
+      );
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -442,14 +553,48 @@ export default function CareerPage() {
               <JobCard
                 key={job.job_id}
                 job={job}
+                onOpenWorkspace={
+                  openWorkspace
+                }
+                openingWorkspace={
+                  openingWorkspaceJobId
+                  === job.job_id
+                }
+                isWorkspaceSelected={
+                  workspaceSelection
+                    ?.job.job_id
+                  === job.job_id
+                }
               />
             ),
           )}
         </section>
 
+        {workspaceError ? (
+          <section className="mt-6 rounded-2xl border border-rose-400/20 bg-rose-400/[0.05] p-4 text-sm text-rose-200">
+            {workspaceError}
+          </section>
+        ) : null}
+
+        {workspaceSelection ? (
+          <ApplicationWorkspace
+            job={workspaceSelection.job}
+            applicationId={
+              workspaceSelection
+                .applicationId
+            }
+            onClose={() => {
+              setWorkspaceSelection(
+                null,
+              );
+            }}
+          />
+        ) : null}
+
         <footer className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs leading-5 text-slate-500">
-          Career dashboard authority: production database read-only.
-          Application submission and auto-apply remain disabled.
+          Career discovery remains read-only. Cockpit workspace
+          changes require explicit owner actions. Application submission
+          and auto-apply remain disabled.
         </footer>
       </div>
     </main>
