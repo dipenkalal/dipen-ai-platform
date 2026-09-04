@@ -161,6 +161,35 @@ class CareerApproveApplicationRequest(BaseModel):
         return self
 
 
+class CareerConfirmAppliedRequest(BaseModel):
+    """Owner attestation of external manual submission."""
+
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+    )
+
+    reason: str = Field(
+        min_length=1,
+        max_length=4000,
+    )
+
+    @model_validator(mode="after")
+    def validate_request(
+        self,
+    ) -> CareerConfirmAppliedRequest:
+        object.__setattr__(
+            self,
+            "reason",
+            _required_text(
+                self.reason,
+                label="reason",
+            ),
+        )
+
+        return self
+
+
 class CareerCreateMaterialRequest(BaseModel):
     model_config = ConfigDict(
         frozen=True,

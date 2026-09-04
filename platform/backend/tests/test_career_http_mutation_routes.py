@@ -55,6 +55,15 @@ class StubService:
             kwargs,
         )
 
+    def confirm_owner_applied_application(
+        self,
+        **kwargs,
+    ):
+        return self._reject(
+            "confirm_owner_applied_application",
+            kwargs,
+        )
+
     def create_material(
         self,
         **kwargs,
@@ -131,15 +140,27 @@ def test_exact_frozen_route_counts():
         if "POST" in route.methods
     ]
 
-    assert len(routes) == 18
+    assert len(routes) == 19
     assert len(gets) == 10
-    assert len(posts) == 8
+    assert len(posts) == 9
 
     assert not any(
         route.methods
         & {"PUT", "PATCH", "DELETE"}
         for route in routes
     )
+
+    confirm_applied = [
+        route
+        for route in routes
+        if route.path.endswith(
+            "/applications/{application_id}/confirm-applied"
+        )
+    ]
+
+    assert len(confirm_applied) == 1
+    assert "POST" in confirm_applied[0].methods
+
 
 
 def test_create_application_has_server_fields():
@@ -449,3 +470,50 @@ def test_no_submission_surface():
         for value in values
         for token in forbidden
     )
+
+
+def test_dedicated_confirm_applied_route():
+    http, service = client()
+
+    response = http.post(
+        "/api/v1/career/applications/"
+        "career-application-http/confirm-applied",
+        json={
+            "reason":
+                "Owner confirms manual external submission."
+        },
+    )
+
+    assert response.status_code == 409
+
+    name, kwargs = service.calls[-1]
+
+    assert (
+        name
+        == "confirm_owner_applied_application"
+    )
+    assert (
+        kwargs["reason"]
+        == "Owner confirms manual external submission."
+    )
+    assert_aware(kwargs["occurred_at"])
+
+
+def test_confirm_applied_forbids_authority_fields():
+    http, service = client()
+
+    response = http.post(
+        "/api/v1/career/applications/"
+        "career-application-http/confirm-applied",
+        json={
+            "reason": "Attempt.",
+            "actor_kind":
+                "DETERMINISTIC_SYSTEM",
+            "actor_id": "attacker",
+            "confirmation_kind":
+                "FUTURE_BROKER_EVIDENCE",
+        },
+    )
+
+    assert response.status_code == 422
+    assert service.calls == []

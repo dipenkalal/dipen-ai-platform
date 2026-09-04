@@ -20,6 +20,7 @@ from career.http_schemas import (
     CareerApplicationEventListResponse,
     CareerApplicationMaterialListResponse,
     CareerApproveApplicationRequest,
+    CareerConfirmAppliedRequest,
     CareerCreateApplicationRequest,
     CareerCreateMaterialRequest,
     CareerCreateMaterialVersionRequest,
@@ -406,6 +407,29 @@ async def approve_career_application(
 ) -> CareerApplication:
     try:
         return service.approve_ready_application(
+            application_id=application_id,
+            reason=request.reason,
+            occurred_at=_career_http_now(),
+        )
+    except Exception as error:
+        raise career_http_exception(error) from error
+
+
+@router.post(
+    "/applications/{application_id}/confirm-applied",
+    response_model=CareerApplication,
+)
+async def confirm_career_application_applied(
+    application_id: str,
+    request: CareerConfirmAppliedRequest,
+    service: CareerDomainService = Depends(
+        get_career_domain_service
+    ),
+) -> CareerApplication:
+    """Record owner-confirmed external manual submission."""
+
+    try:
+        return service.confirm_owner_applied_application(
             application_id=application_id,
             reason=request.reason,
             occurred_at=_career_http_now(),

@@ -92,6 +92,12 @@ export type CareerCockpitApproveApplicationRequest =
 export type CareerCockpitApproveApplicationResponse =
   { application_id: string; applied_confirmation_kind?: "OWNER_MANUAL" | "FUTURE_BROKER_EVIDENCE" | null; applied_confirmed_at?: string | null; created_at: string; job_id: string; notes?: string | null; owner_approved_at?: string | null; state: "SHORTLISTED" | "PREPARING" | "READY_FOR_REVIEW" | "OWNER_APPROVED" | "APPLIED_CONFIRMED" | "INTERVIEW" | "REJECTED" | "WITHDRAWN" | "OFFER" | "CLOSED"; updated_at: string; };
 
+export type CareerCockpitConfirmAppliedRequest =
+  { reason: string; };
+
+export type CareerCockpitConfirmAppliedResponse =
+  CareerCockpitApplicationResponse;
+
 export type CareerCockpitApplicationMaterialsResponse =
   { items: ({ application_id: string; created_at: string; label: string; material_id: string; material_kind: "RESUME" | "COVER_LETTER" | "APPLICATION_NOTES"; })[]; total: number; };
 

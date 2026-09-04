@@ -180,6 +180,20 @@ export async function approveCareerApplication(
   );
 }
 
+
+export async function confirmCareerApplicationApplied(
+  applicationId: string,
+  request: import("./types").CareerCockpitConfirmAppliedRequest,
+): Promise<import("./types").CareerCockpitConfirmAppliedResponse> {
+  return postJson<
+    import("./types").CareerCockpitConfirmAppliedResponse,
+    import("./types").CareerCockpitConfirmAppliedRequest
+  >(
+    `/api/career/applications/${encodeURIComponent(applicationId)}/confirm-applied`,
+    request,
+  );
+}
+
 export async function fetchCareerApplicationMaterials(
   applicationId: string,
 ): Promise<import("./types").CareerCockpitApplicationMaterialsResponse> {

@@ -79,7 +79,7 @@ const routeFiles = walk(
     ),
 );
 
-if (routeFiles.length !== 16) {
+if (routeFiles.length !== 17) {
   fail(
     `route_files=${routeFiles.length}`,
   );
@@ -140,7 +140,7 @@ for (const file of routeFiles) {
 
 if (
   getCount !== 10
-  || postCount !== 8
+  || postCount !== 9
 ) {
   fail(
     `methods=GET:${getCount},POST:${postCount}`,
@@ -323,11 +323,11 @@ if (
 }
 
 console.log(
-  "CAREER_BFF_ROUTE_FILES|16",
+  "CAREER_BFF_ROUTE_FILES|17",
 );
 
 console.log(
-  "CAREER_BFF_OPERATIONS|18",
+  "CAREER_BFF_OPERATIONS|19",
 );
 
 console.log(
@@ -339,7 +339,7 @@ console.log(
 );
 
 console.log(
-  "CAREER_API_CLIENT_FUNCTIONS|18",
+  "CAREER_API_CLIENT_FUNCTIONS|19",
 );
 
 console.log(

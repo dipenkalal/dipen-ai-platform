@@ -1669,6 +1669,25 @@ class CareerDomainService:
             occurred_at=occurred_at,
         )
 
+
+    def confirm_owner_applied_application(
+        self,
+        *,
+        application_id: str,
+        reason: str,
+        occurred_at: datetime,
+    ) -> CareerApplication:
+        """Record the owner's external manual application fact."""
+
+        return self.transition_application(
+            application_id=application_id,
+            to_state="APPLIED_CONFIRMED",
+            actor_kind="OWNER",
+            actor_id="dipen-owner",
+            reason=reason,
+            occurred_at=occurred_at,
+        )
+
     def get_cockpit_application(
         self,
         *,

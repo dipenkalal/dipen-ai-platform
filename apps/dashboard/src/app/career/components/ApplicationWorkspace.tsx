@@ -9,6 +9,7 @@ import {
 import {
   advanceCareerApplicationToReview,
   approveCareerApplication,
+  confirmCareerApplicationApplied,
   fetchCareerApplication,
   fetchCareerApplicationEvents,
   fetchCareerApplicationReadiness,
@@ -36,7 +37,12 @@ import {
 
 type GenericTransitionTarget =
   | "PREPARING"
-  | "SHORTLISTED";
+  | "SHORTLISTED"
+  | "INTERVIEW"
+  | "REJECTED"
+  | "WITHDRAWN"
+  | "OFFER"
+  | "CLOSED";
 
 type ApplicationWorkspaceProps = {
   job: CareerDashboardJob;
@@ -237,6 +243,20 @@ export function ApplicationWorkspace({
     );
   }
 
+
+  async function handleConfirmApplied() {
+    await runMutation(
+      () =>
+        confirmCareerApplicationApplied(
+          applicationId,
+          {
+            reason:
+              "Owner confirms this application was submitted manually outside DAP.",
+          },
+        ),
+    );
+  }
+
   const applicationState =
     readStringField(
       application,
@@ -327,7 +347,10 @@ export function ApplicationWorkspace({
           onTransition={
             handleTransition
           }
-        />
+            onConfirmApplied={
+              handleConfirmApplied
+            }
+          />
 
         <ReadinessPanel
           readiness={readiness}
