@@ -11,6 +11,7 @@ import {
   BrainCircuit,
   Building2,
   ClipboardCheck,
+  Cpu,
   Globe2,
   History,
   Mic,
@@ -58,6 +59,11 @@ const navigationItems: NavigationItem[] = [
     label: "Knowledge",
     href: "/knowledge",
     icon: BrainCircuit,
+  },
+  {
+    label: "Local AI",
+    href: "/local-ai",
+    icon: Cpu,
   },
   {
     label: "Research",
@@ -132,7 +138,9 @@ export function AppNavigation() {
 
   if (
     pathname === "/chat" ||
-    pathname.startsWith("/chat/")
+    pathname.startsWith("/chat/") ||
+    pathname === "/local-ai" ||
+    pathname.startsWith("/local-ai/")
   ) {
     return null;
   }
