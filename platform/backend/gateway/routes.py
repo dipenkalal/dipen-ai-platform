@@ -9,6 +9,12 @@ from gateway.schemas import (
 from gateway.service import gateway_service
 
 
+from gateway.local_ai import local_ai_adapter
+from gateway.schemas import (
+    LocalAIChatRequest,
+    LocalAIChatResponse,
+)
+
 router = APIRouter(
     prefix="/api/v1",
     tags=["AI Gateway"],
@@ -52,4 +58,16 @@ async def stream_chat(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@router.post(
+    "/local-ai/chat",
+    response_model=LocalAIChatResponse,
+)
+async def local_ai_chat(
+    request: LocalAIChatRequest,
+) -> LocalAIChatResponse:
+    return await local_ai_adapter.chat(
+        request
     )

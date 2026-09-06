@@ -42,3 +42,22 @@ class ModelInfo(BaseModel):
 
 class ModelsResponse(BaseModel):
     models: list[ModelInfo]
+
+
+class LocalAIChatRequest(BaseModel):
+    model_config = {
+        "extra": "forbid",
+    }
+
+    messages: list[ChatMessage] = Field(
+        min_length=1,
+    )
+
+
+class LocalAIChatResponse(BaseModel):
+    content: str
+    model: str
+    route: str
+    safety: str
+    mutation: str
+    requires_human_approval: bool
