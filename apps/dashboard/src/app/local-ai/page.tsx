@@ -177,6 +177,38 @@ function isStoredConversation(
 }
 
 
+function loadLocalHistory(): LocalAIConversation[] {
+  try {
+    const raw = window.localStorage.getItem(
+      LOCAL_HISTORY_KEY,
+    );
+
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+
+      if (Array.isArray(parsed)) {
+        const conversations = parsed.filter(
+          isStoredConversation,
+        );
+
+        if (conversations.length > 0) {
+          return conversations.sort(
+            (left, right) =>
+              right.updatedAt.localeCompare(
+                left.updatedAt,
+              ),
+          );
+        }
+      }
+    }
+  } catch {
+    // Corrupt browser-local history is ignored.
+  }
+
+  return [createConversation()];
+}
+
+
 function isLocalAIResponse(
   value: unknown,
 ): value is LocalAIResponse {
@@ -255,39 +287,20 @@ export default function LocalAIPage() {
     useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    let loaded: LocalAIConversation[] = [];
+    const timer = window.setTimeout(
+      () => {
+        const loaded = loadLocalHistory();
 
-    try {
-      const raw = window.localStorage.getItem(
-        LOCAL_HISTORY_KEY,
-      );
-
-      if (raw) {
-        const parsed: unknown = JSON.parse(raw);
-
-        if (Array.isArray(parsed)) {
-          loaded = parsed.filter(
-            isStoredConversation,
-          );
-        }
-      }
-    } catch {
-      loaded = [];
-    }
-
-    if (loaded.length === 0) {
-      loaded = [createConversation()];
-    }
-
-    loaded.sort((left, right) =>
-      right.updatedAt.localeCompare(
-        left.updatedAt,
-      ),
+        setConversations(loaded);
+        setActiveConversationId(loaded[0].id);
+        setHistoryHydrated(true);
+      },
+      0,
     );
 
-    setConversations(loaded);
-    setActiveConversationId(loaded[0].id);
-    setHistoryHydrated(true);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -310,8 +323,10 @@ export default function LocalAIPage() {
     [conversations, activeConversationId],
   );
 
-  const messages =
-    activeConversation?.messages ?? [];
+  const messages = useMemo(
+    () => activeConversation?.messages ?? [],
+    [activeConversation],
+  );
 
   const latestMetadata = useMemo(() => {
     for (
@@ -423,37 +438,27 @@ export default function LocalAIPage() {
       return;
     }
 
-    setConversations(
-      (currentConversations) => {
-        const remaining =
-          currentConversations.filter(
-            (conversation) =>
-              conversation.id !== conversationId,
-          );
-
-        if (remaining.length > 0) {
-          if (
-            conversationId ===
-            activeConversationId
-          ) {
-            setActiveConversationId(
-              remaining[0].id,
-            );
-          }
-
-          return remaining;
-        }
-
-        const replacement =
-          createConversation();
-
-        setActiveConversationId(
-          replacement.id,
-        );
-
-        return [replacement];
-      },
+    const remaining = conversations.filter(
+      (conversation) =>
+        conversation.id !== conversationId,
     );
+
+    if (remaining.length === 0) {
+      const replacement = createConversation();
+
+      setConversations([replacement]);
+      setActiveConversationId(replacement.id);
+      setError(null);
+      return;
+    }
+
+    setConversations(remaining);
+
+    if (
+      conversationId === activeConversationId
+    ) {
+      setActiveConversationId(remaining[0].id);
+    }
 
     setError(null);
   }
@@ -606,7 +611,6 @@ export default function LocalAIPage() {
               <p className="truncate text-sm font-semibold">
                 Local AI
               </p>
-
               <p className="truncate text-xs text-zinc-500">
                 DAP v2.1 workspace
               </p>
@@ -714,7 +718,7 @@ export default function LocalAIPage() {
             </Link>
 
             <p className="mt-3 px-3 text-[11px] leading-5 text-zinc-600">
-              History is stored only in this browser. No Local AI chat database is added by this workspace.
+              History stays in this browser. This workspace adds no Local AI chat database.
             </p>
           </div>
         </aside>
@@ -739,7 +743,6 @@ export default function LocalAIPage() {
             <p className="truncate text-sm font-semibold">
               Local AI
             </p>
-
             <p className="hidden truncate text-xs text-zinc-600 sm:block">
               DAP backend → local safety router → routed model
             </p>
@@ -773,7 +776,6 @@ export default function LocalAIPage() {
                   ) : (
                     <ShieldCheck className="h-3.5 w-3.5" />
                   )}
-
                   {latestMetadata.safety}
                 </span>
               </>
@@ -854,11 +856,9 @@ export default function LocalAIPage() {
                               <span className="rounded-full bg-white/[0.05] px-2 py-1 text-zinc-400">
                                 {message.metadata.model}
                               </span>
-
                               <span className="rounded-full bg-white/[0.05] px-2 py-1 text-zinc-400">
                                 {message.metadata.route}
                               </span>
-
                               <span
                                 className={[
                                   "inline-flex items-center gap-1 rounded-full px-2 py-1",
@@ -872,7 +872,6 @@ export default function LocalAIPage() {
                                 ) : (
                                   <CheckCircle2 className="h-3 w-3" />
                                 )}
-
                                 {message.metadata.safety}
                               </span>
                             </div>
