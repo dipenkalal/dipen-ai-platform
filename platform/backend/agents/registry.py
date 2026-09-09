@@ -151,11 +151,14 @@ agent_registry.register(
         accent="amber",
         tools=[
             "system.status",
+            "aws.research",
         ],
         capabilities=[
             "Infrastructure analysis",
             "Operational troubleshooting",
             "Docker guidance",
+            "AWS architecture and service guidance",
+            "Official AWS documentation research",
             "Safe remediation planning",
         ],
         recommended_model="qwen3:1.7b",

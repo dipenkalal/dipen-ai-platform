@@ -7,6 +7,7 @@ from gateway.schemas import (
     ModelsResponse,
 )
 from gateway.service import gateway_service
+from gateway.openai_facade import router as openai_facade_router
 
 
 from gateway.local_ai import local_ai_adapter
@@ -71,3 +72,5 @@ async def local_ai_chat(
     return await local_ai_adapter.chat(
         request
     )
+
+router.include_router(openai_facade_router)

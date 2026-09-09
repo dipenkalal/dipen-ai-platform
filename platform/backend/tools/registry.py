@@ -1,3 +1,4 @@
+from tools.aws_research import AWSResearchTool
 from tools.base import (
     BaseTool,
     CancellationAwareTool,
@@ -56,3 +57,4 @@ tool_registry.register(SystemStatusTool())
 tool_registry.register(KnowledgeSearchTool())
 tool_registry.register(KnowledgeAskTool())
 tool_registry.register(InternetResearchRetrieveTool())
+tool_registry.register(AWSResearchTool())

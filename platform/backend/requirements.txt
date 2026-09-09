@@ -6,3 +6,4 @@ pydantic>=2.9,<3.0
 python-multipart>=0.0.9,<1.0
 pypdf>=5.0,<7.0
 qdrant-client>=1.12,<2.0
+argon2-cffi>=23.1,<26.0

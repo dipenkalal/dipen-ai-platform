@@ -79,6 +79,8 @@ from shared_http import (
 )
 
 
+from user_mode.routes import router as user_mode_router
+
 @asynccontextmanager
 async def backend_lifespan(application: FastAPI):
     telegram_config = TelegramTransportConfig.from_env()
@@ -171,6 +173,7 @@ app.add_middleware(
 
 
 app.include_router(gateway_router)
+app.include_router(user_mode_router)
 app.include_router(research_workspace_router)
 app.include_router(knowledge_router)
 app.include_router(agents_router)

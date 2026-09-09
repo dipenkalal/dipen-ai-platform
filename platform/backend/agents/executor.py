@@ -18,6 +18,8 @@ from gateway.schemas import (
     ChatRequest,
 )
 from gateway.service import gateway_service
+from gateway.aws_knowledge import is_aws_question
+from skills.loader import load_skill
 from tools.registry import tool_registry
 
 SYSTEM_AGENT_PROMPT = """
@@ -354,6 +356,16 @@ class AgentExecutor:
         timer_started: float,
         steps: list[AgentStep],
     ) -> AgentRunResponse:
+        if is_aws_question(request.objective):
+            return await self._run_aws_devops_agent(
+                request=request,
+                agent=agent,
+                run_id=run_id,
+                started_at=started_at,
+                timer_started=timer_started,
+                steps=steps,
+            )
+
         return await self._run_status_agent(
             request=request,
             agent=agent,
@@ -687,6 +699,186 @@ class AgentExecutor:
                 completed_at=generation_completed,
             )
         )
+
+        return self._completed_response(
+            request=request,
+            run_id=run_id,
+            answer=answer,
+            steps=steps,
+            sources=sources,
+            chat_response=chat_response,
+            started_at=started_at,
+            completed_at=generation_completed,
+            timer_started=timer_started,
+        )
+
+    async def _run_aws_devops_agent(
+        self,
+        request: AgentRunRequest,
+        agent: AgentDefinition,
+        run_id: str,
+        started_at: datetime,
+        timer_started: float,
+        steps: list[AgentStep],
+    ) -> AgentRunResponse:
+        del agent
+
+        tool = tool_registry.get("aws.research")
+
+        arguments = {
+            "question": request.objective,
+        }
+
+        tool_started = datetime.now(timezone.utc)
+
+        result = await tool.execute(arguments)
+
+        tool_completed = datetime.now(timezone.utc)
+
+        output = (
+            result.output
+            if isinstance(result.output, dict)
+            else {}
+        )
+
+        evidence = str(
+            output.get("evidence") or ""
+        ).strip()
+
+        source_urls = [
+            value
+            for value in output.get("sources", [])
+            if isinstance(value, str)
+            and value.startswith("https://")
+        ]
+
+        steps.append(
+            AgentStep(
+                step_number=len(steps) + 1,
+                type="tool",
+                title="Research official AWS documentation",
+                tool_id=tool.definition.id,
+                success=result.success,
+                input={
+                    "question": request.objective,
+                },
+                output={
+                    "provider": output.get("provider"),
+                    "search_count": output.get("search_count"),
+                    "characters": output.get("characters"),
+                    "cached": output.get("cached"),
+                    "sources": source_urls,
+                },
+                error=result.error,
+                started_at=tool_started,
+                completed_at=tool_completed,
+            )
+        )
+
+        if not result.success or not evidence:
+            return self._failed_response(
+                request=request,
+                run_id=run_id,
+                answer=(
+                    result.error
+                    or "AWS Knowledge returned no usable evidence."
+                ),
+                steps=steps,
+                started_at=started_at,
+                completed_at=tool_completed,
+                timer_started=timer_started,
+            )
+
+        skill_prompt = load_skill("aws-expert")
+
+        effective_system_prompt = "\n\n".join(
+            [
+                DEVOPS_AGENT_PROMPT,
+                "AWS EXPERT SKILL:",
+                skill_prompt,
+                (
+                    "The AWS Knowledge evidence supplied in the "
+                    "user message is authorized read-only output "
+                    "from the official AWS Knowledge MCP. Use it "
+                    "as the factual basis for AWS-specific claims."
+                ),
+            ]
+        )
+
+        source_text = (
+            "\n".join(
+                f"- {url}"
+                for url in source_urls
+            )
+            if source_urls
+            else "(No source URLs were extracted.)"
+        )
+
+        generation_started = datetime.now(timezone.utc)
+
+        chat_response = await self._chat(
+            request=request,
+            system_prompt=effective_system_prompt,
+            user_content="\n".join(
+                [
+                    "User objective:",
+                    request.objective,
+                    "",
+                    "Authorized official AWS evidence:",
+                    evidence,
+                    "",
+                    "Extracted AWS source URLs:",
+                    source_text,
+                ]
+            ),
+        )
+
+        generation_completed = datetime.now(timezone.utc)
+
+        answer = chat_response.message.content
+
+        steps.append(
+            AgentStep(
+                step_number=len(steps) + 1,
+                type="generation",
+                title="Generate grounded AWS answer",
+                success=True,
+                input={
+                    "provider": request.provider,
+                    "model": request.model,
+                    "skill": "aws-expert",
+                },
+                output={
+                    "provider": chat_response.provider,
+                    "model": chat_response.model,
+                },
+                started_at=generation_started,
+                completed_at=generation_completed,
+            )
+        )
+
+        steps.append(
+            AgentStep(
+                step_number=len(steps) + 1,
+                type="result",
+                title="AWS answer completed",
+                success=True,
+                output={
+                    "answer": answer,
+                },
+                started_at=generation_completed,
+                completed_at=generation_completed,
+            )
+        )
+
+        sources = [
+            {
+                "title": "AWS documentation",
+                "url": url,
+                "provider": "aws-knowledge-mcp",
+            }
+            for url in source_urls
+        ]
 
         return self._completed_response(
             request=request,
