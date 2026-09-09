@@ -1,11 +1,5 @@
-import GuardianMinimalVoice from "./components/GuardianMinimalVoice";
-import GuardianTruthConsole from "./components/GuardianTruthConsole";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return (
-    <>
-      <GuardianMinimalVoice />
-      <GuardianTruthConsole />
-    </>
-  );
+  redirect("/career");
 }

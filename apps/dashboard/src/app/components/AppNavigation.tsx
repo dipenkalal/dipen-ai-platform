@@ -4,21 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  Activity,
-  BarChart3,
-  Bot,
   BriefcaseBusiness,
-  BrainCircuit,
-  Building2,
   ClipboardCheck,
-  Cpu,
-  Globe2,
-  History,
-  Mic,
-  Network,
-  ServerCog,
-  ShieldCheck,
-  Wrench,
 } from "lucide-react";
 
 
@@ -34,84 +21,15 @@ type NavigationItem = {
 
 const navigationItems: NavigationItem[] = [
   {
-    label: "Guardian",
-    href: "/",
-    icon: ShieldCheck,
-    exact: true,
-  },
-  {
-    label: "Company",
-    href: "/company",
-    icon: Building2,
-    exact: true,
-  },
-  {
-    label: "Flow",
-    href: "/company/flow",
-    icon: Network,
-  },
-  {
-    label: "Voice",
-    href: "/guardian",
-    icon: Mic,
-  },
-  {
-    label: "Knowledge",
-    href: "/knowledge",
-    icon: BrainCircuit,
-  },
-  {
-    label: "Local AI",
-    href: "/local-ai",
-    icon: Cpu,
-  },
-  {
-    label: "Research",
-    href: "/research",
-    icon: Globe2,
-    exact: true,
-  },
-  {
-    label: "Career",
+    label: "Jobs",
     href: "/career",
     icon: BriefcaseBusiness,
     exact: true,
   },
   {
-    label: "Research Ops",
-    href: "/research/operations",
-    icon: Activity,
-  },
-  {
-    label: "Agents",
-    href: "/agents",
-    icon: Bot,
-  },
-  {
-    label: "Engineering",
-    href: "/engineering",
-    icon: Wrench,
-    exact: true,
-  },
-  {
-    label: "Reviews",
-    href: "/engineering/reviews",
+    label: "Review",
+    href: "/career/review",
     icon: ClipboardCheck,
-  },
-  {
-    label: "History",
-    href: "/agents/history",
-    icon: History,
-  },
-  {
-    label: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    label: "Monitoring",
-    href: "/monitoring",
-    icon: ServerCog,
   },
 ];
 
@@ -136,42 +54,33 @@ function isActiveRoute(
 export function AppNavigation() {
   const pathname = usePathname();
 
-  if (
-    pathname === "/chat" ||
-    pathname.startsWith("/chat/") ||
-    pathname === "/local-ai" ||
-    pathname.startsWith("/local-ai/")
-  ) {
-    return null;
-  }
-
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <Link
-          href="/"
+          href="/career"
           className="flex shrink-0 items-center gap-3"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-300">
             <span className="text-sm font-bold">
-              DAP
+              CP
             </span>
           </div>
 
           <div className="hidden sm:block">
             <p className="text-sm font-semibold text-white">
-              Guardian Control Core
+              Career Portal
             </p>
 
             <p className="text-xs text-slate-500">
-              Dipen AI Platform
+              Job discovery & application cockpit
             </p>
           </div>
         </Link>
 
         <nav
           aria-label="Primary navigation"
-          className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="ml-auto flex items-center gap-1"
         >
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -191,10 +100,8 @@ export function AppNavigation() {
                     ? "page"
                     : undefined
                 }
-                aria-label={item.label}
-                title={item.label}
                 className={[
-                  "inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition",
+                  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition",
                   active
                     ? "bg-cyan-300 text-slate-950"
                     : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
@@ -202,7 +109,7 @@ export function AppNavigation() {
               >
                 <Icon className="h-4 w-4" />
 
-                <span className="hidden lg:inline">
+                <span>
                   {item.label}
                 </span>
               </Link>
